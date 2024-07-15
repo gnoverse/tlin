@@ -1,10 +1,11 @@
 package lint
 
 import (
+	"encoding/json"
 	"fmt"
-	"go/ast"
 	"go/token"
 	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -32,53 +33,56 @@ type Issue struct {
 	Message  string
 }
 
-// Rule is the interface that wraps the basic Check method.
-//
-// Check examines an AST node and returns true if the rule is violated,
-// along with a message describing the issue.
-type Rule interface {
-	Check(fset *token.FileSet, node ast.Node) (bool, string)
-}
+// Engine manages the linting process.
+type Engine struct{}
 
-// Engine manages a set of lint rules and runs them on AST nodes.
-type Engine struct {
-	rules map[string]Rule
-}
-
-// NewEngine manages a new lint engine with an empty set of rules.
+// NewEngine creates a new lint engine.
 func NewEngine() *Engine {
-	return &Engine{
-		rules: make(map[string]Rule),
+	return &Engine{}
+}
+
+// Run applies golangci-lint to the given file and returns a slice of issues.
+func (e *Engine) Run(filename string) ([]Issue, error) {
+	issues, err := runGolangciLint(filename)
+	if err != nil {
+		return nil, fmt.Errorf("error running golangci-lint: %w", err)
 	}
+	return issues, nil
 }
 
-// AddRule adds a new rule to the engine with the given name.
-func (e *Engine) AddRule(name string, rule Rule) {
-	e.rules[name] = rule
+type golangciOutput struct {
+	Issues []struct {
+		FromLinter string `json:"FromLinter"`
+		Text       string `json:"Text"`
+		Pos        struct {
+			Filename string `json:"Filename"`
+			Line     int    `json:"Line"`
+			Column   int    `json:"Column"`
+		} `json:"Pos"`
+	} `json:"Issues"`
 }
 
-// Run applies all the rules to the given AST file and returns a slice of issues.
-func (e *Engine) Run(fset *token.FileSet, f *ast.File) []Issue {
+func runGolangciLint(filename string) ([]Issue, error) {
+	cmd := exec.Command("golangci-lint", "run", "--out-format=json", filename)
+	output, _ := cmd.CombinedOutput() // avoid non-zero exit code
+
+	var golangciResult golangciOutput
+	if err := json.Unmarshal(output, &golangciResult); err != nil {
+		return nil, fmt.Errorf("error unmarshaling golangci-lint output: %w", err)
+	}
+
 	var issues []Issue
+	for _, gi := range golangciResult.Issues {
+		issues = append(issues, Issue{
+			Rule:     gi.FromLinter,
+			Filename: gi.Pos.Filename,
+			Start:    token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
+			End:      token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1}, // Set End to Start + 1 column
+			Message:  gi.Text,
+		})
+	}
 
-	ast.Inspect(f, func(node ast.Node) bool {
-		for name, rule := range e.rules {
-			if ok, message := rule.Check(fset, node); ok {
-				start := fset.Position(node.Pos())
-				end := fset.Position(node.End())
-				issues = append(issues, Issue{
-					Rule:     name,
-					Filename: start.Filename,
-					Start:    start,
-					End:      end,
-					Message:  message,
-				})
-			}
-		}
-		return true
-	})
-
-	return issues
+	return issues, nil
 }
 
 func FormatIssuesWithArrows(issues []Issue, sourceCode *SourceCode) string {
