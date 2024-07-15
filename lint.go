@@ -1,18 +1,34 @@
 package lint
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
-	"strconv"
+	"os"
 	"strings"
 )
+
+// SourceCode stores the content of a source code file.
+type SourceCode struct {
+	Lines []string
+}
+
+// ReadSourceFile reads the content of a file and returns it as a `SourceCode` struct.
+func ReadSourceCode(filename string) (*SourceCode, error) {
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	lines := strings.Split(string(content), "\n")
+	return &SourceCode{Lines: lines}, nil
+}
 
 // Issue represents a lint issue found in the code base.
 type Issue struct {
 	Rule     string
 	Filename string
-	Line     int
-	Column   int
+	Start    token.Position
+	End      token.Position
 	Message  string
 }
 
@@ -48,12 +64,13 @@ func (e *Engine) Run(fset *token.FileSet, f *ast.File) []Issue {
 	ast.Inspect(f, func(node ast.Node) bool {
 		for name, rule := range e.rules {
 			if ok, message := rule.Check(fset, node); ok {
-				pos := fset.Position(node.Pos())
+				start := fset.Position(node.Pos())
+				end := fset.Position(node.End())
 				issues = append(issues, Issue{
 					Rule:     name,
-					Filename: pos.Filename,
-					Line:     pos.Line,
-					Column:   pos.Column,
+					Filename: start.Filename,
+					Start:    start,
+					End:      end,
 					Message:  message,
 				})
 			}
@@ -64,21 +81,44 @@ func (e *Engine) Run(fset *token.FileSet, f *ast.File) []Issue {
 	return issues
 }
 
-// FormatIssues formats the issues into a string
-func FormatIssues(issues []Issue) string {
+func FormatIssuesWithArrows(issues []Issue, sourceCode *SourceCode) string {
 	var builder strings.Builder
 	for _, issue := range issues {
-		builder.WriteString(issue.Filename)
-		builder.WriteString(":")
-		builder.WriteString(strconv.Itoa(issue.Line))
-		builder.WriteString(":")
-		builder.WriteString(strconv.Itoa(issue.Column))
-		builder.WriteString(": ")
-		builder.WriteString(issue.Rule)
-		builder.WriteString(": ")
-		builder.WriteString(issue.Message)
+		// Write issue location and message
+		builder.WriteString(fmt.Sprintf("%s:%d:%d: %s: %s\n",
+			issue.Filename, issue.Start.Line, issue.Start.Column, issue.Rule, issue.Message))
+
+		// Write the problematic line
+		line := sourceCode.Lines[issue.Start.Line-1]
+		builder.WriteString(line + "\n")
+
+		// Calculate the visual column, considering tabs
+		visualStartColumn := calculateVisualColumn(line, issue.Start.Column)
+		visualEndColumn := calculateVisualColumn(line, issue.End.Column)
+
+		// Write the arrow pointing to the issue
+		builder.WriteString(strings.Repeat(" ", visualStartColumn-1))
+		arrowLength := visualEndColumn - visualStartColumn
+		if arrowLength < 1 {
+			arrowLength = 1
+		}
+		builder.WriteString(strings.Repeat("^", arrowLength))
 		builder.WriteString("\n")
 	}
-
 	return builder.String()
+}
+
+func calculateVisualColumn(line string, column int) int {
+	visualColumn := 0
+	for i, ch := range line {
+		if i+1 >= column {
+			break
+		}
+		if ch == '\t' {
+			visualColumn += 8 - (visualColumn % 8)
+		} else {
+			visualColumn++
+		}
+	}
+	return visualColumn
 }

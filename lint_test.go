@@ -1,4 +1,3 @@
-// lint_test.go
 package lint
 
 import (
@@ -6,6 +5,8 @@ import (
 	"go/token"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLintRule(t *testing.T) {
@@ -49,16 +50,14 @@ func TestLintRule(t *testing.T) {
 				t.Errorf("expected to find no issues, but found %d", len(issues))
 			}
 
-			// Print formatted issues
 			if len(issues) > 0 {
-				formattedIssues := FormatIssues(issues)
-				t.Logf("Found issues:\n%s", formattedIssues)
+				sourceCode := &SourceCode{Lines: strings.Split(tt.code, "\n")}
+				formattedIssues := FormatIssuesWithArrows(issues, sourceCode)
+				t.Logf("Found issues with arrows:\n%s", formattedIssues)
 
-				// Additional check for correct formatting
-				expectedPrefix := "test.go:4:2: no-empty-if: empty if statement"
-				if !strings.HasPrefix(formattedIssues, expectedPrefix) {
-					t.Errorf("Unexpected issue format. Expected to start with %q, got %q", expectedPrefix, formattedIssues)
-				}
+				assert.Contains(t, formattedIssues, "no-empty-if: empty if statement")
+				assert.Contains(t, formattedIssues, "if true {}")
+				assert.Contains(t, formattedIssues, "^^^^^^^^^^")
 			}
 		})
 	}
