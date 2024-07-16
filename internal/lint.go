@@ -34,11 +34,17 @@ type Issue struct {
 }
 
 // Engine manages the linting process.
-type Engine struct{}
+type Engine struct {
+	SymbolTable *SymbolTable
+}
 
 // NewEngine creates a new lint engine.
-func NewEngine() *Engine {
-	return &Engine{}
+func NewEngine(rootDir string) (*Engine, error) {
+	st, err := BuildSymbolTable(rootDir)
+	if err != nil {
+		return nil, fmt.Errorf("error building symbol table: %w", err)
+	}
+	return &Engine{SymbolTable: st}, nil
 }
 
 // Run applies golangci-lint to the given file and returns a slice of issues.
@@ -47,7 +53,23 @@ func (e *Engine) Run(filename string) ([]Issue, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error running golangci-lint: %w", err)
 	}
-	return issues, nil
+	filtered := e.filterUndefinedIssues(issues)
+	return filtered, nil
+}
+
+func (e *Engine) filterUndefinedIssues(issues []Issue) []Issue {
+	var filtered []Issue
+	for _, issue := range issues {
+		if issue.Rule == "typecheck" && strings.Contains(issue.Message, "undefined:") {
+			symbol := strings.TrimSpace(strings.TrimPrefix(issue.Message, "undefined:"))
+			if e.SymbolTable.IsDefined(symbol) {
+				// ignore issues if the symbol is defined in the symbol table
+				continue
+			}
+		}
+		filtered = append(filtered, issue)
+	}
+	return filtered
 }
 
 type golangciOutput struct {
