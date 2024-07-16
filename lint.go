@@ -64,7 +64,12 @@ type golangciOutput struct {
 
 func runGolangciLint(filename string) ([]Issue, error) {
 	cmd := exec.Command("golangci-lint", "run", "--out-format=json", filename)
-	output, _ := cmd.CombinedOutput() // avoid non-zero exit code
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// golang-ci returns non-zero exit code if lint issues are found
+		// So, skip this error message and keep processing the output.
+		fmt.Printf("golang-ci exited with error: %s\n", err)
+	}
 
 	var golangciResult golangciOutput
 	if err := json.Unmarshal(output, &golangciResult); err != nil {

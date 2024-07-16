@@ -34,6 +34,28 @@ func main() {
 				"x declared and not used",
 			},
 		},
+		{
+			name: "Detect multiple issues",
+			code: `
+package main
+
+import (
+    "fmt"
+    "strings"
+)
+
+func main() {
+    x := 1
+    y := "unused"
+    fmt.Println("Hello")
+}
+`,
+			expected: []string{
+				"x declared and not used",
+				"y declared and not used",
+				`"strings" imported and not used`,
+			},
+		},
 	}
 
 	for _, tt := range tests {
