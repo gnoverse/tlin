@@ -1,55 +1,78 @@
 package internal
 
 import (
-	"os"
-	"path/filepath"
-	"testing"
+    "os"
+    "path/filepath"
+    "testing"
+    "time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/require"
 )
 
-func TestSymbolTable(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "symboltable-test")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+func TestSymbolTableCache(t *testing.T) {
+    tmpDir, err := os.MkdirTemp("", "symboltable-cache-test")
+    require.NoError(t, err)
+    defer os.RemoveAll(tmpDir)
 
-	// generate test files
-	file1Content := `package test
+    cacheFile := filepath.Join(tmpDir, ".symbol_cache")
+
+    file1Content := `package test
 type TestStruct struct {}
 func TestFunc() {}
 var TestVar int
 `
-	err = os.WriteFile(filepath.Join(tmpDir, "file1.go"), []byte(file1Content), 0o644)
-	require.NoError(t, err)
+    file1Path := filepath.Join(tmpDir, "file1.go")
+    err = os.WriteFile(file1Path, []byte(file1Content), 0644)
+    require.NoError(t, err)
 
-	file2Content := `package test
-type AnotherStruct struct {}
-func AnotherFunc() {}
+    st := newSymbolTable(cacheFile)
+    err = st.updateSymbols(tmpDir)
+    require.NoError(t, err)
+
+    assert.True(t, st.isDefined("TestStruct"))
+    assert.True(t, st.isDefined("TestFunc"))
+    assert.True(t, st.isDefined("TestVar"))
+
+    err = st.saveCache()
+    require.NoError(t, err)
+
+    st2 := newSymbolTable(cacheFile)
+    err = st2.loadCache()
+    require.NoError(t, err)
+
+    assert.True(t, st2.isDefined("TestStruct"))
+    assert.True(t, st2.isDefined("TestFunc"))
+    assert.True(t, st2.isDefined("TestVar"))
+
+	// update file
+    time.Sleep(time.Second)
+    file1UpdatedContent := `package test
+type TestStruct struct {}
+func TestFunc() {}
+var TestVar int
+func NewFunc() {}
 `
-	err = os.WriteFile(filepath.Join(tmpDir, "file2.go"), []byte(file2Content), 0o644)
-	require.NoError(t, err)
+    err = os.WriteFile(file1Path, []byte(file1UpdatedContent), 0644)
+    require.NoError(t, err)
 
-	// create symbol table
-	st, err := BuildSymbolTable(tmpDir)
-	require.NoError(t, err)
+    err = st2.updateSymbols(tmpDir)
+    require.NoError(t, err)
 
-	assert.True(t, st.IsDefined("TestStruct"))
-	assert.True(t, st.IsDefined("TestFunc"))
-	assert.True(t, st.IsDefined("TestVar"))
-	assert.True(t, st.IsDefined("AnotherStruct"))
-	assert.True(t, st.IsDefined("AnotherFunc"))
-	assert.False(t, st.IsDefined("NonExistentSymbol"))
+    assert.True(t, st2.isDefined("NewFunc"))
 
-	// validate symbol file paths
-	path, exists := st.GetSymbolPath("TestStruct")
-	assert.True(t, exists)
-	assert.Equal(t, filepath.Join(tmpDir, "file1.go"), path)
+    file2Content := `package test
+type AnotherStruct struct {}
+`
+    file2Path := filepath.Join(tmpDir, "file2.go")
+    err = os.WriteFile(file2Path, []byte(file2Content), 0644)
+    require.NoError(t, err)
 
-	path, exists = st.GetSymbolPath("AnotherFunc")
-	assert.True(t, exists)
-	assert.Equal(t, filepath.Join(tmpDir, "file2.go"), path)
+    err = st2.updateSymbols(tmpDir)
+    require.NoError(t, err)
 
-	_, exists = st.GetSymbolPath("NonExistentSymbol")
-	assert.False(t, exists)
+    assert.True(t, st2.isDefined("AnotherStruct"))
+
+    _, err = os.Stat(cacheFile)
+    assert.NoError(t, err)
 }
