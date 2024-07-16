@@ -26,7 +26,7 @@ import (
 )
 
 func main() {
-    x := 1      // unused variable
+    x := 1
     fmt.Println("Hello")
 }
 `,
