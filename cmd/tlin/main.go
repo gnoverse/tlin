@@ -17,17 +17,22 @@ func main() {
 
 	args := flag.Args()
 	if len(args) == 0 {
-		fmt.Println("Error: Please provide file or directory paths")
+		fmt.Println("error: Please provide file or directory paths")
 		os.Exit(1)
 	}
 
-	engine := lint.NewEngine()
-	var allIssues []lint.Issue
+	rootDir := "."
+	engine, err := lint.NewEngine(rootDir)
+	if err != nil {
+		fmt.Printf("error initializing lint engine: %v\n", err)
+		os.Exit(1)
+	}
 
+	var allIssues []lint.Issue
 	for _, path := range args {
 		info, err := os.Stat(path)
 		if err != nil {
-			fmt.Printf("Error accessing %s: %v\n", path, err)
+			fmt.Printf("error accessing %s: %v\n", path, err)
 			continue
 		}
 
@@ -39,7 +44,7 @@ func main() {
 				if !fileInfo.IsDir() && filepath.Ext(filePath) == ".go" || filepath.Ext(filePath) == ".gno" {
 					issues, err := processFile(engine, filePath)
 					if err != nil {
-						fmt.Printf("Error processing %s: %v\n", filePath, err)
+						fmt.Printf("error processing %s: %v\n", filePath, err)
 					} else {
 						allIssues = append(allIssues, issues...)
 					}
@@ -47,18 +52,18 @@ func main() {
 				return nil
 			})
 			if err != nil {
-				fmt.Printf("Error walking directory %s: %v\n", path, err)
+				fmt.Printf("error walking directory %s: %v\n", path, err)
 			}
 		} else {
 			if filepath.Ext(path) == ".go" || filepath.Ext(path) == ".gno" {
 				issues, err := processFile(engine, path)
 				if err != nil {
-					fmt.Printf("Error processing %s: %v\n", path, err)
+					fmt.Printf("error processing %s: %v\n", path, err)
 				} else {
 					allIssues = append(allIssues, issues...)
 				}
 			} else {
-				fmt.Printf("Skipping non-.co file: %s\n", path)
+				fmt.Printf("skipping non-.co file: %s\n", path)
 			}
 		}
 	}
