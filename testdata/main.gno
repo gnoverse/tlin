@@ -1,6 +1,6 @@
 package main
 
-// import "fmt"
+import "fmt"
 
 func foo(x bool) int {
 	if x {
@@ -10,10 +10,10 @@ func foo(x bool) int {
 	}
 }
 
-// func bar() {
-// 	x := 5
-// 	fmt.Printf("hello")
-// }
+func bar() {
+	x := 5
+	println("hello")
+}
 
 func main() {
 	x := foo(true)
