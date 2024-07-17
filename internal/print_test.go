@@ -140,8 +140,8 @@ error: empty-if
 error: example
  --> test.go
    |
-10 |      println("end")
-   |      ^ example issue
+10 |     println("end")
+   |     ^ example issue
 
 `
 
@@ -183,7 +183,7 @@ func TestFormatIssuesWithArrows_UnnecessaryElse(t *testing.T) {
 6 |     } else {
 7 |         return false
 8 |     }
-  | ~~~~~~~~~~~~~~~~~~~
+  | ~~~~
   | unnecessary else block
 
 `
