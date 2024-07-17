@@ -54,6 +54,13 @@ func (e *Engine) Run(filename string) ([]Issue, error) {
 		return nil, fmt.Errorf("error running golangci-lint: %w", err)
 	}
 	filtered := e.filterUndefinedIssues(issues)
+
+	unnecessaryElseIssues, err := e.detectUnnecessaryElse(filename)
+	if err != nil {
+		return nil, fmt.Errorf("error detecting unnecessary else: %w", err)
+	}
+	filtered = append(filtered, unnecessaryElseIssues...)
+
 	return filtered, nil
 }
 
@@ -86,12 +93,7 @@ type golangciOutput struct {
 
 func runGolangciLint(filename string) ([]Issue, error) {
 	cmd := exec.Command("golangci-lint", "run", "--out-format=json", filename)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// golang-ci returns non-zero exit code if lint issues are found
-		// So, skip this error message and keep processing the output.
-		fmt.Printf("golang-ci exited with error: %s\n", err)
-	}
+	output, _ := cmd.CombinedOutput()
 
 	var golangciResult golangciOutput
 	if err := json.Unmarshal(output, &golangciResult); err != nil {

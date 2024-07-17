@@ -18,29 +18,58 @@ import (
 func FormatIssuesWithArrows(issues []Issue, sourceCode *SourceCode) string {
 	var builder strings.Builder
 	for _, issue := range issues {
-		// calculate padding for line number
-		lineNumberStr := fmt.Sprintf("%d", issue.Start.Line)
-		lineNumberPadding := strings.Repeat(" ", len(lineNumberStr)-1)
-
-		// write error header with adjusted indentation
+		// write error header
 		builder.WriteString(fmt.Sprintf("error: %s\n", issue.Rule))
 		builder.WriteString(fmt.Sprintf(" --> %s\n", issue.Filename))
-		builder.WriteString(fmt.Sprintf("  %s|\n", lineNumberPadding))
 
-		// write the problematic line with line number
-		line := sourceCode.Lines[issue.Start.Line-1]
-		expandedLine := expandTabs(line)
-		builder.WriteString(fmt.Sprintf("%d | %s%s\n", issue.Start.Line, lineNumberPadding, expandedLine))
+		if issue.Rule == "unnecessary-else" {
+			ifStartLine := issue.Start.Line - 2 // Start from the 'if' line
+			elseEndLine := issue.End.Line
 
-		// calculate the visual column, considering expanded tabs and line number padding
-		visualColumn := calculateVisualColumn(expandedLine, issue.Start.Column) + len(lineNumberPadding)
+			// calculate max line number for padding
+			maxLineNumber := elseEndLine
+			maxLineNumberStr := fmt.Sprintf("%d", maxLineNumber)
+			lineNumberPadding := strings.Repeat(" ", len(maxLineNumberStr)-1)
 
-		// write the arrow pointing to the issue
-		builder.WriteString(fmt.Sprintf("  %s| ", lineNumberPadding))
-		builder.WriteString(strings.Repeat(" ", visualColumn))
-		builder.WriteString("^ ")
-		builder.WriteString(issue.Message)
-		builder.WriteString("\n\n")
+			builder.WriteString(fmt.Sprintf("  %s|\n", lineNumberPadding))
+
+			maxWidth := 0
+			padding := ""
+			for i := ifStartLine; i <= elseEndLine; i++ {
+				line := sourceCode.Lines[i-1]
+				expandedLine := expandTabs(line)
+				lineNumberStr := fmt.Sprintf("%d", i)
+				padding = strings.Repeat(" ", len(maxLineNumberStr)-len(lineNumberStr))
+				formattedLine := fmt.Sprintf("%s%s | %s\n", padding, lineNumberStr, expandedLine)
+				builder.WriteString(formattedLine)
+				if len(expandedLine) > maxWidth {
+					maxWidth = len(expandedLine)
+				}
+			}
+
+			builder.WriteString(fmt.Sprintf("  %s| %s\n", padding, strings.Repeat("~", maxWidth-1)))
+			builder.WriteString(fmt.Sprintf("  %s| %s\n\n", padding, issue.Message))
+		} else {
+			lineNumberStr := fmt.Sprintf("%d", issue.Start.Line)
+			lineNumberPadding := strings.Repeat(" ", len(lineNumberStr)-1)
+
+			builder.WriteString(fmt.Sprintf("  %s|\n", lineNumberPadding))
+
+			// write the problematic line with line number
+			line := sourceCode.Lines[issue.Start.Line-1]
+			expandedLine := expandTabs(line)
+			builder.WriteString(fmt.Sprintf("%d | %s\n", issue.Start.Line, expandedLine))
+
+			// calculate the visual column, considering expanded tabs
+			visualColumn := calculateVisualColumn(expandedLine, issue.Start.Column)
+
+			// write the arrow pointing to the issue
+			builder.WriteString(fmt.Sprintf("  %s| ", lineNumberPadding))
+			builder.WriteString(strings.Repeat(" ", visualColumn))
+			builder.WriteString("^ ")
+			builder.WriteString(issue.Message)
+			builder.WriteString("\n\n")
+		}
 	}
 	return builder.String()
 }
