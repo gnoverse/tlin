@@ -3,7 +3,7 @@
 Advance Linter for go-like grammar languages.
 
 ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/gnoswap-labs/tlin/CI?label=build)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)]
+![License](https://img.shields.io/badge/License-MIT-blue.svg)
 
 ## Introduction
 
