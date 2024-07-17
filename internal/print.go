@@ -3,12 +3,20 @@ package internal
 import (
 	"fmt"
 	"strings"
+
+	"github.com/fatih/color"
 )
 
 const (
-	greenColor = "\033[32m"
-	resetColor = "\033[0m"
-	tabWidth   = 8
+	tabWidth = 8
+)
+
+var (
+	errorStyle   = color.New(color.FgRed, color.Bold)
+	ruleStyle    = color.New(color.FgYellow, color.Bold)
+	fileStyle    = color.New(color.FgCyan, color.Bold)
+	lineStyle    = color.New(color.FgBlue, color.Bold)
+	messageStyle = color.New(color.FgRed, color.Bold)
 )
 
 func FormatIssuesWithArrows(issues []Issue, sourceCode *SourceCode) string {
@@ -25,7 +33,8 @@ func FormatIssuesWithArrows(issues []Issue, sourceCode *SourceCode) string {
 }
 
 func formatIssueHeader(issue Issue) string {
-	return fmt.Sprintf("error: %s\n --> %s\n", issue.Rule, issue.Filename)
+	return errorStyle.Sprint("error: ") + ruleStyle.Sprint(issue.Rule) + "\n" +
+		lineStyle.Sprint(" --> ") + fileStyle.Sprint(issue.Filename) + "\n"
 }
 
 func formatUnnecessaryElse(issue Issue, sourceCode *SourceCode) string {
@@ -34,29 +43,44 @@ func formatUnnecessaryElse(issue Issue, sourceCode *SourceCode) string {
 	maxLineNumberStr := fmt.Sprintf("%d", elseEndLine)
 	padding := strings.Repeat(" ", len(maxLineNumberStr)-1)
 
-	result.WriteString(fmt.Sprintf("  %s|\n", padding))
+	result.WriteString(lineStyle.Sprintf("  %s|\n", padding))
 
+	maxLen := 0
 	for i := ifStartLine; i <= elseEndLine; i++ {
+		if len(sourceCode.Lines[i-1]) > maxLen {
+			maxLen = len(sourceCode.Lines[i-1])
+		}
 		line := expandTabs(sourceCode.Lines[i-1])
 		lineNumberStr := fmt.Sprintf("%d", i)
 		linePadding := strings.Repeat(" ", len(maxLineNumberStr)-len(lineNumberStr))
-		result.WriteString(fmt.Sprintf("%s%s | %s\n", linePadding, lineNumberStr, line))
+		result.WriteString(lineStyle.Sprintf("%s%s | ", linePadding, lineNumberStr))
+		result.WriteString(line + "\n")
 	}
 
-	result.WriteString(fmt.Sprintf("  %s| %s\n", padding, strings.Repeat("~", len(sourceCode.Lines[elseEndLine-1])-1)))
-	result.WriteString(fmt.Sprintf("  %s| %s\n\n", padding, issue.Message))
+	result.WriteString(lineStyle.Sprintf("  %s| ", padding))
+	result.WriteString(messageStyle.Sprintf("%s\n", strings.Repeat("~", maxLen)))
+	result.WriteString(lineStyle.Sprintf("  %s| ", padding))
+	result.WriteString(messageStyle.Sprintf("%s\n\n", issue.Message))
+
 	return result.String()
 }
 
 func formatGeneralIssue(issue Issue, sourceCode *SourceCode) string {
 	var result strings.Builder
+
 	lineNumberStr := fmt.Sprintf("%d", issue.Start.Line)
 	padding := strings.Repeat(" ", len(lineNumberStr)-1)
-	result.WriteString(fmt.Sprintf("  %s|\n", padding))
+	result.WriteString(lineStyle.Sprintf("  %s|\n", padding))
+
 	line := expandTabs(sourceCode.Lines[issue.Start.Line-1])
-	result.WriteString(fmt.Sprintf("%d | %s\n", issue.Start.Line, line))
+	result.WriteString(lineStyle.Sprintf("%d | ", issue.Start.Line))
+	result.WriteString(line + "\n")
+
 	visualColumn := calculateVisualColumn(line, issue.Start.Column)
-	result.WriteString(fmt.Sprintf("  %s| %s^ %s\n\n", padding, strings.Repeat(" ", visualColumn), issue.Message))
+	result.WriteString(lineStyle.Sprintf("  %s| ", padding))
+	result.WriteString(strings.Repeat(" ", visualColumn))
+	result.WriteString(messageStyle.Sprintf("^ %s\n\n", issue.Message))
+
 	return result.String()
 }
 

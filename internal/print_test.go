@@ -183,7 +183,7 @@ func TestFormatIssuesWithArrows_UnnecessaryElse(t *testing.T) {
 6 |     } else {
 7 |         return false
 8 |     }
-  | ~~~~
+  | ~~~~~~~~~~~~~~~~~~~~
   | unnecessary else block
 
 `
