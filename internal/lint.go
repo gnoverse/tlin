@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -49,11 +50,44 @@ func NewEngine(rootDir string) (*Engine, error) {
 
 // Run applies golangci-lint to the given file and returns a slice of issues.
 func (e *Engine) Run(filename string) ([]Issue, error) {
-	issues, err := runGolangciLint(filename)
+	var tempFile string
+	var err error
+
+	if strings.HasSuffix(filename, ".gno") {
+		tempFile, err = createTempGoFile(filename)
+		if err != nil {
+			return nil, fmt.Errorf("error creating temp file: %w", err)
+		}
+		// deferring the removal of the temporary file to the end of the function
+		// to ensure that the golangci-lint analyze the file before it's removed.
+		defer func() {
+			if tempFile != "" {
+				_ = os.Remove(tempFile)
+			}
+		}()
+	} else {
+		tempFile = filename
+	}
+
+	issues, err := runGolangciLint(tempFile)
 	if err != nil {
 		return nil, fmt.Errorf("error running golangci-lint: %w", err)
 	}
 	filtered := e.filterUndefinedIssues(issues)
+
+	unnecessaryElseIssues, err := e.detectUnnecessaryElse(tempFile)
+	if err != nil {
+		return nil, fmt.Errorf("error detecting unnecessary else: %w", err)
+	}
+	filtered = append(filtered, unnecessaryElseIssues...)
+
+	// map issues back to .gno file if necessary
+	if strings.HasSuffix(filename, ".gno") {
+		for i := range filtered {
+			filtered[i].Filename = filename
+		}
+	}
+
 	return filtered, nil
 }
 
@@ -86,12 +120,7 @@ type golangciOutput struct {
 
 func runGolangciLint(filename string) ([]Issue, error) {
 	cmd := exec.Command("golangci-lint", "run", "--out-format=json", filename)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// golang-ci returns non-zero exit code if lint issues are found
-		// So, skip this error message and keep processing the output.
-		fmt.Printf("golang-ci exited with error: %s\n", err)
-	}
+	output, _ := cmd.CombinedOutput()
 
 	var golangciResult golangciOutput
 	if err := json.Unmarshal(output, &golangciResult); err != nil {
@@ -102,12 +131,39 @@ func runGolangciLint(filename string) ([]Issue, error) {
 	for _, gi := range golangciResult.Issues {
 		issues = append(issues, Issue{
 			Rule:     gi.FromLinter,
-			Filename: gi.Pos.Filename,
+			Filename: gi.Pos.Filename, // Use the filename from golangci-lint output
 			Start:    token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
-			End:      token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1}, // Set End to Start + 1 column
+			End:      token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1},
 			Message:  gi.Text,
 		})
 	}
 
 	return issues, nil
+}
+
+func createTempGoFile(gnoFile string) (string, error) {
+	content, err := os.ReadFile(gnoFile)
+	if err != nil {
+		return "", fmt.Errorf("error reading .gno file: %w", err)
+	}
+
+	dir := filepath.Dir(gnoFile)
+	tempFile, err := os.CreateTemp(dir, "temp_*.go")
+	if err != nil {
+		return "", fmt.Errorf("error creating temp file: %w", err)
+	}
+
+	_, err = tempFile.Write(content)
+	if err != nil {
+		os.Remove(tempFile.Name())
+		return "", fmt.Errorf("error writing to temp file: %w", err)
+	}
+
+	err = tempFile.Close()
+	if err != nil {
+		os.Remove(tempFile.Name())
+		return "", fmt.Errorf("error closing temp file: %w", err)
+	}
+
+	return tempFile.Name(), nil
 }

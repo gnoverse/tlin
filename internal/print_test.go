@@ -140,12 +140,55 @@ error: empty-if
 error: example
  --> test.go
    |
-10 |      println("end")
-   |      ^ example issue
+10 |     println("end")
+   |     ^ example issue
 
 `
 
 	result := FormatIssuesWithArrows(issues, sourceCode)
 
 	assert.Equal(t, expected, result, "Formatted output with multiple digit line numbers does not match expected")
+}
+
+func TestFormatIssuesWithArrows_UnnecessaryElse(t *testing.T) {
+	sourceCode := &SourceCode{
+		Lines: []string{
+			"package main",
+			"",
+			"func unnecessaryElse() bool {",
+			"    if condition {",
+			"        return true",
+			"    } else {",
+			"        return false",
+			"    }",
+			"}",
+		},
+	}
+
+	issues := []Issue{
+		{
+			Rule:     "unnecessary-else",
+			Filename: "test.go",
+			Start:    token.Position{Line: 6, Column: 5},
+			End:      token.Position{Line: 8, Column: 5},
+			Message:  "unnecessary else block",
+		},
+	}
+
+	expected := `error: unnecessary-else
+ --> test.go
+  |
+4 |     if condition {
+5 |         return true
+6 |     } else {
+7 |         return false
+8 |     }
+  | ~~~~
+  | unnecessary else block
+
+`
+
+	result := FormatIssuesWithArrows(issues, sourceCode)
+
+	assert.Equal(t, expected, result, "Formatted output does not match expected for unnecessary else")
 }
