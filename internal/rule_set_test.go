@@ -92,3 +92,108 @@ func example2() int {
 		})
 	}
 }
+
+func TestDetectUnusedFunctions(t *testing.T) {
+	tests := []struct {
+		name     string
+		code     string
+		expected int
+	}{
+		{
+			name: "No unused functions",
+			code: `
+package main
+
+func main() {
+    helper()
+}
+
+func helper() {
+    println("do something")
+}`,
+			expected: 0,
+		},
+		{
+			name: "One unused function",
+			code: `
+package main
+
+func main() {
+    println("1")
+}
+
+func unused() {
+    println("do something")
+}`,
+			expected: 1,
+		},
+		{
+			name: "Multiple unused functions",
+			code: `
+package main
+
+func main() {
+    used()
+}
+
+func used() {
+    // this function is called
+}
+
+func unused1() {
+    // this function is never called
+}
+
+func unused2() {
+    // this function is also never called
+}`,
+			expected: 2,
+		},
+		// 		{
+		// 			name: "Unused method",
+		// 			code: `
+		// package main
+
+		// type MyStruct struct{}
+
+		// func (m MyStruct) Used() {
+		//     // this method is used
+		// }
+
+		// func (m MyStruct) Unused() {
+		//     // this method is never used
+		// }
+
+		// func main() {
+		//     m := MyStruct{}
+		//     m.Used()
+		// }`,
+		// 			expected: 1,
+		// 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir, err := os.MkdirTemp("", "lint-test")
+			require.NoError(t, err)
+			defer os.RemoveAll(tmpDir)
+
+			tmpfile := filepath.Join(tmpDir, "test.go")
+			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
+			require.NoError(t, err)
+
+			engine := &Engine{}
+			issues, err := engine.detectUnusedFunctions(tmpfile)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expected, len(issues), "Number of detected unused functions doesn't match expected")
+
+			if len(issues) > 0 {
+				for _, issue := range issues {
+					assert.Equal(t, "unused-function", issue.Rule)
+					assert.Contains(t, issue.Message, "function", "is declared but not used")
+				}
+			}
+		})
+	}
+}

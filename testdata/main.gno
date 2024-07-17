@@ -1,12 +1,15 @@
 package main
 
-import "fmt"
+import "strings"
 
-func foo(x bool) int {
+func foo(x, y bool) int {
 	if x {
 		return 1
 	} else {
-		return 2
+		if y {
+			return 2
+		}
+		return 3
 	}
 }
 

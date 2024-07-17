@@ -45,6 +45,10 @@ import (
     "strings"
 )
 
+func foo() {
+	println("unused")
+}
+
 func main() {
     x := 1
     y := "unused"
@@ -55,6 +59,7 @@ func main() {
 				"x declared and not used",
 				"y declared and not used",
 				`"strings" imported and not used`,
+				"function foo is declared and not used",
 			},
 		},
 	}

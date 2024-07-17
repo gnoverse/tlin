@@ -81,6 +81,12 @@ func (e *Engine) Run(filename string) ([]Issue, error) {
 	}
 	filtered = append(filtered, unnecessaryElseIssues...)
 
+	unusedFunc, err := e.detectUnusedFunctions(tempFile)
+	if err != nil {
+		return nil, fmt.Errorf("error detecting unused functions: %w", err)
+	}
+	filtered = append(filtered, unusedFunc...)
+
 	// map issues back to .gno file if necessary
 	if strings.HasSuffix(filename, ".gno") {
 		for i := range filtered {
