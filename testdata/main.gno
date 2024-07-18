@@ -6,10 +6,7 @@ func foo(x, y bool) int {
 	if x {
 		return 1
 	} else {
-		if y {
-			return 2
-		}
-		return 3
+		return 2
 	}
 }
 

@@ -16,20 +16,23 @@ func (f *UnnecessaryElseFormatter) Format(
 ) string {
 	var result strings.Builder
 	ifStartLine, elseEndLine := issue.Start.Line-2, issue.End.Line
-	maxLineNumberStr := fmt.Sprintf("%d", elseEndLine)
-	padding := strings.Repeat(" ", len(maxLineNumberStr)-1)
 
+	code := strings.Join(snippet.Lines, "\n")
+	problemSnippet := internal.ExtractSnippet(issue, code, ifStartLine-1, elseEndLine-1)
+	suggestion, err := internal.RemoveUnnecessaryElse(problemSnippet)
+	if err != nil {
+		suggestion = problemSnippet
+	}
+
+	maxLineNumWidth := calculateMaxLineNumWidth(elseEndLine)
+	padding := strings.Repeat(" ", maxLineNumWidth-1)
 	result.WriteString(lineStyle.Sprintf("  %s|\n", padding))
 
-	maxLen := 0
+	maxLen := calculateMaxLineLength(snippet.Lines, ifStartLine, elseEndLine)
 	for i := ifStartLine; i <= elseEndLine; i++ {
-		if len(snippet.Lines[i-1]) > maxLen {
-			maxLen = len(snippet.Lines[i-1])
-		}
 		line := expandTabs(snippet.Lines[i-1])
-		lineNumberStr := fmt.Sprintf("%d", i)
-		linePadding := strings.Repeat(" ", len(maxLineNumberStr)-len(lineNumberStr))
-		result.WriteString(lineStyle.Sprintf("%s%s | ", linePadding, lineNumberStr))
+		lineNumberStr := fmt.Sprintf("%*d", maxLineNumWidth, i)
+		result.WriteString(lineStyle.Sprintf("%s | ", lineNumberStr))
 		result.WriteString(line + "\n")
 	}
 
@@ -37,6 +40,45 @@ func (f *UnnecessaryElseFormatter) Format(
 	result.WriteString(messageStyle.Sprintf("%s\n", strings.Repeat("~", maxLen)))
 	result.WriteString(lineStyle.Sprintf("  %s| ", padding))
 	result.WriteString(messageStyle.Sprintf("%s\n\n", issue.Message))
+
+	result.WriteString(formatSuggestion(issue, suggestion, ifStartLine))
+	result.WriteString("\n")
+
+	return result.String()
+}
+
+func calculateMaxLineNumWidth(endLine int) int {
+	return len(fmt.Sprintf("%d", endLine))
+}
+
+func calculateMaxLineLength(lines []string, start, end int) int {
+	maxLen := 0
+	for i := start - 1; i < end; i++ {
+		if len(lines[i]) > maxLen {
+			maxLen = len(lines[i])
+		}
+	}
+	return maxLen
+}
+
+func formatSuggestion(issue internal.Issue, improvedSnippet string, startLine int) string {
+	var result strings.Builder
+	lines := strings.Split(improvedSnippet, "\n")
+	maxLineNumWidth := calculateMaxLineNumWidth(issue.End.Line)
+
+	result.WriteString(suggestionStyle.Sprint("Suggestion:\n"))
+
+	for i, line := range lines {
+		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, startLine+i)
+		result.WriteString(lineStyle.Sprintf("%s | ", lineNum))
+		result.WriteString(fmt.Sprintln(line))
+	}
+
+	// Add a note explaining the improvement
+	result.WriteString("\n")
+	result.WriteString(suggestionStyle.Sprint("Note: "))
+	result.WriteString("Unnecessary 'else' block removed.\n")
+	result.WriteString("The code inside the 'else' block has been moved outside, as it will only be executed when the 'if' condition is false.\n")
 
 	return result.String()
 }
