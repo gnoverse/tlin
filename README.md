@@ -47,55 +47,54 @@ tlin .
 
 tlin allows addition of custom lint rules beyond the default golangci-lint rules. To add a new lint rule, follow these steps:
 
-1. Add a function defining the new rule in the `internal/rule_set.go` file.
+> ⚠️ Must update relevant tests if you have added a new rule or formatter.
 
-Example:
+1. Implement the `LintRule` interface for your new rule:
 
 ```go
-func (e *Engine) detectNewRule(filename string) ([]Issue, error) {
-    // rule implementation
+type NewRule struct{}
+
+func (r *NewRule) Check(filename string) ([]Issue, error) {
+    // Implement your lint rule logic here
+    // return a slice of Issues and any error encountered
 }
 ```
 
-2. Add the new rule to the `Run` method in the `internal/lint.go` file.
+2. Register your new rule in the `registerDefaultRules` method of the `Engine` struct in `internal/engine.go`:
 
 ```go
-newRuleIssues, err := e.detectNewRule(tempFile)
-if err != nil {
-    return nil, fmt.Errorf("error detecting new rule: %w", err)
-}
-filtered = append(filtered, newRuleIssues...)
-```
-
-3. (Optional) Create a new formatter for the new rule in the `formatter` pacakge.
-  a. Create a new file named after your lint rule (e.g., `new_rule.go`) in the `formatter` package.
-
-  b. Implement the `IssueFormatter` interface for your new rule:
-
-  ```go
-  type NewRuleFormatter struct{}
-
-  func (f *NewRuleFormatter) Format(
-    issue internal.Issue,
-    snippet *internal.SourceCode,
-    ) string {
-        // Implementation of the formatting logic for the new rule
-    }
-  ```
-
-  c. Add the new formatter to the `GetFormatter` function in `formatter/fmt.go`:
-
-  ```go
-    // rule set
-    const (
+func (e *Engine) registerDefaultRules() {
+    e.rules = append(e.rules,
+        &GolangciLintRule{},
         // ...
-        NewRule = "new_rule" // <- define the new rule as constant
+        &NewRule{}, // Add your new rule here
     )
+}
+```
 
+3. (Optional) if your rule requires special formatting, create a new formatter in the `formatter` package:
+
+    a. Create a new file (e.g., `formatter/new_rule.go`).
+    b. Implement the `IssueFormatter` interface for your new rule:
+
+    ```go
+    type NewRuleFormatter struct{}
+
+    func (f *NewRuleFormatter) Format(
+        issue internal.Issue,
+        snippet *internal.SourceCode,
+    ) string {
+        // Implement formatting logic for new rule here.
+    }
+    ```
+
+    c. Add the new formatter to the `GetFormatter` function in `formatter/fmt.go`.
+
+    ```go
     func GetFormatter(rule string) IssueFormatter {
         switch rule {
         // ...
-        case NewRule:
+        case "new_rule": // Add your new rule here
             return &NewRuleFormatter{}
         default:
             return &DefaultFormatter{}
@@ -103,10 +102,7 @@ filtered = append(filtered, newRuleIssues...)
     }
     ```
 
-4. If necessary, update the `FormatIssueWithArrow` function in `formatter/fmt.go` to handle any special formatting requirements for your new rule.
-
 By following these steps, you can add new lint rules and ensure they are properly formatted when displayed in the CLI.
-
 
 ## Contributing
 

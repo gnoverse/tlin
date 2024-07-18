@@ -3,113 +3,26 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
+	"go/ast"
+	"go/parser"
 	"go/token"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"strings"
 )
 
-// SourceCode stores the content of a source code file.
-type SourceCode struct {
-	Lines []string
+/*
+* Implement each lint rule as a separate struct
+ */
+
+// LintRule defines the interface for all lint rules.
+type LintRule interface {
+	// Check runs the lint rule on the given file and returns a slice of Issues.
+	Check(filename string) ([]Issue, error)
 }
 
-// ReadSourceFile reads the content of a file and returns it as a `SourceCode` struct.
-func ReadSourceCode(filename string) (*SourceCode, error) {
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	lines := strings.Split(string(content), "\n")
-	return &SourceCode{Lines: lines}, nil
-}
+type GolangciLintRule struct{}
 
-// Issue represents a lint issue found in the code base.
-type Issue struct {
-	Rule     string
-	Filename string
-	Start    token.Position
-	End      token.Position
-	Message  string
-}
-
-// Engine manages the linting process.
-type Engine struct {
-	SymbolTable *SymbolTable
-}
-
-// NewEngine creates a new lint engine.
-func NewEngine(rootDir string) (*Engine, error) {
-	st, err := BuildSymbolTable(rootDir)
-	if err != nil {
-		return nil, fmt.Errorf("error building symbol table: %w", err)
-	}
-	return &Engine{SymbolTable: st}, nil
-}
-
-// Run applies golangci-lint to the given file and returns a slice of issues.
-func (e *Engine) Run(filename string) ([]Issue, error) {
-	var tempFile string
-	var err error
-
-	if strings.HasSuffix(filename, ".gno") {
-		tempFile, err = createTempGoFile(filename)
-		if err != nil {
-			return nil, fmt.Errorf("error creating temp file: %w", err)
-		}
-		// deferring the removal of the temporary file to the end of the function
-		// to ensure that the golangci-lint analyze the file before it's removed.
-		defer func() {
-			if tempFile != "" {
-				_ = os.Remove(tempFile)
-			}
-		}()
-	} else {
-		tempFile = filename
-	}
-
-	issues, err := runGolangciLint(tempFile)
-	if err != nil {
-		return nil, fmt.Errorf("error running golangci-lint: %w", err)
-	}
-	filtered := e.filterUndefinedIssues(issues)
-
-	unnecessaryElseIssues, err := e.detectUnnecessaryElse(tempFile)
-	if err != nil {
-		return nil, fmt.Errorf("error detecting unnecessary else: %w", err)
-	}
-	filtered = append(filtered, unnecessaryElseIssues...)
-
-	unusedFunc, err := e.detectUnusedFunctions(tempFile)
-	if err != nil {
-		return nil, fmt.Errorf("error detecting unused functions: %w", err)
-	}
-	filtered = append(filtered, unusedFunc...)
-
-	// map issues back to .gno file if necessary
-	if strings.HasSuffix(filename, ".gno") {
-		for i := range filtered {
-			filtered[i].Filename = filename
-		}
-	}
-
-	return filtered, nil
-}
-
-func (e *Engine) filterUndefinedIssues(issues []Issue) []Issue {
-	var filtered []Issue
-	for _, issue := range issues {
-		if issue.Rule == "typecheck" && strings.Contains(issue.Message, "undefined:") {
-			symbol := strings.TrimSpace(strings.TrimPrefix(issue.Message, "undefined:"))
-			if e.SymbolTable.IsDefined(symbol) {
-				// ignore issues if the symbol is defined in the symbol table
-				continue
-			}
-		}
-		filtered = append(filtered, issue)
-	}
-	return filtered
+func (r *GolangciLintRule) Check(filename string) ([]Issue, error) {
+	return runGolangciLint(filename)
 }
 
 type golangciOutput struct {
@@ -147,29 +60,102 @@ func runGolangciLint(filename string) ([]Issue, error) {
 	return issues, nil
 }
 
-func createTempGoFile(gnoFile string) (string, error) {
-	content, err := os.ReadFile(gnoFile)
+type UnnecessaryElseRule struct{}
+
+func (r *UnnecessaryElseRule) Check(filename string) ([]Issue, error) {
+	engine := &Engine{}
+	return engine.detectUnnecessaryElse(filename)
+}
+
+// detectUnnecessaryElse detects unnecessary else blocks.
+// This rule considers an else block unnecessary if the if block ends with a return statement.
+// In such cases, the else block can be removed and the code can be flattened to improve readability.
+func (e *Engine) detectUnnecessaryElse(filename string) ([]Issue, error) {
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
-		return "", fmt.Errorf("error reading .gno file: %w", err)
+		return nil, err
 	}
 
-	dir := filepath.Dir(gnoFile)
-	tempFile, err := os.CreateTemp(dir, "temp_*.go")
+	var issues []Issue
+	ast.Inspect(node, func(n ast.Node) bool {
+		ifStmt, ok := n.(*ast.IfStmt)
+		if !ok {
+			return true
+		}
+
+		if ifStmt.Else != nil {
+			blockStmt := ifStmt.Body
+			if len(blockStmt.List) > 0 {
+				lastStmt := blockStmt.List[len(blockStmt.List)-1]
+				if _, isReturn := lastStmt.(*ast.ReturnStmt); isReturn {
+					issue := Issue{
+						Rule:     "unnecessary-else",
+						Filename: filename,
+						Start:    fset.Position(ifStmt.Else.Pos()),
+						End:      fset.Position(ifStmt.Else.End()),
+						Message:  "unnecessary else block",
+					}
+					issues = append(issues, issue)
+				}
+			}
+		}
+
+		return true
+	})
+
+	return issues, nil
+}
+
+type UnusedFunctionRule struct{}
+
+func (r *UnusedFunctionRule) Check(filename string) ([]Issue, error) {
+	engine := &Engine{}
+	return engine.detectUnusedFunctions(filename)
+}
+
+// detectUnusedFunctions detects functions that are declared but never used.
+// This rule reports all unused functions except for the following cases:
+//  1. The main function: It's considered "used" as it's the entry point of the program.
+//  2. The init function: It's used for package initialization and runs without explicit calls.
+//  3. Exported functions: Functions starting with a capital letter are excluded as they might be used in other packages.
+//
+// This rule helps in code cleanup and improves maintainability.
+func (e *Engine) detectUnusedFunctions(filename string) ([]Issue, error) {
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
-		return "", fmt.Errorf("error creating temp file: %w", err)
+		return nil, err
 	}
 
-	_, err = tempFile.Write(content)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		return "", fmt.Errorf("error writing to temp file: %w", err)
+	declaredFuncs := make(map[string]*ast.FuncDecl)
+	calledFuncs := make(map[string]bool)
+
+	ast.Inspect(node, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.FuncDecl:
+			declaredFuncs[x.Name.Name] = x
+		case *ast.CallExpr:
+			if ident, ok := x.Fun.(*ast.Ident); ok {
+				calledFuncs[ident.Name] = true
+			}
+		}
+		return true
+	})
+
+	var issues []Issue
+	for funcName, funcDecl := range declaredFuncs {
+		if !calledFuncs[funcName] && funcName != "main" && funcName != "init" && !ast.IsExported(funcName) {
+			issue := Issue{
+				Rule:     "unused-function",
+				Filename: filename,
+				Start:    fset.Position(funcDecl.Pos()),
+				End:      fset.Position(funcDecl.End()),
+				Message:  "function " + funcName + " is declared but not used",
+			}
+			issues = append(issues, issue)
+		}
 	}
 
-	err = tempFile.Close()
-	if err != nil {
-		os.Remove(tempFile.Name())
-		return "", fmt.Errorf("error closing temp file: %w", err)
-	}
-
-	return tempFile.Name(), nil
+	return issues, nil
 }

@@ -17,28 +17,28 @@ type IssueFormatter interface {
 	Format(issue internal.Issue, snippet *internal.SourceCode) string
 }
 
-// GetFormatter is a factory function that returns the appropriate IssueFormatter
-// based on the given rule.
-// If no specific formatter is found for the given rule, it returns a GeneralIssueFormatter.
-func GetFormatter(rule string) IssueFormatter {
-	switch rule {
-	case UnnecessaryElse:
-		return &UnnecessaryElseFormatter{}
-	default:
-		return &GeneralIssueFormatter{}
-	}
-}
-
 // FormatIssuesWithArrows formats a slice of issues into a human-readable string.
 // It uses the appropriate formatter for each issue based on its rule.
 func FormatIssuesWithArrows(issues []internal.Issue, snippet *internal.SourceCode) string {
 	var builder strings.Builder
 	for _, issue := range issues {
 		builder.WriteString(formatIssueHeader(issue))
-		formatter := GetFormatter(issue.Rule)
+		formatter := getFormatter(issue.Rule)
 		builder.WriteString(formatter.Format(issue, snippet))
 	}
 	return builder.String()
+}
+
+// getFormatter is a factory function that returns the appropriate IssueFormatter
+// based on the given rule.
+// If no specific formatter is found for the given rule, it returns a GeneralIssueFormatter.
+func getFormatter(rule string) IssueFormatter {
+	switch rule {
+	case UnnecessaryElse:
+		return &UnnecessaryElseFormatter{}
+	default:
+		return &GeneralIssueFormatter{}
+	}
 }
 
 // formatIssueHeader creates a formatted header string for a given issue.
