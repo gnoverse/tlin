@@ -1,11 +1,8 @@
 package internal
 
 import (
-	"encoding/json"
 	"fmt"
-	"go/token"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -43,53 +40,13 @@ func (e *Engine) AddRule(rule LintRule) {
 	e.rules = append(e.rules, rule)
 }
 
-// Run applies golangci-lint to the given file and returns a slice of issues.
+// Run applies all lint rules to the given file and returns a slice of Issues.
 func (e *Engine) Run(filename string) ([]Issue, error) {
-	var tempFile string
-	var err error
-
-	if strings.HasSuffix(filename, ".gno") {
-		tempFile, err = createTempGoFile(filename)
-		if err != nil {
-			return nil, fmt.Errorf("error creating temp file: %w", err)
-		}
-		// deferring the removal of the temporary file to the end of the function
-		// to ensure that the golangci-lint analyze the file before it's removed.
-		defer func() {
-			if tempFile != "" {
-				_ = os.Remove(tempFile)
-			}
-		}()
-	} else {
-		tempFile = filename
+	tempFile, err := e.prepareFile(filename)
+	if err != nil {
+		return nil, err
 	}
-
-	// issues, err := runGolangciLint(tempFile)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error running golangci-lint: %w", err)
-	// }
-	// filtered := e.filterUndefinedIssues(issues)
-
-	// unnecessaryElseIssues, err := e.detectUnnecessaryElse(tempFile)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error detecting unnecessary else: %w", err)
-	// }
-	// filtered = append(filtered, unnecessaryElseIssues...)
-
-	// unusedFunc, err := e.detectUnusedFunctions(tempFile)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error detecting unused functions: %w", err)
-	// }
-	// filtered = append(filtered, unusedFunc...)
-
-	// // map issues back to .gno file if necessary
-	// if strings.HasSuffix(filename, ".gno") {
-	// 	for i := range filtered {
-	// 		filtered[i].Filename = filename
-	// 	}
-	// }
-
-	// return filtered, nil
+	defer e.cleanupTemp(tempFile)
 
 	var allIssues []Issue
 	for _, rule := range e.rules {
@@ -112,6 +69,19 @@ func (e *Engine) Run(filename string) ([]Issue, error) {
 	return filtered, nil
 }
 
+func (e *Engine) prepareFile(filename string) (string, error) {
+	if strings.HasSuffix(filename, "gno") {
+		return createTempGoFile(filename)
+	}
+	return filename, nil
+}
+
+func (e *Engine) cleanupTemp(temp string) {
+	if temp != "" && strings.HasPrefix(filepath.Base(temp), "temp_") {
+		_ = os.Remove(temp)
+	}
+}
+
 func (e *Engine) filterUndefinedIssues(issues []Issue) []Issue {
 	var filtered []Issue
 	for _, issue := range issues {
@@ -125,41 +95,6 @@ func (e *Engine) filterUndefinedIssues(issues []Issue) []Issue {
 		filtered = append(filtered, issue)
 	}
 	return filtered
-}
-
-type golangciOutput struct {
-	Issues []struct {
-		FromLinter string `json:"FromLinter"`
-		Text       string `json:"Text"`
-		Pos        struct {
-			Filename string `json:"Filename"`
-			Line     int    `json:"Line"`
-			Column   int    `json:"Column"`
-		} `json:"Pos"`
-	} `json:"Issues"`
-}
-
-func runGolangciLint(filename string) ([]Issue, error) {
-	cmd := exec.Command("golangci-lint", "run", "--out-format=json", filename)
-	output, _ := cmd.CombinedOutput()
-
-	var golangciResult golangciOutput
-	if err := json.Unmarshal(output, &golangciResult); err != nil {
-		return nil, fmt.Errorf("error unmarshaling golangci-lint output: %w", err)
-	}
-
-	var issues []Issue
-	for _, gi := range golangciResult.Issues {
-		issues = append(issues, Issue{
-			Rule:     gi.FromLinter,
-			Filename: gi.Pos.Filename, // Use the filename from golangci-lint output
-			Start:    token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
-			End:      token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1},
-			Message:  gi.Text,
-		})
-	}
-
-	return issues, nil
 }
 
 func createTempGoFile(gnoFile string) (string, error) {
@@ -187,4 +122,14 @@ func createTempGoFile(gnoFile string) (string, error) {
 	}
 
 	return tempFile.Name(), nil
+}
+
+// ReadSourceFile reads the content of a file and returns it as a `SourceCode` struct.
+func ReadSourceCode(filename string) (*SourceCode, error) {
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	lines := strings.Split(string(content), "\n")
+	return &SourceCode{Lines: lines}, nil
 }
