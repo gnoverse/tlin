@@ -191,6 +191,15 @@ func TestFormatIssuesWithArrows_UnnecessaryElse(t *testing.T) {
   | ~~~~~~~~~~~~~~~~~~~~
   | unnecessary else block
 
+Suggestion:
+4 | if condition {
+5 | 	return true
+6 | }
+7 | return false
+
+Note: Unnecessary 'else' block removed.
+The code inside the 'else' block has been moved outside, as it will only be executed when the 'if' condition is false.
+
 `
 
 	result := FormatIssuesWithArrows(issues, sourceCode)

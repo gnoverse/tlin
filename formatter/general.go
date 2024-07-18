@@ -11,11 +11,12 @@ import (
 const tabWidth = 8
 
 var (
-	errorStyle   = color.New(color.FgRed, color.Bold)
-	ruleStyle    = color.New(color.FgYellow, color.Bold)
-	fileStyle    = color.New(color.FgCyan, color.Bold)
-	lineStyle    = color.New(color.FgBlue, color.Bold)
-	messageStyle = color.New(color.FgRed, color.Bold)
+	errorStyle      = color.New(color.FgRed, color.Bold)
+	ruleStyle       = color.New(color.FgYellow, color.Bold)
+	fileStyle       = color.New(color.FgCyan, color.Bold)
+	lineStyle       = color.New(color.FgBlue, color.Bold)
+	messageStyle    = color.New(color.FgRed, color.Bold)
+	suggestionStyle = color.New(color.FgGreen, color.Bold)
 )
 
 // GeneralIssueFormatter is a formatter for general lint issues.
