@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/gnoswap-labs/lint/formatter"
 	lint "github.com/gnoswap-labs/lint/internal"
 )
 
@@ -86,7 +87,7 @@ func main() {
 			fmt.Printf("error reading source file %s: %v\n", filename, err)
 			continue
 		}
-		output := lint.FormatIssuesWithArrows(issues, sourceCode)
+		output := formatter.FormatIssuesWithArrows(issues, sourceCode)
 		fmt.Println(output)
 	}
 
