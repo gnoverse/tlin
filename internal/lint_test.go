@@ -197,3 +197,91 @@ func unused2() {
 		})
 	}
 }
+
+func TestDetectUnnecessarySliceLength(t *testing.T) {
+	baseMsg := "unnecessary use of len() in slice expression, can be simplified"
+	tests := []struct {
+		name     string
+		code     string
+		expected int
+		message  string
+	}{
+		{
+			name: "suggests to use slice[:]",
+			code: `
+package main
+
+func main() {
+	slice := []int{1, 2, 3}
+	_ = slice[:len(slice)]
+}`,
+			expected: 1,
+			message:  baseMsg,
+		},
+		{
+			name: "suggests to use slice[a:]",
+			code: `
+package main
+
+func main() {
+	slice := []int{1, 2, 3}
+	_ = slice[1:len(slice)]
+}`,
+			expected: 1,
+			message:  baseMsg,
+		},
+		{
+			name: "Unnecessary slice length",
+			code: `
+package main
+
+func main() {
+	slice := []int{1, 2, 3}
+	_ = slice[:]
+}`,
+			expected: 0,
+		},
+		{
+			name: "slice[a:len(slice)] -> slice[a:] (a: variable)",
+			code: `
+package main
+
+func main() {
+	slice := []int{1, 2, 3}
+	a := 1
+	_ = slice[a:len(slice)]
+}`,
+			expected: 1,
+			message:  baseMsg,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir, err := os.MkdirTemp("", "lint-test")
+			require.NoError(t, err)
+			defer os.RemoveAll(tmpDir)
+
+			tmpfile := filepath.Join(tmpDir, "test.go")
+			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
+			require.NoError(t, err)
+
+			engine := &Engine{}
+			issues, err := engine.detectUnnecessarySliceLength(tmpfile)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expected, len(issues), "Number of detected unnecessary slice length doesn't match expected")
+
+			if len(issues) > 0 {
+				for _, issue := range issues {
+					assert.Equal(t, "simplify-slice-range", issue.Rule)
+					assert.Equal(
+						t,
+						tt.message,
+						issue.Message,
+					)
+				}
+			}
+		})
+	}
+}

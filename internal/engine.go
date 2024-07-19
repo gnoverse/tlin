@@ -32,6 +32,7 @@ func (e *Engine) registerDefaultRules() {
 		&GolangciLintRule{},
 		&UnnecessaryElseRule{},
 		&UnusedFunctionRule{},
+		&SimplifySliceExprRule{},
 	)
 }
 

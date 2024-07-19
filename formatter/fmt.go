@@ -1,14 +1,17 @@
 package formatter
 
 import (
+	"fmt"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/gnoswap-labs/lint/internal"
 )
 
 // rule set
 const (
-	UnnecessaryElse = "unnecessary-else"
+	UnnecessaryElse   = "unnecessary-else"
+	SimplifySliceExpr = "simplify-slice-range"
 )
 
 // IssueFormatter is the interface that wraps the Format method.
@@ -36,6 +39,8 @@ func getFormatter(rule string) IssueFormatter {
 	switch rule {
 	case UnnecessaryElse:
 		return &UnnecessaryElseFormatter{}
+	case SimplifySliceExpr:
+		return &SimplifySliceExpressionFormatter{}
 	default:
 		return &GeneralIssueFormatter{}
 	}
@@ -46,4 +51,17 @@ func getFormatter(rule string) IssueFormatter {
 func formatIssueHeader(issue internal.Issue) string {
 	return errorStyle.Sprint("error: ") + ruleStyle.Sprint(issue.Rule) + "\n" +
 		lineStyle.Sprint(" --> ") + fileStyle.Sprint(issue.Filename) + "\n"
+}
+
+func buildSuggestion(result *strings.Builder, issue internal.Issue, lineStyle, suggestionStyle *color.Color) {
+	result.WriteString(suggestionStyle.Sprintf("Suggestion:\n"))
+	result.WriteString(lineStyle.Sprintf("%d | ", issue.Start.Line))
+	result.WriteString(fmt.Sprintf("%s\n", issue.Suggestion))
+	result.WriteString("\n")
+}
+
+func buildNote(result *strings.Builder, issue internal.Issue, suggestionStyle *color.Color) {
+	result.WriteString(suggestionStyle.Sprint("Note: "))
+	result.WriteString(fmt.Sprintf("%s\n", issue.Note))
+	result.WriteString("\n")
 }
