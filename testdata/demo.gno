@@ -11,7 +11,6 @@ func foo(x, y bool) int {
 }
 
 func bar() {
-	x := 5
 	println("hello")
 }
 

@@ -43,7 +43,7 @@ func getFormatter(rule string) IssueFormatter {
 	case SimplifySliceExpr:
 		return &SimplifySliceExpressionFormatter{}
 	case UnnecessaryTypeConv:
-		return &UnnecessaryConversionFormatter{}
+		return &UnnecessaryTypeConversionFormatter{}
 	default:
 		return &GeneralIssueFormatter{}
 	}

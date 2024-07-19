@@ -282,6 +282,10 @@ func (e *Engine) detectUnnecessaryConversions(filename string) ([]Issue, error) 
 				Start:    fset.Position(call.Pos()),
 				End:      fset.Position(call.End()),
 				Message:  "unnecessary type conversion",
+				Suggestion: fmt.Sprintf("Remove the type conversion. Change `%s(%s)` to just `%s`.", 
+				types.TypeString(ft.Type, nil), 
+				types.TypeString(at.Type, nil),
+				types.TypeString(at.Type, nil)),
 			})
 		}
 
