@@ -128,6 +128,11 @@ func createTempGoFile(gnoFile string) (string, error) {
 	return tempFile.Name(), nil
 }
 
+// SourceCode stores the content of a source code file.
+type SourceCode struct {
+	Lines []string
+}
+
 // ReadSourceFile reads the content of a file and returns it as a `SourceCode` struct.
 func ReadSourceCode(filename string) (*SourceCode, error) {
 	content, err := os.ReadFile(filename)
