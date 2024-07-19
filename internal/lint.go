@@ -246,19 +246,46 @@ func (e *Engine) detectUnnecessaryConversions(filename string) ([]Issue, error) 
 	info := &types.Info{
 		Types: make(map[ast.Expr]types.TypeAndValue),
 		Uses:  make(map[*ast.Ident]types.Object),
+		Defs:  make(map[*ast.Ident]types.Object),
 	}
 
 	conf := types.Config{Importer: importer.Default()}
+	//! DO NOT CHECK ERROR HERE.
+	//! error check may broke the lint formatting process.
 	conf.Check("", fset, []*ast.File{f}, info)
 
 	var issues []Issue
+	varDecls := make(map[*types.Var]ast.Node)
+
+	// First pass: collect variable declarations
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.ValueSpec:
+			for _, name := range node.Names {
+				if obj := info.Defs[name]; obj != nil {
+					if v, ok := obj.(*types.Var); ok {
+						varDecls[v] = node
+					}
+				}
+			}
+		case *ast.AssignStmt:
+			for _, lhs := range node.Lhs {
+				if id, ok := lhs.(*ast.Ident); ok {
+					if obj := info.Defs[id]; obj != nil {
+						if v, ok := obj.(*types.Var); ok {
+							varDecls[v] = node
+						}
+					}
+				}
+			}
+		}
+		return true
+	})
+
+	// Second pass: check for unnecessary conversions
 	ast.Inspect(f, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-
-		if len(call.Args) != 1 {
+		if !ok || len(call.Args) != 1 {
 			return true
 		}
 
@@ -273,16 +300,53 @@ func (e *Engine) detectUnnecessaryConversions(filename string) ([]Issue, error) 
 		}
 
 		if types.Identical(ft.Type, at.Type) && !isUntypedValue(call.Args[0], info) {
+			var memo, suggestion string
+
+			// find parent node and retrieve the entire assignment statement
+			var parent ast.Node
+			ast.Inspect(f, func(node ast.Node) bool {
+				if node == n {
+					return false
+				}
+				if contains(node, n) {
+					parent = node
+					return false
+				}
+				return true
+			})
+
+			if assignStmt, ok := parent.(*ast.AssignStmt); ok {
+				if len(assignStmt.Lhs) > 0 {
+					lhs := types.ExprString(assignStmt.Lhs[0])
+					rhs := types.ExprString(call.Args[0])
+					suggestion = fmt.Sprintf("%s := %s", lhs, rhs)
+				}
+			} else {
+				// not an assignment statement
+				// keep maintaining the original code
+				suggestion = types.ExprString(call.Args[0])
+			}
+
+			if id, ok := call.Args[0].(*ast.Ident); ok {
+				if obj, ok := info.Uses[id].(*types.Var); ok {
+					if _, exists := varDecls[obj]; exists {
+						declType := obj.Type().String()
+						memo = fmt.Sprintf(
+							"The variable '%s' is declared as type '%s'. This type conversion appears unnecessary.",
+							id.Name, declType,
+						)
+					}
+				}
+			}
+
 			issues = append(issues, Issue{
-				Rule:     "unnecessary-type-conversion",
-				Filename: filename,
-				Start:    fset.Position(call.Pos()),
-				End:      fset.Position(call.End()),
-				Message:  "unnecessary type conversion",
-				Suggestion: fmt.Sprintf("Remove the type conversion. Change `%s(%s)` to just `%s`.",
-					types.TypeString(ft.Type, nil),
-					types.TypeString(at.Type, nil),
-					types.TypeString(at.Type, nil)),
+				Rule:       "unnecessary-type-conversion",
+				Filename:   filename,
+				Start:      fset.Position(call.Pos()),
+				End:        fset.Position(call.End()),
+				Message:    "unnecessary type conversion",
+				Suggestion: suggestion,
+				Note:       memo,
 			})
 		}
 
@@ -366,4 +430,17 @@ func asBuiltin(n ast.Expr, info *types.Info) (*types.Builtin, bool) {
 
 	b, ok := obj.(*types.Builtin)
 	return b, ok
+}
+
+// contains checks if parent contains child node
+func contains(parent, child ast.Node) bool {
+	found := false
+	ast.Inspect(parent, func(n ast.Node) bool {
+		if n == child {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
 }
