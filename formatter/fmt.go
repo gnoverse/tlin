@@ -10,9 +10,9 @@ import (
 
 // rule set
 const (
-	UnnecessaryElse   = "unnecessary-else"
+	UnnecessaryElse     = "unnecessary-else"
 	UnnecessaryTypeConv = "unnecessary-type-conversion"
-	SimplifySliceExpr = "simplify-slice-range"
+	SimplifySliceExpr   = "simplify-slice-range"
 )
 
 // IssueFormatter is the interface that wraps the Format method.

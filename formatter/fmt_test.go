@@ -299,7 +299,7 @@ func main() {
 
 func TestUnnecessaryTypeConversionFormatter(t *testing.T) {
 	formatter := &UnnecessaryTypeConversionFormatter{}
-	
+
 	issue := internal.Issue{
 		Rule:       "unnecessary-type-conversion",
 		Filename:   "test.go",

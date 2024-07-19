@@ -245,14 +245,11 @@ func (e *Engine) detectUnnecessaryConversions(filename string) ([]Issue, error) 
 
 	info := &types.Info{
 		Types: make(map[ast.Expr]types.TypeAndValue),
-		Uses: make(map[*ast.Ident]types.Object),
+		Uses:  make(map[*ast.Ident]types.Object),
 	}
 
-	conf := types.Config{ Importer: importer.Default() }
-	_, err = conf.Check("", fset, []*ast.File{f}, info)
-	if err != nil {
-		return nil, err
-	}
+	conf := types.Config{Importer: importer.Default()}
+	conf.Check("", fset, []*ast.File{f}, info)
 
 	var issues []Issue
 	ast.Inspect(f, func(n ast.Node) bool {
@@ -282,10 +279,10 @@ func (e *Engine) detectUnnecessaryConversions(filename string) ([]Issue, error) 
 				Start:    fset.Position(call.Pos()),
 				End:      fset.Position(call.End()),
 				Message:  "unnecessary type conversion",
-				Suggestion: fmt.Sprintf("Remove the type conversion. Change `%s(%s)` to just `%s`.", 
-				types.TypeString(ft.Type, nil), 
-				types.TypeString(at.Type, nil),
-				types.TypeString(at.Type, nil)),
+				Suggestion: fmt.Sprintf("Remove the type conversion. Change `%s(%s)` to just `%s`.",
+					types.TypeString(ft.Type, nil),
+					types.TypeString(at.Type, nil),
+					types.TypeString(at.Type, nil)),
 			})
 		}
 

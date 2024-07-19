@@ -11,10 +11,12 @@ func foo(x, y bool) int {
 }
 
 func bar() {
+	x := 5
 	println("hello")
 }
 
 func main() {
 	x := foo(true)
+	bar()
 	println(x)
 }
