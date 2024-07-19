@@ -199,6 +199,7 @@ func unused2() {
 }
 
 func TestDetectUnnecessarySliceLength(t *testing.T) {
+	baseMsg := "unnecessary use of len() in slice expression, can be simplified"
 	tests := []struct {
 		name     string
 		code     string
@@ -215,7 +216,7 @@ func main() {
 	_ = slice[:len(slice)]
 }`,
 			expected: 1,
-			message: "unnecessary use of len() in slice expression, can be simplified\nSuggestion: Use slice[:]\n",
+			message:  baseMsg,
 		},
 		{
 			name: "suggests to use slice[a:]",
@@ -227,7 +228,7 @@ func main() {
 	_ = slice[1:len(slice)]
 }`,
 			expected: 1,
-			message: "unnecessary use of len() in slice expression, can be simplified\nSuggestion: Use slice[1:]\n",
+			message:  baseMsg,
 		},
 		{
 			name: "Unnecessary slice length",
@@ -239,6 +240,19 @@ func main() {
 	_ = slice[:]
 }`,
 			expected: 0,
+		},
+		{
+			name: "slice[a:len(slice)] -> slice[a:] (a: variable)",
+			code: `
+package main
+
+func main() {
+	slice := []int{1, 2, 3}
+	a := 1
+	_ = slice[a:len(slice)]
+}`,
+			expected: 1,
+			message:  baseMsg,
 		},
 	}
 
@@ -260,7 +274,7 @@ func main() {
 
 			if len(issues) > 0 {
 				for _, issue := range issues {
-					assert.Equal(t, "unnecessary-slice-length", issue.Rule)
+					assert.Equal(t, "simplify-slice-range", issue.Rule)
 					assert.Equal(
 						t,
 						tt.message,

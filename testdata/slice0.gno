@@ -1,11 +1,16 @@
 package slice
 
+var slice = []int{1, 2, 3}
+
 func foo() {
-	slice := []int{1, 2, 3}
 	_ = slice[1:len(slice)]
 }
 
 func bar() {
-	slice := []int{1, 2, 3}
 	_ = slice[:len(slice)]
+}
+
+func baz() {
+	a := 1
+	_ = slice[a:len(slice)]
 }
