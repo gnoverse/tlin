@@ -159,3 +159,47 @@ func (e *Engine) detectUnusedFunctions(filename string) ([]Issue, error) {
 
 	return issues, nil
 }
+
+type SimplifySliceExprRule struct{}
+
+func (r *SimplifySliceExprRule) Check(filename string) ([]Issue, error) {
+	engine := &Engine{}
+	return engine.detectUnnecessarySliceLength(filename)
+}
+
+func (e *Engine) detectUnnecessarySliceLength(filename string) ([]Issue, error) {
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
+	if err != nil {
+		return nil, err
+	}
+
+	var issues []Issue
+	ast.Inspect(node, func(n ast.Node) bool {
+		sliceExpr, ok := n.(*ast.SliceExpr)
+		if !ok {
+			return true
+		}
+
+		if callExpr, ok := sliceExpr.High.(*ast.CallExpr); ok {
+			if ident, ok := callExpr.Fun.(*ast.Ident); ok && ident.Name == "len" {
+				if arg, ok := callExpr.Args[0].(*ast.Ident); ok {
+					if sliceExpr.X.(*ast.Ident).Name == arg.Name {
+						issue := Issue{
+							Rule: "unnecessary-slice-length",
+							Filename: filename,
+							Start: fset.Position(sliceExpr.Pos()),
+							End: fset.Position(sliceExpr.End()),
+							Message: "unnecessary use of len() in slice expression, can be simplified to a[b:]",
+						}
+						issues = append(issues, issue)
+					}
+				}
+			}
+		}
+
+		return true
+	})
+
+	return issues, nil
+}
