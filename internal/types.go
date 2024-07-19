@@ -14,4 +14,5 @@ type Issue struct {
 	Start    token.Position
 	End      token.Position
 	Message  string
+	Suggestion string
 }

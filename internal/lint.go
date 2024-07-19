@@ -38,7 +38,7 @@ type golangciOutput struct {
 }
 
 func runGolangciLint(filename string) ([]Issue, error) {
-	cmd := exec.Command("golangci-lint", "run", "--out-format=json", filename)
+	cmd := exec.Command("golangci-lint", "run", "--disable=gosimple", "--out-format=json", filename)
 	output, _ := cmd.CombinedOutput()
 
 	var golangciResult golangciOutput
@@ -197,11 +197,12 @@ func (e *Engine) detectUnnecessarySliceLength(filename string) ([]Issue, error) 
 						}
 
 						issue := Issue{
-							Rule: "unnecessary-slice-length",
+							Rule: "simplify-slice-range",
 							Filename: filename,
 							Start: fset.Position(sliceExpr.Pos()),
 							End: fset.Position(sliceExpr.End()),
-							Message: fmt.Sprintf("%s\nSuggestion: Use %s\n", baseMessage, suggestion),
+							Message: baseMessage,
+							Suggestion: suggestion,
 						}
 						issues = append(issues, issue)
 					}
