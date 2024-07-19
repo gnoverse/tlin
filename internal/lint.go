@@ -185,12 +185,23 @@ func (e *Engine) detectUnnecessarySliceLength(filename string) ([]Issue, error) 
 			if ident, ok := callExpr.Fun.(*ast.Ident); ok && ident.Name == "len" {
 				if arg, ok := callExpr.Args[0].(*ast.Ident); ok {
 					if sliceExpr.X.(*ast.Ident).Name == arg.Name {
+						var suggestion string
+						baseMessage := "unnecessary use of len() in slice expression, can be simplified"
+
+						if sliceExpr.Low == nil {
+							suggestion = fmt.Sprintf("%s[:]", arg.Name)
+						} else if basicLit, ok := sliceExpr.Low.(*ast.BasicLit); ok {
+							suggestion = fmt.Sprintf("%s[%s:]", arg.Name, basicLit.Value)
+						} else if lowIdent, ok := sliceExpr.Low.(*ast.Ident); ok {
+							suggestion = fmt.Sprintf("%s[%s:]", arg.Name, lowIdent.Name)
+						}
+
 						issue := Issue{
 							Rule: "unnecessary-slice-length",
 							Filename: filename,
 							Start: fset.Position(sliceExpr.Pos()),
 							End: fset.Position(sliceExpr.End()),
-							Message: "unnecessary use of len() in slice expression, can be simplified to a[b:]",
+							Message: fmt.Sprintf("%s\nSuggestion: Use %s\n", baseMessage, suggestion),
 						}
 						issues = append(issues, issue)
 					}
