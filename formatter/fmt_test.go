@@ -296,3 +296,43 @@ func main() {
 		})
 	}
 }
+
+func TestUnnecessaryTypeConversionFormatter(t *testing.T) {
+	formatter := &UnnecessaryTypeConversionFormatter{}
+
+	issue := internal.Issue{
+		Rule:       "unnecessary-type-conversion",
+		Filename:   "test.go",
+		Start:      token.Position{Line: 5, Column: 10},
+		End:        token.Position{Line: 5, Column: 20},
+		Message:    "unnecessary type conversion",
+		Suggestion: "Remove the type conversion. Change `int(myInt)` to just `myInt`.",
+		Note:       "Unnecessary type conversions can make the code less readable and may slightly impact performance. They are safe to remove when the expression already has the desired type.",
+	}
+
+	snippet := &internal.SourceCode{
+		Lines: []string{
+			"package main",
+			"",
+			"func main() {",
+			"    myInt := 42",
+			"    result := int(myInt)",
+			"}",
+		},
+	}
+
+	expected := `  |
+5 |     result := int(myInt)
+  |          ^ unnecessary type conversion
+
+Suggestion:
+5 | Remove the type conversion. Change ` + "`int(myInt)`" + ` to just ` + "`myInt`" + `.
+
+Note: Unnecessary type conversions can make the code less readable and may slightly impact performance. They are safe to remove when the expression already has the desired type.
+
+`
+
+	result := formatter.Format(issue, snippet)
+
+	assert.Equal(t, expected, result, "Formatted output should match expected output")
+}

@@ -10,8 +10,9 @@ import (
 
 // rule set
 const (
-	UnnecessaryElse   = "unnecessary-else"
-	SimplifySliceExpr = "simplify-slice-range"
+	UnnecessaryElse     = "unnecessary-else"
+	UnnecessaryTypeConv = "unnecessary-type-conversion"
+	SimplifySliceExpr   = "simplify-slice-range"
 )
 
 // IssueFormatter is the interface that wraps the Format method.
@@ -41,6 +42,8 @@ func getFormatter(rule string) IssueFormatter {
 		return &UnnecessaryElseFormatter{}
 	case SimplifySliceExpr:
 		return &SimplifySliceExpressionFormatter{}
+	case UnnecessaryTypeConv:
+		return &UnnecessaryTypeConversionFormatter{}
 	default:
 		return &GeneralIssueFormatter{}
 	}

@@ -285,3 +285,98 @@ func main() {
 		})
 	}
 }
+
+func TestDetectUnnecessaryTypeConversion(t *testing.T) {
+	tests := []struct {
+		name     string
+		code     string
+		expected int
+	}{
+		{
+			name: "Unnecessary conversion",
+			code: `
+package main
+
+func example() {
+    var x int = 5
+    y := int(x)
+    _ = y
+}`,
+			expected: 1,
+		},
+		{
+			name: "Necessary conversion",
+			code: `
+package main
+
+func example() {
+    var x float64 = 5.0
+    y := int(x)
+    _ = y
+}`,
+			expected: 0,
+		},
+		{
+			name: "Untyped constant conversion",
+			code: `
+package main
+
+func example() {
+    x := int(5)
+    _ = x
+}`,
+			expected: 0,
+		},
+		{
+			name: "Multiple unnecessary conversions",
+			code: `
+package main
+
+func example() {
+    var x int = 5
+    var y int64 = 10
+    a := int(x)
+    b := int64(y)
+    _, _ = a, b
+}`,
+			expected: 2,
+		},
+		{
+			name: "No conversions",
+			code: `
+package main
+
+func example() {
+    x := 5
+    y := 10
+    _ = x + y
+}`,
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir, err := os.MkdirTemp("", "lint-test")
+			require.NoError(t, err)
+			defer os.RemoveAll(tmpDir)
+
+			tmpfile := filepath.Join(tmpDir, "test.go")
+			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
+			require.NoError(t, err)
+
+			engine := &Engine{}
+			issues, err := engine.detectUnnecessaryConversions(tmpfile)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expected, len(issues), "Number of detected unnecessary type conversions doesn't match expected")
+
+			if len(issues) > 0 {
+				for _, issue := range issues {
+					assert.Equal(t, "unnecessary-type-conversion", issue.Rule)
+					assert.Equal(t, "unnecessary type conversion", issue.Message)
+				}
+			}
+		})
+	}
+}

@@ -33,6 +33,7 @@ func (e *Engine) registerDefaultRules() {
 		&UnnecessaryElseRule{},
 		&UnusedFunctionRule{},
 		&SimplifySliceExprRule{},
+		&UnnecessaryConversionRule{},
 	)
 }
 

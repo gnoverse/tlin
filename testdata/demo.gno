@@ -17,5 +17,6 @@ func bar() {
 
 func main() {
 	x := foo(true)
+	bar()
 	println(x)
 }
