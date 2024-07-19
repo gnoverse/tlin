@@ -9,6 +9,8 @@ import (
 	"go/token"
 	"go/types"
 	"os/exec"
+
+	"github.com/gnoswap-labs/lint/internal/lints"
 )
 
 /*
@@ -18,12 +20,12 @@ import (
 // LintRule defines the interface for all lint rules.
 type LintRule interface {
 	// Check runs the lint rule on the given file and returns a slice of Issues.
-	Check(filename string) ([]Issue, error)
+	Check(filename string) ([]lints.Issue, error)
 }
 
 type GolangciLintRule struct{}
 
-func (r *GolangciLintRule) Check(filename string) ([]Issue, error) {
+func (r *GolangciLintRule) Check(filename string) ([]lints.Issue, error) {
 	return runGolangciLint(filename)
 }
 
@@ -39,7 +41,7 @@ type golangciOutput struct {
 	} `json:"Issues"`
 }
 
-func runGolangciLint(filename string) ([]Issue, error) {
+func runGolangciLint(filename string) ([]lints.Issue, error) {
 	cmd := exec.Command("golangci-lint", "run", "--disable=gosimple", "--out-format=json", filename)
 	output, _ := cmd.CombinedOutput()
 
@@ -48,9 +50,9 @@ func runGolangciLint(filename string) ([]Issue, error) {
 		return nil, fmt.Errorf("error unmarshaling golangci-lint output: %w", err)
 	}
 
-	var issues []Issue
+	var issues []lints.Issue
 	for _, gi := range golangciResult.Issues {
-		issues = append(issues, Issue{
+		issues = append(issues, lints.Issue{
 			Rule:     gi.FromLinter,
 			Filename: gi.Pos.Filename, // Use the filename from golangci-lint output
 			Start:    token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
@@ -64,7 +66,7 @@ func runGolangciLint(filename string) ([]Issue, error) {
 
 type UnnecessaryElseRule struct{}
 
-func (r *UnnecessaryElseRule) Check(filename string) ([]Issue, error) {
+func (r *UnnecessaryElseRule) Check(filename string) ([]lints.Issue, error) {
 	engine := &Engine{}
 	return engine.detectUnnecessaryElse(filename)
 }
@@ -72,14 +74,14 @@ func (r *UnnecessaryElseRule) Check(filename string) ([]Issue, error) {
 // detectUnnecessaryElse detects unnecessary else blocks.
 // This rule considers an else block unnecessary if the if block ends with a return statement.
 // In such cases, the else block can be removed and the code can be flattened to improve readability.
-func (e *Engine) detectUnnecessaryElse(filename string) ([]Issue, error) {
+func (e *Engine) detectUnnecessaryElse(filename string) ([]lints.Issue, error) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
 		return nil, err
 	}
 
-	var issues []Issue
+	var issues []lints.Issue
 	ast.Inspect(node, func(n ast.Node) bool {
 		ifStmt, ok := n.(*ast.IfStmt)
 		if !ok {
@@ -91,7 +93,7 @@ func (e *Engine) detectUnnecessaryElse(filename string) ([]Issue, error) {
 			if len(blockStmt.List) > 0 {
 				lastStmt := blockStmt.List[len(blockStmt.List)-1]
 				if _, isReturn := lastStmt.(*ast.ReturnStmt); isReturn {
-					issue := Issue{
+					issue := lints.Issue{
 						Rule:     "unnecessary-else",
 						Filename: filename,
 						Start:    fset.Position(ifStmt.Else.Pos()),
@@ -111,7 +113,7 @@ func (e *Engine) detectUnnecessaryElse(filename string) ([]Issue, error) {
 
 type UnusedFunctionRule struct{}
 
-func (r *UnusedFunctionRule) Check(filename string) ([]Issue, error) {
+func (r *UnusedFunctionRule) Check(filename string) ([]lints.Issue, error) {
 	engine := &Engine{}
 	return engine.detectUnusedFunctions(filename)
 }
@@ -123,7 +125,7 @@ func (r *UnusedFunctionRule) Check(filename string) ([]Issue, error) {
 //  3. Exported functions: Functions starting with a capital letter are excluded as they might be used in other packages.
 //
 // This rule helps in code cleanup and improves maintainability.
-func (e *Engine) detectUnusedFunctions(filename string) ([]Issue, error) {
+func (e *Engine) detectUnusedFunctions(filename string) ([]lints.Issue, error) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
@@ -145,10 +147,10 @@ func (e *Engine) detectUnusedFunctions(filename string) ([]Issue, error) {
 		return true
 	})
 
-	var issues []Issue
+	var issues []lints.Issue
 	for funcName, funcDecl := range declaredFuncs {
 		if !calledFuncs[funcName] && funcName != "main" && funcName != "init" && !ast.IsExported(funcName) {
-			issue := Issue{
+			issue := lints.Issue{
 				Rule:     "unused-function",
 				Filename: filename,
 				Start:    fset.Position(funcDecl.Pos()),
@@ -164,19 +166,19 @@ func (e *Engine) detectUnusedFunctions(filename string) ([]Issue, error) {
 
 type SimplifySliceExprRule struct{}
 
-func (r *SimplifySliceExprRule) Check(filename string) ([]Issue, error) {
+func (r *SimplifySliceExprRule) Check(filename string) ([]lints.Issue, error) {
 	engine := &Engine{}
 	return engine.detectUnnecessarySliceLength(filename)
 }
 
-func (e *Engine) detectUnnecessarySliceLength(filename string) ([]Issue, error) {
+func (e *Engine) detectUnnecessarySliceLength(filename string) ([]lints.Issue, error) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
 		return nil, err
 	}
 
-	var issues []Issue
+	var issues []lints.Issue
 	ast.Inspect(node, func(n ast.Node) bool {
 		sliceExpr, ok := n.(*ast.SliceExpr)
 		if !ok {
@@ -208,7 +210,7 @@ func (e *Engine) detectUnnecessarySliceLength(filename string) ([]Issue, error) 
 								baseMessage, arg.Name, lowIdent.Name, arg.Name, arg.Name, lowIdent.Name)
 						}
 
-						issue := Issue{
+						issue := lints.Issue{
 							Rule:       "simplify-slice-range",
 							Filename:   filename,
 							Start:      fset.Position(sliceExpr.Pos()),
@@ -231,12 +233,12 @@ func (e *Engine) detectUnnecessarySliceLength(filename string) ([]Issue, error) 
 
 type UnnecessaryConversionRule struct{}
 
-func (r *UnnecessaryConversionRule) Check(filename string) ([]Issue, error) {
+func (r *UnnecessaryConversionRule) Check(filename string) ([]lints.Issue, error) {
 	engine := &Engine{}
 	return engine.detectUnnecessaryConversions(filename)
 }
 
-func (e *Engine) detectUnnecessaryConversions(filename string) ([]Issue, error) {
+func (e *Engine) detectUnnecessaryConversions(filename string) ([]lints.Issue, error) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
@@ -254,7 +256,7 @@ func (e *Engine) detectUnnecessaryConversions(filename string) ([]Issue, error) 
 	//! error check may broke the lint formatting process.
 	conf.Check("", fset, []*ast.File{f}, info)
 
-	var issues []Issue
+	var issues []lints.Issue
 	varDecls := make(map[*types.Var]ast.Node)
 
 	// First pass: collect variable declarations
@@ -339,7 +341,7 @@ func (e *Engine) detectUnnecessaryConversions(filename string) ([]Issue, error) 
 				}
 			}
 
-			issues = append(issues, Issue{
+			issues = append(issues, lints.Issue{
 				Rule:       "unnecessary-type-conversion",
 				Filename:   filename,
 				Start:      fset.Position(call.Pos()),

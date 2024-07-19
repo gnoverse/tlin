@@ -5,12 +5,13 @@ import (
 	"strings"
 
 	"github.com/gnoswap-labs/lint/internal"
+	"github.com/gnoswap-labs/lint/internal/lints"
 )
 
 type SimplifySliceExpressionFormatter struct{}
 
 func (f *SimplifySliceExpressionFormatter) Format(
-	issue internal.Issue,
+	issue lints.Issue,
 	snippet *internal.SourceCode,
 ) string {
 	var result strings.Builder

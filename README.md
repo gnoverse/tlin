@@ -20,8 +20,8 @@ Inspired by Rust's [clippy](https://github.com/rust-lang/rust-clippy), tlin aims
 ## Installation
 
 - Requirements:
-    - Go: 1.22 or higher
-    - latest version of gno
+  - Go: 1.22 or higher
+  - latest version of gno
 
 To install tlin CLI, run:
 
@@ -74,33 +74,33 @@ func (e *Engine) registerDefaultRules() {
 
 3. (Optional) if your rule requires special formatting, create a new formatter in the `formatter` package:
 
-    a. Create a new file (e.g., `formatter/new_rule.go`).
-    b. Implement the `IssueFormatter` interface for your new rule:
+   a. Create a new file (e.g., `formatter/new_rule.go`).
+   b. Implement the `IssueFormatter` interface for your new rule:
 
-    ```go
-    type NewRuleFormatter struct{}
+   ```go
+   type NewRuleFormatter struct{}
 
-    func (f *NewRuleFormatter) Format(
-        issue internal.Issue,
-        snippet *internal.SourceCode,
-    ) string {
-        // Implement formatting logic for new rule here.
-    }
-    ```
+   func (f *NewRuleFormatter) Format(
+       issue lints.Issue,
+       snippet *internal.SourceCode,
+   ) string {
+       // Implement formatting logic for new rule here.
+   }
+   ```
 
-    c. Add the new formatter to the `GetFormatter` function in `formatter/fmt.go`.
+   c. Add the new formatter to the `GetFormatter` function in `formatter/fmt.go`.
 
-    ```go
-    func GetFormatter(rule string) IssueFormatter {
-        switch rule {
-        // ...
-        case "new_rule": // Add your new rule here
-            return &NewRuleFormatter{}
-        default:
-            return &DefaultFormatter{}
-        }
-    }
-    ```
+   ```go
+   func GetFormatter(rule string) IssueFormatter {
+       switch rule {
+       // ...
+       case "new_rule": // Add your new rule here
+           return &NewRuleFormatter{}
+       default:
+           return &DefaultFormatter{}
+       }
+   }
+   ```
 
 By following these steps, you can add new lint rules and ensure they are properly formatted when displayed in the CLI.
 

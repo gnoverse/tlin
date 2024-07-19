@@ -8,7 +8,8 @@ import (
 	"sort"
 
 	"github.com/gnoswap-labs/lint/formatter"
-	lint "github.com/gnoswap-labs/lint/internal"
+	"github.com/gnoswap-labs/lint/internal"
+	"github.com/gnoswap-labs/lint/internal/lints"
 )
 
 func main() {
@@ -23,13 +24,13 @@ func main() {
 	}
 
 	rootDir := "."
-	engine, err := lint.NewEngine(rootDir)
+	engine, err := internal.NewEngine(rootDir)
 	if err != nil {
 		fmt.Printf("error initializing lint engine: %v\n", err)
 		os.Exit(1)
 	}
 
-	var allIssues []lint.Issue
+	var allIssues []lints.Issue
 	for _, path := range args {
 		info, err := os.Stat(path)
 		if err != nil {
@@ -69,7 +70,7 @@ func main() {
 		}
 	}
 
-	issuesByFile := make(map[string][]lint.Issue)
+	issuesByFile := make(map[string][]lints.Issue)
 	for _, issue := range allIssues {
 		issuesByFile[issue.Filename] = append(issuesByFile[issue.Filename], issue)
 	}
@@ -82,7 +83,7 @@ func main() {
 
 	for _, filename := range sortedFiles {
 		issues := issuesByFile[filename]
-		sourceCode, err := lint.ReadSourceCode(filename)
+		sourceCode, err := internal.ReadSourceCode(filename)
 		if err != nil {
 			fmt.Printf("error reading source file %s: %v\n", filename, err)
 			continue
@@ -96,7 +97,7 @@ func main() {
 	}
 }
 
-func processFile(engine *lint.Engine, filePath string) ([]lint.Issue, error) {
+func processFile(engine *internal.Engine, filePath string) ([]lints.Issue, error) {
 	issues, err := engine.Run(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error linting %s: %w", filePath, err)

@@ -5,12 +5,13 @@ import (
 	"strings"
 
 	"github.com/gnoswap-labs/lint/internal"
+	"github.com/gnoswap-labs/lint/internal/lints"
 )
 
 type UnnecessaryTypeConversionFormatter struct{}
 
 func (f *UnnecessaryTypeConversionFormatter) Format(
-	issue internal.Issue,
+	issue lints.Issue,
 	snippet *internal.SourceCode,
 ) string {
 	var result strings.Builder
