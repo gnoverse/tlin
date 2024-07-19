@@ -6,6 +6,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/gnoswap-labs/lint/internal"
+	"github.com/gnoswap-labs/lint/internal/lints"
 )
 
 const tabWidth = 8
@@ -25,7 +26,7 @@ type GeneralIssueFormatter struct{}
 // Format formats a general lint issue into a human-readable string.
 // It takes an Issue and a SourceCode snippet as input and returns a formatted string.
 func (f *GeneralIssueFormatter) Format(
-	issue internal.Issue,
+	issue lints.Issue,
 	snippet *internal.SourceCode,
 ) string {
 	var result strings.Builder

@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/gnoswap-labs/lint/internal/lints"
 )
 
 // Engine manages the linting process.
@@ -43,14 +45,14 @@ func (e *Engine) AddRule(rule LintRule) {
 }
 
 // Run applies all lint rules to the given file and returns a slice of Issues.
-func (e *Engine) Run(filename string) ([]Issue, error) {
+func (e *Engine) Run(filename string) ([]lints.Issue, error) {
 	tempFile, err := e.prepareFile(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer e.cleanupTemp(tempFile)
 
-	var allIssues []Issue
+	var allIssues []lints.Issue
 	for _, rule := range e.rules {
 		issues, err := rule.Check(tempFile)
 		if err != nil {
@@ -84,8 +86,8 @@ func (e *Engine) cleanupTemp(temp string) {
 	}
 }
 
-func (e *Engine) filterUndefinedIssues(issues []Issue) []Issue {
-	var filtered []Issue
+func (e *Engine) filterUndefinedIssues(issues []lints.Issue) []lints.Issue {
+	var filtered []lints.Issue
 	for _, issue := range issues {
 		if issue.Rule == "typecheck" && strings.Contains(issue.Message, "undefined:") {
 			symbol := strings.TrimSpace(strings.TrimPrefix(issue.Message, "undefined:"))
@@ -124,6 +126,11 @@ func createTempGoFile(gnoFile string) (string, error) {
 	}
 
 	return tempFile.Name(), nil
+}
+
+// SourceCode stores the content of a source code file.
+type SourceCode struct {
+	Lines []string
 }
 
 // ReadSourceFile reads the content of a file and returns it as a `SourceCode` struct.

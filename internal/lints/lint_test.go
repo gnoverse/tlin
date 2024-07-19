@@ -1,4 +1,4 @@
-package internal
+package lints
 
 import (
 	"os"
@@ -77,8 +77,7 @@ func example2() int {
 			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
 			require.NoError(t, err)
 
-			engine := &Engine{}
-			issues, err := engine.detectUnnecessaryElse(tmpfile)
+			issues, err := DetectUnnecessaryElse(tmpfile)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), "Number of detected unnecessary else statements doesn't match expected")
@@ -182,8 +181,7 @@ func unused2() {
 			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
 			require.NoError(t, err)
 
-			engine := &Engine{}
-			issues, err := engine.detectUnusedFunctions(tmpfile)
+			issues, err := DetectUnusedFunctions(tmpfile)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), "Number of detected unused functions doesn't match expected")
@@ -266,8 +264,7 @@ func main() {
 			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
 			require.NoError(t, err)
 
-			engine := &Engine{}
-			issues, err := engine.detectUnnecessarySliceLength(tmpfile)
+			issues, err := DetectUnnecessarySliceLength(tmpfile)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), "Number of detected unnecessary slice length doesn't match expected")
@@ -365,8 +362,7 @@ func example() {
 			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
 			require.NoError(t, err)
 
-			engine := &Engine{}
-			issues, err := engine.detectUnnecessaryConversions(tmpfile)
+			issues, err := DetectUnnecessaryConversions(tmpfile)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), "Number of detected unnecessary type conversions doesn't match expected")
