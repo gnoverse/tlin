@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"go/ast"
+	"go/importer"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"os/exec"
 )
 
@@ -225,4 +227,142 @@ func (e *Engine) detectUnnecessarySliceLength(filename string) ([]Issue, error) 
 	})
 
 	return issues, nil
+}
+
+type UnnecessaryConversionRule struct{}
+
+func (r *UnnecessaryConversionRule) Check(filename string) ([]Issue, error) {
+	engine := &Engine{}
+	return engine.detectUnnecessaryConversions(filename)
+}
+
+func (e *Engine) detectUnnecessaryConversions(filename string) ([]Issue, error) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
+	if err != nil {
+		return nil, err
+	}
+
+	info := &types.Info{
+		Types: make(map[ast.Expr]types.TypeAndValue),
+		Uses: make(map[*ast.Ident]types.Object),
+	}
+
+	conf := types.Config{ Importer: importer.Default() }
+	_, err = conf.Check("", fset, []*ast.File{f}, info)
+	if err != nil {
+		return nil, err
+	}
+
+	var issues []Issue
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		if len(call.Args) != 1 {
+			return true
+		}
+
+		ft, ok := info.Types[call.Fun]
+		if !ok || !ft.IsType() {
+			return true
+		}
+
+		at, ok := info.Types[call.Args[0]]
+		if !ok {
+			return true
+		}
+
+		if types.Identical(ft.Type, at.Type) && !isUntypedValue(call.Args[0], info) {
+			issues = append(issues, Issue{
+				Rule:     "unnecessary-type-conversion",
+				Filename: filename,
+				Start:    fset.Position(call.Pos()),
+				End:      fset.Position(call.End()),
+				Message:  "unnecessary type conversion",
+			})
+		}
+
+		return true
+	})
+
+	return issues, nil
+}
+
+// ref: https://github.com/mdempsky/unconvert/blob/master/unconvert.go#L570
+func isUntypedValue(n ast.Expr, info *types.Info) (res bool) {
+	switch n := n.(type) {
+	case *ast.BinaryExpr:
+		switch n.Op {
+		case token.SHL, token.SHR:
+			// Shifts yield an untyped value if their LHS is untyped.
+			return isUntypedValue(n.X, info)
+		case token.EQL, token.NEQ, token.LSS, token.GTR, token.LEQ, token.GEQ:
+			// Comparisons yield an untyped boolean value.
+			return true
+		case token.ADD, token.SUB, token.MUL, token.QUO, token.REM,
+			token.AND, token.OR, token.XOR, token.AND_NOT,
+			token.LAND, token.LOR:
+			return isUntypedValue(n.X, info) && isUntypedValue(n.Y, info)
+		}
+	case *ast.UnaryExpr:
+		switch n.Op {
+		case token.ADD, token.SUB, token.NOT, token.XOR:
+			return isUntypedValue(n.X, info)
+		}
+	case *ast.BasicLit:
+		// Basic literals are always untyped.
+		return true
+	case *ast.ParenExpr:
+		return isUntypedValue(n.X, info)
+	case *ast.SelectorExpr:
+		return isUntypedValue(n.Sel, info)
+	case *ast.Ident:
+		if obj, ok := info.Uses[n]; ok {
+			if obj.Pkg() == nil && obj.Name() == "nil" {
+				// The universal untyped zero value.
+				return true
+			}
+			if b, ok := obj.Type().(*types.Basic); ok && b.Info()&types.IsUntyped != 0 {
+				// Reference to an untyped constant.
+				return true
+			}
+		}
+	case *ast.CallExpr:
+		if b, ok := asBuiltin(n.Fun, info); ok {
+			switch b.Name() {
+			case "real", "imag":
+				return isUntypedValue(n.Args[0], info)
+			case "complex":
+				return isUntypedValue(n.Args[0], info) && isUntypedValue(n.Args[1], info)
+			}
+		}
+	}
+
+	return false
+}
+
+func asBuiltin(n ast.Expr, info *types.Info) (*types.Builtin, bool) {
+	for {
+		paren, ok := n.(*ast.ParenExpr)
+		if !ok {
+			break
+		}
+		n = paren.X
+	}
+
+	ident, ok := n.(*ast.Ident)
+	if !ok {
+		return nil, false
+	}
+
+	obj, ok := info.Uses[ident]
+	if !ok {
+		return nil, false
+	}
+
+	b, ok := obj.(*types.Builtin)
+	return b, ok
 }

@@ -11,6 +11,7 @@ import (
 // rule set
 const (
 	UnnecessaryElse   = "unnecessary-else"
+	UnnecessaryTypeConv = "unnecessary-type-conversion"
 	SimplifySliceExpr = "simplify-slice-range"
 )
 
@@ -41,6 +42,8 @@ func getFormatter(rule string) IssueFormatter {
 		return &UnnecessaryElseFormatter{}
 	case SimplifySliceExpr:
 		return &SimplifySliceExpressionFormatter{}
+	case UnnecessaryTypeConv:
+		return &UnnecessaryConversionFormatter{}
 	default:
 		return &GeneralIssueFormatter{}
 	}
