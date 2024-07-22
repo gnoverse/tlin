@@ -25,7 +25,7 @@ type CFG struct {
 	Entry *ast.BadStmt
 
 	// Sentinel nodes for single-exit CFG. Not in original AST.
-	Exit  *ast.BadStmt
+	Exit *ast.BadStmt
 
 	// All defers found in CFG, disjoint from blocks. May be flowed to after Exit.
 	Defers []*ast.DeferStmt

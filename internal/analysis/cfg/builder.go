@@ -5,7 +5,7 @@ import (
 	"go/token"
 )
 
-// ref: https://github.com/godoctor/godoctor/blob/master/analysis/cfg/cfg.go#L57
+// ref: https://github.com/godoctor/godoctor/blob/master/analysis/cfg/cfg.go
 
 type builder struct {
 	blocks      map[ast.Stmt]*block
