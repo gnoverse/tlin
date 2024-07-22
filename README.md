@@ -15,7 +15,8 @@ Inspired by Rust's [clippy](https://github.com/rust-lang/rust-clippy), tlin aims
 
 - Support for Go (.go) and Gno (.gno) files
 - Ability to add custom lint rules
-- Additional code improvement suggestion, such as detecting unnecessary code (🚧 WIP)
+- Additional code improvement suggestion, such as detecting unnecessary code
+- Auto-fixing for some lint rules (🚧 WIP)
 
 ## Installation
 
@@ -23,11 +24,27 @@ Inspired by Rust's [clippy](https://github.com/rust-lang/rust-clippy), tlin aims
   - Go: 1.22 or higher
   - latest version of gno
 
-To install tlin CLI, run:
+To install tlin CLI, follow these steps:
+
+1. Clone the repository
+
+```bash
+git clone https://github.com/gnoswap-labs/tlin
+```
+
+2. Move to the cloned directory
+
+```bash
+cd tlin
+```
+
+3. Install the CLI
 
 ```bash
 go install ./cmd/tlin
 ```
+
+that's it! You can now use the `tlin` command in your terminal.
 
 ## Usage
 
@@ -107,6 +124,10 @@ By following these steps, you can add new lint rules and ensure they are properl
 ## Contributing
 
 We welcome all forms of contributions, including bug reports, feature requests, and pull requests. Please feel free to open an issue or submit a pull request.
+
+## Credits
+
+- [@GodDrinkTeJAVA](https://github.com/GodDrinkTeJAVA) - Project name (`tlin`) suggestion
 
 ## License
 
