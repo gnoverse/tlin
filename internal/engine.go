@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gnoswap-labs/lint/internal/lints"
+	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
 // Engine manages the linting process.
@@ -36,6 +36,7 @@ func (e *Engine) registerDefaultRules() {
 		&UnusedFunctionRule{},
 		&SimplifySliceExprRule{},
 		&UnnecessaryConversionRule{},
+		&LoopAllocationRule{},
 	)
 }
 
@@ -45,14 +46,14 @@ func (e *Engine) AddRule(rule LintRule) {
 }
 
 // Run applies all lint rules to the given file and returns a slice of Issues.
-func (e *Engine) Run(filename string) ([]lints.Issue, error) {
+func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 	tempFile, err := e.prepareFile(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer e.cleanupTemp(tempFile)
 
-	var allIssues []lints.Issue
+	var allIssues []tt.Issue
 	for _, rule := range e.rules {
 		issues, err := rule.Check(tempFile)
 		if err != nil {
@@ -86,8 +87,8 @@ func (e *Engine) cleanupTemp(temp string) {
 	}
 }
 
-func (e *Engine) filterUndefinedIssues(issues []lints.Issue) []lints.Issue {
-	var filtered []lints.Issue
+func (e *Engine) filterUndefinedIssues(issues []tt.Issue) []tt.Issue {
+	var filtered []tt.Issue
 	for _, issue := range issues {
 		if issue.Rule == "typecheck" && strings.Contains(issue.Message, "undefined:") {
 			symbol := strings.TrimSpace(strings.TrimPrefix(issue.Message, "undefined:"))

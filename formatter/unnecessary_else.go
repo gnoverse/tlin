@@ -5,14 +5,14 @@ import (
 	"strings"
 
 	"github.com/gnoswap-labs/lint/internal"
-	"github.com/gnoswap-labs/lint/internal/lints"
+	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
 // UnnecessaryElseFormatter is a formatter specifically designed for the "unnecessary-else" rule.
 type UnnecessaryElseFormatter struct{}
 
 func (f *UnnecessaryElseFormatter) Format(
-	issue lints.Issue,
+	issue tt.Issue,
 	snippet *internal.SourceCode,
 ) string {
 	var result strings.Builder
@@ -62,7 +62,7 @@ func calculateMaxLineLength(lines []string, start, end int) int {
 	return maxLen
 }
 
-func formatSuggestion(issue lints.Issue, improvedSnippet string, startLine int) string {
+func formatSuggestion(issue tt.Issue, improvedSnippet string, startLine int) string {
 	var result strings.Builder
 	lines := strings.Split(improvedSnippet, "\n")
 	maxLineNumWidth := calculateMaxLineNumWidth(issue.End.Line)

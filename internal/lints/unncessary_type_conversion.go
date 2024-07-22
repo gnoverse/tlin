@@ -7,9 +7,11 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+
+	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
-func DetectUnnecessaryConversions(filename string) ([]Issue, error) {
+func DetectUnnecessaryConversions(filename string) ([]tt.Issue, error) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
@@ -27,7 +29,7 @@ func DetectUnnecessaryConversions(filename string) ([]Issue, error) {
 	//! error check may broke the lint formatting process.
 	conf.Check("", fset, []*ast.File{f}, info)
 
-	var issues []Issue
+	var issues []tt.Issue
 	varDecls := make(map[*types.Var]ast.Node)
 
 	// First pass: collect variable declarations
@@ -112,7 +114,7 @@ func DetectUnnecessaryConversions(filename string) ([]Issue, error) {
 				}
 			}
 
-			issues = append(issues, Issue{
+			issues = append(issues, tt.Issue{
 				Rule:       "unnecessary-type-conversion",
 				Filename:   filename,
 				Start:      fset.Position(call.Pos()),
