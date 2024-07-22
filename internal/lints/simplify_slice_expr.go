@@ -5,16 +5,18 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+
+	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
-func DetectUnnecessarySliceLength(filename string) ([]Issue, error) {
+func DetectUnnecessarySliceLength(filename string) ([]tt.Issue, error) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
 		return nil, err
 	}
 
-	var issues []Issue
+	var issues []tt.Issue
 	ast.Inspect(node, func(n ast.Node) bool {
 		sliceExpr, ok := n.(*ast.SliceExpr)
 		if !ok {
@@ -46,7 +48,7 @@ func DetectUnnecessarySliceLength(filename string) ([]Issue, error) {
 								baseMessage, arg.Name, lowIdent.Name, arg.Name, arg.Name, lowIdent.Name)
 						}
 
-						issue := Issue{
+						issue := tt.Issue{
 							Rule:       "simplify-slice-range",
 							Filename:   filename,
 							Start:      fset.Position(sliceExpr.Pos()),

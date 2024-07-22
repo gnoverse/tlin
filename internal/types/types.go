@@ -1,4 +1,4 @@
-package lints
+package types
 
 import "go/token"
 

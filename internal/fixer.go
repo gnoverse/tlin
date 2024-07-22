@@ -7,7 +7,7 @@ import (
 	"go/token"
 	"strings"
 
-	"github.com/gnoswap-labs/lint/internal/lints"
+	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
 func RemoveUnnecessaryElse(snippet string) (string, error) {
@@ -123,7 +123,7 @@ func insertStatementsAfter(block *ast.BlockStmt, target ast.Stmt, stmts []ast.St
 	}
 }
 
-func ExtractSnippet(issue lints.Issue, code string, startLine, endLine int) string {
+func ExtractSnippet(issue tt.Issue, code string, startLine, endLine int) string {
 	lines := strings.Split(code, "\n")
 
 	// ensure we don't go out of bounds

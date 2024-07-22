@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/gnoswap-labs/lint/internal"
-	"github.com/gnoswap-labs/lint/internal/lints"
+	tt "github.com/gnoswap-labs/lint/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +25,7 @@ func TestFormatIssuesWithArrows(t *testing.T) {
 		},
 	}
 
-	issues := []lints.Issue{
+	issues := []tt.Issue{
 		{
 			Rule:     "unused-variable",
 			Filename: "test.go",
@@ -107,7 +107,7 @@ func TestFormatIssuesWithArrows_MultipleDigitsLineNumbers(t *testing.T) {
 		},
 	}
 
-	issues := []lints.Issue{
+	issues := []tt.Issue{
 		{
 			Rule:     "unused-variable",
 			Filename: "test.go",
@@ -171,7 +171,7 @@ func TestFormatIssuesWithArrows_UnnecessaryElse(t *testing.T) {
 		},
 	}
 
-	issues := []lints.Issue{
+	issues := []tt.Issue{
 		{
 			Rule:     "unnecessary-else",
 			Filename: "test.go",
@@ -301,7 +301,7 @@ func main() {
 func TestUnnecessaryTypeConversionFormatter(t *testing.T) {
 	formatter := &UnnecessaryTypeConversionFormatter{}
 
-	issue := lints.Issue{
+	issue := tt.Issue{
 		Rule:       "unnecessary-type-conversion",
 		Filename:   "test.go",
 		Start:      token.Position{Line: 5, Column: 10},

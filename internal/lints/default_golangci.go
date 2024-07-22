@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"go/token"
 	"os/exec"
+
+	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
 type golangciOutput struct {
@@ -19,7 +21,7 @@ type golangciOutput struct {
 	} `json:"Issues"`
 }
 
-func RunGolangciLint(filename string) ([]Issue, error) {
+func RunGolangciLint(filename string) ([]tt.Issue, error) {
 	cmd := exec.Command("golangci-lint", "run", "--disable=gosimple", "--out-format=json", filename)
 	output, _ := cmd.CombinedOutput()
 
@@ -28,9 +30,9 @@ func RunGolangciLint(filename string) ([]Issue, error) {
 		return nil, fmt.Errorf("error unmarshaling golangci-lint output: %w", err)
 	}
 
-	var issues []Issue
+	var issues []tt.Issue
 	for _, gi := range golangciResult.Issues {
-		issues = append(issues, Issue{
+		issues = append(issues, tt.Issue{
 			Rule:     gi.FromLinter,
 			Filename: gi.Pos.Filename, // Use the filename from golangci-lint output
 			Start:    token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column},

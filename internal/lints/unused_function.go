@@ -4,6 +4,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+
+	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
 // DetectUnusedFunctions detects functions that are declared but never used.
@@ -13,7 +15,7 @@ import (
 //  3. Exported functions: Functions starting with a capital letter are excluded as they might be used in other packages.
 //
 // This rule helps in code cleanup and improves maintainability.
-func DetectUnusedFunctions(filename string) ([]Issue, error) {
+func DetectUnusedFunctions(filename string) ([]tt.Issue, error) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
@@ -35,10 +37,10 @@ func DetectUnusedFunctions(filename string) ([]Issue, error) {
 		return true
 	})
 
-	var issues []Issue
+	var issues []tt.Issue
 	for funcName, funcDecl := range declaredFuncs {
 		if !calledFuncs[funcName] && funcName != "main" && funcName != "init" && !ast.IsExported(funcName) {
-			issue := Issue{
+			issue := tt.Issue{
 				Rule:     "unused-function",
 				Filename: filename,
 				Start:    fset.Position(funcDecl.Pos()),

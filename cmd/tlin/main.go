@@ -9,7 +9,7 @@ import (
 
 	"github.com/gnoswap-labs/lint/formatter"
 	"github.com/gnoswap-labs/lint/internal"
-	"github.com/gnoswap-labs/lint/internal/lints"
+	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
 func main() {
@@ -30,7 +30,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	var allIssues []lints.Issue
+	var allIssues []tt.Issue
 	for _, path := range args {
 		info, err := os.Stat(path)
 		if err != nil {
@@ -70,7 +70,7 @@ func main() {
 		}
 	}
 
-	issuesByFile := make(map[string][]lints.Issue)
+	issuesByFile := make(map[string][]tt.Issue)
 	for _, issue := range allIssues {
 		issuesByFile[issue.Filename] = append(issuesByFile[issue.Filename], issue)
 	}
@@ -97,7 +97,7 @@ func main() {
 	}
 }
 
-func processFile(engine *internal.Engine, filePath string) ([]lints.Issue, error) {
+func processFile(engine *internal.Engine, filePath string) ([]tt.Issue, error) {
 	issues, err := engine.Run(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error linting %s: %w", filePath, err)

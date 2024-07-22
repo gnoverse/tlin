@@ -6,7 +6,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/gnoswap-labs/lint/internal"
-	"github.com/gnoswap-labs/lint/internal/lints"
+	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
 // rule set
@@ -19,12 +19,12 @@ const (
 // IssueFormatter is the interface that wraps the Format method.
 // Implementations of this interface are responsible for formatting specific types of lint issues.
 type IssueFormatter interface {
-	Format(issue lints.Issue, snippet *internal.SourceCode) string
+	Format(issue tt.Issue, snippet *internal.SourceCode) string
 }
 
 // FormatIssuesWithArrows formats a slice of issues into a human-readable string.
 // It uses the appropriate formatter for each issue based on its rule.
-func FormatIssuesWithArrows(issues []lints.Issue, snippet *internal.SourceCode) string {
+func FormatIssuesWithArrows(issues []tt.Issue, snippet *internal.SourceCode) string {
 	var builder strings.Builder
 	for _, issue := range issues {
 		builder.WriteString(formatIssueHeader(issue))
@@ -52,19 +52,19 @@ func getFormatter(rule string) IssueFormatter {
 
 // formatIssueHeader creates a formatted header string for a given issue.
 // The header includes the rule and the filename. (e.g. "error: unused-variable\n --> test.go")
-func formatIssueHeader(issue lints.Issue) string {
+func formatIssueHeader(issue tt.Issue) string {
 	return errorStyle.Sprint("error: ") + ruleStyle.Sprint(issue.Rule) + "\n" +
 		lineStyle.Sprint(" --> ") + fileStyle.Sprint(issue.Filename) + "\n"
 }
 
-func buildSuggestion(result *strings.Builder, issue lints.Issue, lineStyle, suggestionStyle *color.Color) {
+func buildSuggestion(result *strings.Builder, issue tt.Issue, lineStyle, suggestionStyle *color.Color) {
 	result.WriteString(suggestionStyle.Sprintf("Suggestion:\n"))
 	result.WriteString(lineStyle.Sprintf("%d | ", issue.Start.Line))
 	result.WriteString(fmt.Sprintf("%s\n", issue.Suggestion))
 	result.WriteString("\n")
 }
 
-func buildNote(result *strings.Builder, issue lints.Issue, suggestionStyle *color.Color) {
+func buildNote(result *strings.Builder, issue tt.Issue, suggestionStyle *color.Color) {
 	result.WriteString(suggestionStyle.Sprint("Note: "))
 	result.WriteString(fmt.Sprintf("%s\n", issue.Note))
 	result.WriteString("\n")
