@@ -422,22 +422,22 @@ func main() {
 }`,
 			expected: 2,
 		},
-// 		{
-// 			name: "Variable allocation in loop",
-// 			// ref: https://stackoverflow.com/questions/77180437/understanding-short-variable-declaration-in-loop-resulting-unnecessary-memory-a
-// 			code: `
-// 			package main
+		// 		{
+		// 			name: "Variable allocation in loop",
+		// 			// ref: https://stackoverflow.com/questions/77180437/understanding-short-variable-declaration-in-loop-resulting-unnecessary-memory-a
+		// 			code: `
+		// 			package main
 
-// import "fmt"
+		// import "fmt"
 
-// func main() {
-//     for i:=0; i<10; i++ {
-//         a:=i+1 // BAD!: allocates memory in every iteration
-//         fmt.Printf("i-val: %d, i-addr: %p, a-val: %d, a-addr: %p\n", i, &i, a, &a)
-//     }
-// }`,
-// 			expected: 1,
-// 		},
+		// func main() {
+		//     for i:=0; i<10; i++ {
+		//         a:=i+1 // BAD!: allocates memory in every iteration
+		//         fmt.Printf("i-val: %d, i-addr: %p, a-val: %d, a-addr: %p\n", i, &i, a, &a)
+		//     }
+		// }`,
+		// 			expected: 1,
+		// 		},
 		{
 			name: "No allocation in loop",
 			code: `
@@ -473,7 +473,7 @@ func main() {
 			defer os.RemoveAll(tmpDir)
 
 			tmpfile := filepath.Join(tmpDir, "test.go")
-			err = os.WriteFile(tmpfile, []byte(tt.code), 0644)
+			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
 			require.NoError(t, err)
 
 			issues, err := DetectLoopAllocation(tmpfile)

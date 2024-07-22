@@ -26,18 +26,18 @@ func DetectLoopAllocation(filename string) ([]tt.Issue, error) {
 					if isAllocationFunction(innerNode) {
 						issues = append(issues, tt.Issue{
 							Message: "Potential unnecessary allocation inside loop",
-							Start: fset.Position(innerNode.Pos()),
-							End: fset.Position(innerNode.End()),
+							Start:   fset.Position(innerNode.Pos()),
+							End:     fset.Position(innerNode.End()),
 						})
 					}
-				// case *ast.AssignStmt:
-				// 	if innerNode.Tok == token.DEFINE {
-				// 		issues = append(issues, tt.Issue{
-				// 			Message: "Variable declaration inside loop may cause unnecessary allocation",
-				// 			Start: fset.Position(innerNode.Pos()),
-				// 			End: fset.Position(innerNode.End()),
-				// 		})
-				// 	}
+					// case *ast.AssignStmt:
+					// 	if innerNode.Tok == token.DEFINE {
+					// 		issues = append(issues, tt.Issue{
+					// 			Message: "Variable declaration inside loop may cause unnecessary allocation",
+					// 			Start: fset.Position(innerNode.Pos()),
+					// 			End: fset.Position(innerNode.End()),
+					// 		})
+					// 	}
 				}
 				return true
 			})
@@ -47,10 +47,9 @@ func DetectLoopAllocation(filename string) ([]tt.Issue, error) {
 	return issues, nil
 }
 
-
 func isAllocationFunction(call *ast.CallExpr) bool {
-    if ident, ok := call.Fun.(*ast.Ident); ok {
-        return ident.Name == "make" || ident.Name == "new"
-    }
-    return false
+	if ident, ok := call.Fun.(*ast.Ident); ok {
+		return ident.Name == "make" || ident.Name == "new"
+	}
+	return false
 }

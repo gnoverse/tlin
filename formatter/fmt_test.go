@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/gnoswap-labs/lint/internal"
+	tt "github.com/gnoswap-labs/lint/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
 func TestFormatIssuesWithArrows(t *testing.T) {
