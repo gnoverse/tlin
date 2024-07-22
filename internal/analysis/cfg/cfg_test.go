@@ -64,137 +64,123 @@ func TestFromStmts(t *testing.T) {
 	}
 }
 
-func TestMultiStatementFunction(t *testing.T) {
-	src := `
-package main
-func main() {
-	x := 1
-	if x > 0 {
-		x = 2
-	} else {
-		x = 3
-	}
-	for i := 0; i < 10; i++ {
-		x += i
-	}
-}`
-
-	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, "src.go", src, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var funcDecl *ast.FuncDecl
-	for _, decl := range node.Decls {
-		if fn, isFn := decl.(*ast.FuncDecl); isFn {
-			funcDecl = fn
-			break
-		}
-	}
-
-	if funcDecl == nil {
-		t.Fatalf("no function declaration found")
-	}
-
-	cfgGraph := FromFunc(funcDecl)
-
-	if cfgGraph.Entry == nil {
-		t.Errorf("expected entry node, got nil")
-	}
-
-	if cfgGraph.Exit == nil {
-		t.Errorf("expected exit node, got nil")
-	}
-
-	blocks := cfgGraph.Blocks()
-	if len(blocks) == 0 {
-		t.Errorf("expected some blocks, got none")
-	}
-
-	expectedBlocks := 10
-	if len(blocks) != expectedBlocks {
-		t.Errorf("expected %d blocks, got %d", expectedBlocks, len(blocks))
-	}
-}
-
-func TestEmptyFunc(t *testing.T) {
-	src := `
-		package main
-		func empty() {}
-	`
-
-	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, "src.go", src, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var funcDecl *ast.FuncDecl
-	for _, decl := range node.Decls {
-		if fn, isFn := decl.(*ast.FuncDecl); isFn {
-			funcDecl = fn
-			break
-		}
-	}
-
-	if funcDecl == nil {
-		t.Fatal("No function declaration found")
-	}
-
-	cfgGraph := FromFunc(funcDecl)
-
-	if cfgGraph.Entry == nil {
-		t.Errorf("Expected Entry node, got nil")
-	}
-	if cfgGraph.Exit == nil {
-		t.Errorf("Expected Exit node, got nil")
+func TestCFG(t *testing.T) {
+	tests := []struct {
+		name           string
+		src            string
+		expectedBlocks int
+	}{
+		{
+			name: "MultiStatementFunction",
+			src: `
+				package main
+				func main() {
+					x := 1
+					if x > 0 {
+						x = 2
+					} else {
+						x = 3
+					}
+					for i := 0; i < 10; i++ {
+						x += i
+					}
+				}`,
+			expectedBlocks: 10,
+		},
+		{
+			name: "Switch",
+			src: `
+				package main
+				func withSwitch(day string) int {
+					switch day {
+					case "Monday":
+						return 1
+					case "Tuesday":
+						return 2
+					case "Wednesday":
+						fallthrough
+					case "Thursday":
+						return 3
+					case "Friday":
+						break
+					default:
+						return 0
+					}
+				}`,
+			expectedBlocks: 15,
+		},
+		{
+			name: "TypeSwitch",
+			src: `
+				package main
+				type MyType int
+				func withTypeSwitch(i interface{}) int {
+					switch i.(type) {
+					case int:
+						return 1
+					case MyType:
+						return 2
+					default:
+						return 0
+					}
+					return 0
+				}`,
+			expectedBlocks: 11,
+		},
+		{
+			name: "EmptyFunc",
+			src: `
+				package main
+				func empty() {}`,
+			expectedBlocks: 2,
+		},
+		{
+			name: "SingleStatementFunc",
+			src: `
+				package main
+				func single() {
+					x := 1
+				}`,
+			expectedBlocks: 3,
+		},
 	}
 
-	blocks := cfgGraph.Blocks()
-	if len(blocks) != 2 { // Entry and Exit should be the only blocks
-		t.Errorf("Expected 2 blocks (Entry and Exit), got %d", len(blocks))
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fset := token.NewFileSet()
+			node, err := parser.ParseFile(fset, "src.go", tt.src, 0)
+			if err != nil {
+				t.Fatalf("failed to parse source: %v", err)
+			}
 
-func TestSingleStatementFunc(t *testing.T) {
-	src := `
-		package main
-		func single() {
-			x := 1
-		}
-	`
+			var funcDecl *ast.FuncDecl
+			for _, decl := range node.Decls {
+				if fn, isFn := decl.(*ast.FuncDecl); isFn {
+					funcDecl = fn
+					break
+				}
+			}
 
-	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, "src.go", src, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+			if funcDecl == nil {
+				t.Fatal("No function declaration found")
+			}
 
-	var funcDecl *ast.FuncDecl
-	for _, decl := range node.Decls {
-		if fn, isFn := decl.(*ast.FuncDecl); isFn {
-			funcDecl = fn
-			break
-		}
-	}
+			cfgGraph := FromFunc(funcDecl)
 
-	if funcDecl == nil {
-		t.Fatal("No function declaration found")
-	}
+			if cfgGraph.Entry == nil {
+				t.Error("Expected Entry node, got nil")
+			}
+			if cfgGraph.Exit == nil {
+				t.Error("Expected Exit node, got nil")
+			}
 
-	cfgGraph := FromFunc(funcDecl)
+			blocks := cfgGraph.Blocks()
+			if len(blocks) != tt.expectedBlocks {
+				t.Errorf("Expected %d blocks, got %d", tt.expectedBlocks, len(blocks))
+			}
 
-	if cfgGraph.Entry == nil {
-		t.Errorf("Expected Entry node, got nil")
-	}
-	if cfgGraph.Exit == nil {
-		t.Errorf("Expected Exit node, got nil")
-	}
-
-	blocks := cfgGraph.Blocks()
-	if len(blocks) != 3 { // Entry, statement, and Exit
-		t.Errorf("Expected 3 blocks (Entry, statement, and Exit), got %d", len(blocks))
+			// Additional checks can be added here if needed
+		})
 	}
 }
 
