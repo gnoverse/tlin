@@ -83,7 +83,7 @@ func DetectUnnecessaryConversions(filename string) ([]tt.Issue, error) {
 				if node == n {
 					return false
 				}
-				if contains(node, n) {
+				if containsNode(node, n) {
 					parent = node
 					return false
 				}
@@ -207,8 +207,8 @@ func asBuiltin(n ast.Expr, info *types.Info) (*types.Builtin, bool) {
 	return b, ok
 }
 
-// contains checks if parent contains child node
-func contains(parent, child ast.Node) bool {
+// containsNode checks if parent containsNode child node
+func containsNode(parent, child ast.Node) bool {
 	found := false
 	ast.Inspect(parent, func(n ast.Node) bool {
 		if n == child {
