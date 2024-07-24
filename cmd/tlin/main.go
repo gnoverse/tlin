@@ -118,23 +118,43 @@ func runNormalLintProcess(engine *internal.Engine, args []string) {
 }
 
 func runCyclomaticComplexityAnalysis(paths []string, threshold int) {
-    var allIssues []tt.Issue
-    for _, path := range paths {
-        issues, err := processCyclomaticComplexity(path, threshold)
-        if err != nil {
-            fmt.Printf("error processing %s: %v\n", path, err)
-        } else {
-            allIssues = append(allIssues, issues...)
-        }
-    }
+	var allIssues []tt.Issue
+	for _, path := range paths {
+		issues, err := processCyclomaticComplexity(path, threshold)
+		if err != nil {
+			fmt.Printf("error processing %s: %v\n", path, err)
+		} else {
+			allIssues = append(allIssues, issues...)
+		}
+	}
 
-    for _, issue := range allIssues {
-        fmt.Printf("%s: %s\n", issue.Filename, issue.Message)
-    }
+	issuesByFile := make(map[string][]tt.Issue)
+	for _, issue := range allIssues {
+		issuesByFile[issue.Filename] = append(issuesByFile[issue.Filename], issue)
+	}
 
-    if len(allIssues) > 0 {
-        os.Exit(1)
-    }
+	// sorted by file name
+	var sortedFiles []string
+	for filename := range issuesByFile {
+		sortedFiles = append(sortedFiles, filename)
+	}
+	sort.Strings(sortedFiles)
+
+	// apply formatting
+	for _, filename := range sortedFiles {
+		issues := issuesByFile[filename]
+		sourceCode, err := internal.ReadSourceCode(filename)
+		if err != nil {
+			fmt.Printf("error reading source file %s: %v\n", filename, err)
+			continue
+		}
+		output := formatter.FormatIssuesWithArrows(issues, sourceCode)
+		fmt.Println(output)
+	}
+
+	if len(allIssues) > 0 {
+		os.Exit(1)
+	}
 }
 
 func processCyclomaticComplexity(path string, threshold int) ([]tt.Issue, error) {
