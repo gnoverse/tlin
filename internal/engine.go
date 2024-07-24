@@ -37,6 +37,7 @@ func (e *Engine) registerDefaultRules() {
 		&SimplifySliceExprRule{},
 		&UnnecessaryConversionRule{},
 		&LoopAllocationRule{},
+		&DetectCycleRule{},
 	)
 }
 
