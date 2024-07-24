@@ -17,6 +17,7 @@ Inspired by Rust's [clippy](https://github.com/rust-lang/rust-clippy), tlin aims
 - Ability to add custom lint rules
 - Additional code improvement suggestion, such as detecting unnecessary code
 - Auto-fixing for some lint rules (🚧 WIP)
+- Cyclomatic complexity analysis
 
 ## Installation
 
@@ -120,6 +121,35 @@ func (e *Engine) registerDefaultRules() {
    ```
 
 By following these steps, you can add new lint rules and ensure they are properly formatted when displayed in the CLI.
+
+## Cyclomatic Complexity Analysis
+
+tlin includes a feature to analyze the [cyclomatic complexity](https://en.wikipedia.org/wiki/Cyclomatic_complexity) of your code. This feature is a quantitative measure of the number of linearly independent paths through a program's source code. It's often used to indicate the complexity of a program and can be used to estimate the effort required to test or maintain a function or method.
+
+High cyclomatic complexity can make code harder to understand and maintain. Generally, lower cyclomatic complexity is better.
+
+### Running Cyclomatic Complexity Analysis
+
+To run this analysis, use the `-cyclo` flag along with an optional `-threshold` flag to set the [complexity threshold](https://learn.microsoft.com/en-us/visualstudio/code-quality/code-metrics-cyclomatic-complexity?view=vs-2022). The default threshold is 10.
+
+```bash
+tlin -cyclo -threshold <threshold> <path>
+```
+
+For example:
+
+```bash
+tlin -cyclo -threshold 15 .
+```
+
+This command will analyze all `.go` and `.gno` files in the current directory and its subdirectories, reporting functions with a complexity higher than 15.
+
+The output will show:
+
+- The function name and its location
+- The cyclomatic complexity score
+
+Use this feature to identify complex parts of your codebase that might benefit from refactoring.
 
 ## Contributing
 

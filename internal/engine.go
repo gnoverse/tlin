@@ -38,6 +38,7 @@ func (e *Engine) registerDefaultRules() {
 		&UnnecessaryConversionRule{},
 		&LoopAllocationRule{},
 		&DetectCycleRule{},
+		// &CyclomaticComplexityRule{Threshold: 10},
 	)
 }
 

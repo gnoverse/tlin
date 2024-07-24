@@ -56,3 +56,13 @@ type DetectCycleRule struct{}
 func (r *DetectCycleRule) Check(filename string) ([]tt.Issue, error) {
 	return lints.DetectCycle(filename)
 }
+
+// -----------------------------------------------------------------------------
+
+type CyclomaticComplexityRule struct {
+	Threshold int
+}
+
+func (r *CyclomaticComplexityRule) Check(filename string) ([]tt.Issue, error) {
+	return lints.DetectHighCyclomaticComplexity(filename, r.Threshold)
+}

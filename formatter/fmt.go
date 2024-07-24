@@ -14,6 +14,7 @@ const (
 	UnnecessaryElse     = "unnecessary-else"
 	UnnecessaryTypeConv = "unnecessary-type-conversion"
 	SimplifySliceExpr   = "simplify-slice-range"
+	CycloComplexity     = "high-cyclomatic-complexity"
 )
 
 // IssueFormatter is the interface that wraps the Format method.
@@ -45,6 +46,8 @@ func getFormatter(rule string) IssueFormatter {
 		return &SimplifySliceExpressionFormatter{}
 	case UnnecessaryTypeConv:
 		return &UnnecessaryTypeConversionFormatter{}
+	case CycloComplexity:
+		return &CyclomaticComplexityFormatter{}
 	default:
 		return &GeneralIssueFormatter{}
 	}
