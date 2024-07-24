@@ -50,3 +50,9 @@ type LoopAllocationRule struct{}
 func (r *LoopAllocationRule) Check(filename string) ([]tt.Issue, error) {
 	return lints.DetectLoopAllocation(filename)
 }
+
+type DetectCycleRule struct{}
+
+func (r *DetectCycleRule) Check(filename string) ([]tt.Issue, error) {
+	return lints.DetectCycle(filename)
+}

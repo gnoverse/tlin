@@ -3,7 +3,35 @@ package lints
 import (
 	"fmt"
 	"go/ast"
+	"go/parser"
+	"go/token"
+
+	tt "github.com/gnoswap-labs/lint/internal/types"
 )
+
+func DetectCycle(filename string) ([]tt.Issue, error) {
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
+	if err != nil {
+		return nil, err
+	}
+
+	c := newCycle()
+	cycles := c.detectCycles(node)
+
+	var issues []tt.Issue
+	for _, cycle := range cycles {
+		issue := tt.Issue{
+			Rule:     "cycle-detection",
+			Filename: filename,
+			Start:    fset.Position(node.Pos()),
+			End:      fset.Position(node.End()),
+			Message:  "Detected cycle in function call: " + cycle,
+		}
+		issues = append(issues, issue)
+	}
+	return issues, nil
+}
 
 type cycle struct {
 	dependencies map[string][]string
