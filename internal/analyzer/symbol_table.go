@@ -1,4 +1,4 @@
-package internal
+package analyzer
 
 import (
 	"go/ast"
@@ -12,24 +12,24 @@ import (
 
 type SymbolInfo struct {
 	FilePath string
-	Package string
-	Type string // "func", "type", "var", "const"
+	Package  string
+	Type     string // "func", "type", "var", "const"
 	Exported bool
 }
 
 type SymbolTable struct {
 	symbols map[string]SymbolInfo
-	mutex sync.RWMutex
+	mutex   sync.RWMutex
 }
 
-func New() *SymbolTable {
+func NewSymbolTable() *SymbolTable {
 	return &SymbolTable{
 		symbols: make(map[string]SymbolInfo),
 	}
 }
 
 func BuildSymbolTable(rootDir string) (*SymbolTable, error) {
-	st := New()
+	st := NewSymbolTable()
 	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -58,23 +58,23 @@ func (st *SymbolTable) parseFile(filepath string) error {
 		case *ast.TypeSpec:
 			st.add(x.Name.Name, SymbolInfo{
 				FilePath: filepath,
-				Package: packageName,
-				Type: "type",
+				Package:  packageName,
+				Type:     "type",
 				Exported: ast.IsExported(x.Name.Name),
 			})
 		case *ast.FuncDecl:
 			st.add(x.Name.Name, SymbolInfo{
 				FilePath: filepath,
-				Package: packageName,
-				Type: "func",
+				Package:  packageName,
+				Type:     "func",
 				Exported: ast.IsExported(x.Name.Name),
 			})
 		case *ast.ValueSpec:
 			for _, ident := range x.Names {
 				st.add(ident.Name, SymbolInfo{
 					FilePath: filepath,
-					Package: packageName,
-					Type: "var",
+					Package:  packageName,
+					Type:     "var",
 					Exported: ast.IsExported(ident.Name),
 				})
 			}

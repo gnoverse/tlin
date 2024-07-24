@@ -6,18 +6,19 @@ import (
 	"path/filepath"
 	"strings"
 
+	az "github.com/gnoswap-labs/lint/internal/analyzer"
 	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
 // Engine manages the linting process.
 type Engine struct {
-	SymbolTable *SymbolTable
+	SymbolTable *az.SymbolTable
 	rules       []LintRule
 }
 
 // NewEngine creates a new lint engine.
 func NewEngine(rootDir string) (*Engine, error) {
-	st, err := BuildSymbolTable(rootDir)
+	st, err := az.BuildSymbolTable(rootDir)
 	if err != nil {
 		return nil, fmt.Errorf("error building symbol table: %w", err)
 	}
@@ -38,7 +39,6 @@ func (e *Engine) registerDefaultRules() {
 		&UnnecessaryConversionRule{},
 		&LoopAllocationRule{},
 		&DetectCycleRule{},
-		// &CyclomaticComplexityRule{Threshold: 10},
 	)
 }
 

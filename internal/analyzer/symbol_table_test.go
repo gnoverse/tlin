@@ -1,9 +1,11 @@
-package internal
+package analyzer
 
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +40,7 @@ const ExportedConst = 42
 	}
 
 	for fileName, content := range testFiles {
-		err := os.WriteFile(filepath.Join(tmpDir, fileName), []byte(content), 0644)
+		err := os.WriteFile(filepath.Join(tmpDir, fileName), []byte(content), 0o644)
 		require.NoError(t, err)
 	}
 
@@ -84,4 +86,43 @@ const ExportedConst = 42
 			assert.True(t, exists, "Symbol %s should exist in all symbols", symbol)
 		}
 	})
+}
+
+// XXX: avoid to use time.Sleep in tests
+func TestSymbolTableConcurrency(t *testing.T) {
+	st := NewSymbolTable()
+	var wg sync.WaitGroup
+	wg.Add(4)
+
+	go func() {
+		defer wg.Done()
+		st.add("symbol1", SymbolInfo{Package: "pkg1", Type: "func", Exported: true})
+	}()
+	go func() {
+		defer wg.Done()
+		st.add("symbol2", SymbolInfo{Package: "pkg2", Type: "var", Exported: false})
+	}()
+
+	// search for symbols concurrently
+	go func() {
+		defer wg.Done()
+		for !st.IsDefined("symbol1") {
+			// wait until symbol1 is added
+			time.Sleep(time.Millisecond)
+		}
+		assert.True(t, st.IsDefined("symbol1"))
+	}()
+	go func() {
+		defer wg.Done()
+		for !st.IsDefined("symbol2") {
+			// wait until symbol2 is added
+			time.Sleep(time.Millisecond)
+		}
+		assert.True(t, st.IsDefined("symbol2"))
+	}()
+
+	wg.Wait()
+
+	allSymbols := st.GetAllSymbols()
+	assert.Equal(t, 2, len(allSymbols))
 }
