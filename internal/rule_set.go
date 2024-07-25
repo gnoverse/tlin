@@ -110,3 +110,7 @@ type GnoSpecificRule struct{}
 func (r *GnoSpecificRule) Check(filename string) ([]tt.Issue, error) {
 	return lints.DetectGnoPackageImports(filename)
 }
+
+func (r *GnoSpecificRule) Name() string {
+	return "unused-package"
+}
