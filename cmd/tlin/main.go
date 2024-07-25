@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/gnoswap-labs/lint/formatter"
 	"github.com/gnoswap-labs/lint/internal"
@@ -27,6 +28,8 @@ func main() {
 	// [*] MaCabe's article recommends 10 or less, but up to 15 is acceptable (by Microsoft).
 	// [*] https://learn.microsoft.com/en-us/visualstudio/code-quality/code-metrics-cyclomatic-complexity?view=vs-2022
 	cyclomaticThreshold := flag.Int("threshold", 10, "Cyclomatic complexity threshold")
+	ignoreRules := flag.String("ignore", "", "Comma-separated list of lint rules to ignore")
+
 	flag.Parse()
 
 	args := flag.Args()
@@ -40,6 +43,13 @@ func main() {
 	if err != nil {
 		fmt.Printf("error initializing lint engine: %v\n", err)
 		os.Exit(1)
+	}
+
+	if *ignoreRules != "" {
+		rules := strings.Split(*ignoreRules, ",")
+		for _, rule := range rules {
+			engine.IgnoreRule(strings.TrimSpace(rule))
+		}
 	}
 
 	if *cyclomaticComplexity {
