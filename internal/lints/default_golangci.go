@@ -2,7 +2,7 @@ package lints
 
 import (
 	"encoding/json"
-	"fmt"
+	_ "fmt"
 	"go/token"
 	"os/exec"
 
@@ -26,9 +26,10 @@ func RunGolangciLint(filename string) ([]tt.Issue, error) {
 	output, _ := cmd.CombinedOutput()
 
 	var golangciResult golangciOutput
-	if err := json.Unmarshal(output, &golangciResult); err != nil {
-		return nil, fmt.Errorf("error unmarshaling golangci-lint output: %w", err)
-	}
+
+	// @notJoon: Ignore Unmarshal error. We cannot unmarshal the output of golangci-lint
+	// when source code contains gno package imports (i.e. p/demo, r/demo, std). [07/25/24]
+	json.Unmarshal(output, &golangciResult)
 
 	var issues []tt.Issue
 	for _, gi := range golangciResult.Issues {
