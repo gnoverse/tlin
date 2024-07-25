@@ -37,13 +37,15 @@ func TestRunLinter(t *testing.T) {
 	}
 
 	expectedDeps := map[string]struct {
-		isGno  bool
-		isUsed bool
+		isGno     bool
+		isUsed    bool
+		isIgnored bool
 	}{
-		"fmt":                  {false, true},
-		"gno.land/p/demo/ufmt": {true, true},
-		"strings":              {false, false},
-		"std":                  {true, true},
+		"fmt":                  {false, true, false},
+		"gno.land/p/demo/ufmt": {true, true, false},
+		"strings":              {false, false, false},
+		"std":                  {true, true, false},
+		"gno.land/p/demo/diff": {true, false, true},
 	}
 
 	for importPath, expected := range expectedDeps {
@@ -52,6 +54,7 @@ func TestRunLinter(t *testing.T) {
 		if exists {
 			assert.Equal(t, expected.isGno, dep.IsGno, "IsGno mismatch for %s", importPath)
 			assert.Equal(t, expected.isUsed, dep.IsUsed, "IsUsed mismatch for %s", importPath)
+			assert.Equal(t, expected.isIgnored, dep.IsIgnored, "IsIgnored mismatch for %s", importPath)
 		}
 	}
 }

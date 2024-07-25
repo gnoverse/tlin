@@ -17,22 +17,29 @@ const (
 	GNO_STD_PACKAGE = "std"
 )
 
+// Dependency represents an imported package and its usage status.
 type Dependency struct {
 	ImportPath string
 	IsGno      bool
 	IsUsed     bool
+	IsIgnored  bool // alias with `_` should be ignored
 }
 
 type (
+	// Dependencies is a map of import paths to their Dependency information.
 	Dependencies map[string]*Dependency
-	FileMap      map[string]*ast.File
+
+	// FileMap is a map of filenames to their parsed AST representation.
+	FileMap map[string]*ast.File
 )
 
+// Package represents a Go/Gno package with its name and files.
 type Package struct {
 	Name  string
 	Files FileMap
 }
 
+// DetectGnoPackageImports analyzes the given file for Gno package imports and returns any issues found.
 func DetectGnoPackageImports(filename string) ([]tt.Issue, error) {
 	dir := filepath.Dir(filename)
 
@@ -50,6 +57,7 @@ func DetectGnoPackageImports(filename string) ([]tt.Issue, error) {
 	return issues, nil
 }
 
+// parses all gno files and collect their imports and usage.
 func analyzePackage(dir string) (*Package, Dependencies, error) {
 	pkg := &Package{
 		Files: make(FileMap),
@@ -80,6 +88,7 @@ func analyzePackage(dir string) (*Package, Dependencies, error) {
 					ImportPath: impPath,
 					IsGno:      isGnoPackage(impPath),
 					IsUsed:     false,
+					IsIgnored:  imp.Name != nil && imp.Name.Name == "_",
 				}
 			}
 		}
@@ -114,6 +123,7 @@ func runGnoPackageLinter(pkg *Package, deps Dependencies) []tt.Issue {
 		ast.Inspect(file, func(n ast.Node) bool {
 			switch x := n.(type) {
 			case *ast.SelectorExpr:
+				// check unused imports
 				if ident, ok := x.X.(*ast.Ident); ok {
 					if dep, exists := deps[ident.Name]; exists {
 						dep.IsUsed = true
@@ -124,10 +134,8 @@ func runGnoPackageLinter(pkg *Package, deps Dependencies) []tt.Issue {
 		})
 	}
 
-	// TODO: if unused package has `_` alias, it should be ignored
-	// TODO: or throw a warning
 	for impPath, dep := range deps {
-		if !dep.IsUsed {
+		if !dep.IsUsed && !dep.IsIgnored {
 			issue := tt.Issue{
 				Rule:    "unused-import",
 				Message: fmt.Sprintf("unused import: %s", impPath),
