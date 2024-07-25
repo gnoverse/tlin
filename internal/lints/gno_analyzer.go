@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -33,10 +32,12 @@ type (
 	FileMap map[string]*ast.File
 )
 
-// Package represents a Go/Gno package with its name and files.
-type Package struct {
-	Name  string
-	Files FileMap
+// PackageInfo represents a Go/Gno package with its name and files.
+type PackageInfo struct {
+	Name        string
+	Files       FileMap
+	Imports     map[string]*Dependency
+	PkgTable map[string]string
 }
 
 // DetectGnoPackageImports analyzes the given file for Gno package imports and returns any issues found.
@@ -58,36 +59,36 @@ func DetectGnoPackageImports(filename string) ([]tt.Issue, error) {
 }
 
 // parses all gno files and collect their imports and usage.
-func analyzePackage(dir string) (*Package, Dependencies, error) {
-	pkg := &Package{
-		Files: make(FileMap),
+func analyzePackage(dir string) (*PackageInfo, Dependencies, error) {
+	pkg := &PackageInfo{
+		Files:       make(FileMap),
+		Imports:     make(map[string]*Dependency),
+		PkgTable: make(map[string]string),
 	}
 	deps := make(Dependencies)
 
-	files, err := filepath.Glob(filepath.Join(dir, "*.gno"))
+	files, err := filepath.Glob(filepath.Join(dir, "*.{go,gno}"))
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// 1. Parse all file contents and collect dependencies
 	for _, file := range files {
-		f, err := parseFile(file)
+		f, err := parser.ParseFile(token.NewFileSet(), file, nil, 0)
 		if err != nil {
 			return nil, nil, err
 		}
-
 		pkg.Files[file] = f
 		if pkg.Name == "" {
 			pkg.Name = f.Name.Name
 		}
-
 		for _, imp := range f.Imports {
-			impPath := strings.Trim(imp.Path.Value, `"`)
-			if _, exists := deps[impPath]; !exists {
-				deps[impPath] = &Dependency{
-					ImportPath: impPath,
-					IsGno:      isGnoPackage(impPath),
+			path := strings.Trim(imp.Path.Value, `"`)
+			if _, exists := pkg.Imports[path]; !exists {
+				pkg.Imports[path] = &Dependency{
+					ImportPath: path,
 					IsUsed:     false,
+					IsGno:      isGnoPackage(path),
 					IsIgnored:  imp.Name != nil && imp.Name.Name == "_",
 				}
 			}
@@ -98,6 +99,16 @@ func analyzePackage(dir string) (*Package, Dependencies, error) {
 	for _, file := range pkg.Files {
 		ast.Inspect(file, func(n ast.Node) bool {
 			switch x := n.(type) {
+			case *ast.ImportSpec:
+				// add imported symbols to symbol table
+				path := strings.Trim(x.Path.Value, `"`)
+				var name string
+				if x.Name != nil {
+					name = x.Name.Name
+				} else {
+					name = filepath.Base(path)
+				}
+				pkg.PkgTable[name] = path
 			case *ast.SelectorExpr:
 				if ident, ok := x.X.(*ast.Ident); ok {
 					for _, imp := range file.Imports {
@@ -116,7 +127,7 @@ func analyzePackage(dir string) (*Package, Dependencies, error) {
 	return pkg, deps, nil
 }
 
-func runGnoPackageLinter(pkg *Package, deps Dependencies) []tt.Issue {
+func runGnoPackageLinter(pkg *PackageInfo, deps Dependencies) []tt.Issue {
 	var issues []tt.Issue
 
 	for _, file := range pkg.Files {
@@ -149,16 +160,6 @@ func runGnoPackageLinter(pkg *Package, deps Dependencies) []tt.Issue {
 
 func isGnoPackage(importPath string) bool {
 	return strings.HasPrefix(importPath, GNO_PKG_PREFIX) || importPath == GNO_STD_PACKAGE
-}
-
-func parseFile(filename string) (*ast.File, error) {
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	fset := token.NewFileSet()
-	return parser.ParseFile(fset, filename, content, parser.ParseComments)
 }
 
 func getLastPart(path string) string {
