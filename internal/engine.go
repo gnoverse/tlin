@@ -11,9 +11,9 @@ import (
 
 // Engine manages the linting process.
 type Engine struct {
-	SymbolTable *SymbolTable
-	rules       []LintRule
-	ignoredRules     map[string]bool
+	SymbolTable  *SymbolTable
+	rules        []LintRule
+	ignoredRules map[string]bool
 }
 
 // NewEngine creates a new lint engine.

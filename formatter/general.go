@@ -43,28 +43,19 @@ func (f *GeneralIssueFormatter) Format(
 	padding := strings.Repeat(" ", len(lineNumberStr)-1)
 	result.WriteString(lineStyle.Sprintf("  %s|\n", padding))
 
-	// line := expandTabs(snippet.Lines[issue.Start.Line-1])
-	// result.WriteString(lineStyle.Sprintf("%d | ", issue.Start.Line))
-	// result.WriteString(line + "\n")
-
-	// visualColumn := calculateVisualColumn(line, issue.Start.Column)
-	// result.WriteString(lineStyle.Sprintf("  %s| ", padding))
-	// result.WriteString(strings.Repeat(" ", visualColumn))
-	// result.WriteString(messageStyle.Sprintf("^ %s\n\n", issue.Message))
-
 	if len(snippet.Lines) > 0 {
-        line := expandTabs(snippet.Lines[lineIndex])
-        result.WriteString(lineStyle.Sprintf("%d | ", issue.Start.Line))
-        result.WriteString(line + "\n")
+		line := expandTabs(snippet.Lines[lineIndex])
+		result.WriteString(lineStyle.Sprintf("%d | ", issue.Start.Line))
+		result.WriteString(line + "\n")
 
-        visualColumn := calculateVisualColumn(line, issue.Start.Column)
-        result.WriteString(lineStyle.Sprintf("  %s| ", padding))
-        result.WriteString(strings.Repeat(" ", visualColumn))
-        result.WriteString(messageStyle.Sprintf("^ %s\n\n", issue.Message))
-    } else {
-        result.WriteString(messageStyle.Sprintf("Unable to display line. File might be empty.\n"))
-        result.WriteString(messageStyle.Sprintf("Issue: %s\n\n", issue.Message))
-    }
+		visualColumn := calculateVisualColumn(line, issue.Start.Column)
+		result.WriteString(lineStyle.Sprintf("  %s| ", padding))
+		result.WriteString(strings.Repeat(" ", visualColumn))
+		result.WriteString(messageStyle.Sprintf("^ %s\n\n", issue.Message))
+	} else {
+		result.WriteString(messageStyle.Sprintf("Unable to display line. File might be empty.\n"))
+		result.WriteString(messageStyle.Sprintf("Issue: %s\n\n", issue.Message))
+	}
 
 	return result.String()
 }
