@@ -101,3 +101,12 @@ func (r *CyclomaticComplexityRule) Check(filename string) ([]tt.Issue, error) {
 func (r *CyclomaticComplexityRule) Name() string {
 	return "high-cyclomatic-complexity"
 }
+
+// -----------------------------------------------------------------------------
+
+// GnoSpecificRule checks for gno-specific package imports. (p, r and std)
+type GnoSpecificRule struct{}
+
+func (r *GnoSpecificRule) Check(filename string) ([]tt.Issue, error) {
+	return lints.DetectGnoPackageImports(filename)
+}

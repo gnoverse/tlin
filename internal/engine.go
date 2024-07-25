@@ -39,6 +39,7 @@ func (e *Engine) registerDefaultRules() {
 		&UnnecessaryConversionRule{},
 		&LoopAllocationRule{},
 		&DetectCycleRule{},
+		&GnoSpecificRule{},
 	)
 }
 
