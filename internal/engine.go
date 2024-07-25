@@ -13,6 +13,7 @@ import (
 type Engine struct {
 	SymbolTable *SymbolTable
 	rules       []LintRule
+	ignoredRules     map[string]bool
 }
 
 // NewEngine creates a new lint engine.
@@ -57,6 +58,9 @@ func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 
 	var allIssues []tt.Issue
 	for _, rule := range e.rules {
+		if e.ignoredRules[rule.Name()] {
+			continue
+		}
 		issues, err := rule.Check(tempFile)
 		if err != nil {
 			return nil, fmt.Errorf("error running lint rule: %w", err)
@@ -74,6 +78,13 @@ func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 	}
 
 	return filtered, nil
+}
+
+func (e *Engine) IgnoreRule(rule string) {
+	if e.ignoredRules == nil {
+		e.ignoredRules = make(map[string]bool)
+	}
+	e.ignoredRules[rule] = true
 }
 
 func (e *Engine) prepareFile(filename string) (string, error) {
