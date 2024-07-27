@@ -43,6 +43,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// TODO: Cache the directory tree to avoid re-traversing the same directories.
 	rootDir := "."
 	engine, err := internal.NewEngine(rootDir)
 	if err != nil {
@@ -60,6 +61,7 @@ func main() {
 		}
 	}
 
+	// TODO: We might be use the cached directory result when execute analysis functions.
 	if *cyclomaticComplexity {
 		runWithTimeout(ctx, func() {
 			runCyclomaticComplexityAnalysis(args, *cyclomaticThreshold)
