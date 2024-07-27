@@ -19,7 +19,7 @@ import (
 const defaultTimeout = 5 * time.Minute
 
 func main() {
-	timeout := flag.Duration("timeout", defaultTimeout, "Set a timeout for the linter")
+	timeout := flag.Duration("timeout", defaultTimeout, "Set a timeout for the linter. example: 1s, 1m, 1h")
 	// verbose := flag.Bool("verbose", false, "Enable verbose output")
 	// formatJSON := flag.Bool("json", false, "Output results in JSON format")
 	cyclomaticComplexity := flag.Bool("cyclo", false, "Run cyclomatic complexity analysis")
