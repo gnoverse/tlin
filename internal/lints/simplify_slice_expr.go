@@ -3,19 +3,12 @@ package lints
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 
 	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
-func DetectUnnecessarySliceLength(filename string) ([]tt.Issue, error) {
-	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
-	if err != nil {
-		return nil, err
-	}
-
+func DetectUnnecessarySliceLength(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
 	var issues []tt.Issue
 	ast.Inspect(node, func(n ast.Node) bool {
 		sliceExpr, ok := n.(*ast.SliceExpr)

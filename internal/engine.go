@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	az "github.com/gnoswap-labs/lint/internal/analyzer"
+	"github.com/gnoswap-labs/lint/internal/lints"
 	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
@@ -57,12 +58,17 @@ func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 	}
 	defer e.cleanupTemp(tempFile)
 
+	node, fset, err := lints.ParseFile(tempFile)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing file: %w", err)
+	}
+
 	var allIssues []tt.Issue
 	for _, rule := range e.rules {
 		if e.ignoredRules[rule.Name()] {
 			continue
 		}
-		issues, err := rule.Check(tempFile)
+		issues, err := rule.Check(tempFile, node, fset)
 		if err != nil {
 			return nil, fmt.Errorf("error running lint rule: %w", err)
 		}

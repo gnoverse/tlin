@@ -1,6 +1,9 @@
 package internal
 
 import (
+	"go/ast"
+	"go/token"
+
 	"github.com/gnoswap-labs/lint/internal/lints"
 	tt "github.com/gnoswap-labs/lint/internal/types"
 )
@@ -12,7 +15,7 @@ import (
 // LintRule defines the interface for all lint rules.
 type LintRule interface {
 	// Check runs the lint rule on the given file and returns a slice of Issues.
-	Check(filename string) ([]tt.Issue, error)
+	Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error)
 
 	// Name returns the name of the lint rule.
 	Name() string
@@ -20,7 +23,7 @@ type LintRule interface {
 
 type GolangciLintRule struct{}
 
-func (r *GolangciLintRule) Check(filename string) ([]tt.Issue, error) {
+func (r *GolangciLintRule) Check(filename string, _ *ast.File, _ *token.FileSet) ([]tt.Issue, error) {
 	return lints.RunGolangciLint(filename)
 }
 
@@ -30,8 +33,8 @@ func (r *GolangciLintRule) Name() string {
 
 type UnnecessaryElseRule struct{}
 
-func (r *UnnecessaryElseRule) Check(filename string) ([]tt.Issue, error) {
-	return lints.DetectUnnecessaryElse(filename)
+func (r *UnnecessaryElseRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectUnnecessaryElse(filename, node, fset)
 }
 
 func (r *UnnecessaryElseRule) Name() string {
@@ -40,8 +43,8 @@ func (r *UnnecessaryElseRule) Name() string {
 
 type UnusedFunctionRule struct{}
 
-func (r *UnusedFunctionRule) Check(filename string) ([]tt.Issue, error) {
-	return lints.DetectUnusedFunctions(filename)
+func (r *UnusedFunctionRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectUnusedFunctions(filename, node, fset)
 }
 
 func (r *UnusedFunctionRule) Name() string {
@@ -50,8 +53,8 @@ func (r *UnusedFunctionRule) Name() string {
 
 type SimplifySliceExprRule struct{}
 
-func (r *SimplifySliceExprRule) Check(filename string) ([]tt.Issue, error) {
-	return lints.DetectUnnecessarySliceLength(filename)
+func (r *SimplifySliceExprRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectUnnecessarySliceLength(filename, node, fset)
 }
 
 func (r *SimplifySliceExprRule) Name() string {
@@ -60,8 +63,8 @@ func (r *SimplifySliceExprRule) Name() string {
 
 type UnnecessaryConversionRule struct{}
 
-func (r *UnnecessaryConversionRule) Check(filename string) ([]tt.Issue, error) {
-	return lints.DetectUnnecessaryConversions(filename)
+func (r *UnnecessaryConversionRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectUnnecessaryConversions(filename, node, fset)
 }
 
 func (r *UnnecessaryConversionRule) Name() string {
@@ -70,8 +73,8 @@ func (r *UnnecessaryConversionRule) Name() string {
 
 type LoopAllocationRule struct{}
 
-func (r *LoopAllocationRule) Check(filename string) ([]tt.Issue, error) {
-	return lints.DetectLoopAllocation(filename)
+func (r *LoopAllocationRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectLoopAllocation(filename, node, fset)
 }
 
 func (r *LoopAllocationRule) Name() string {
@@ -80,8 +83,8 @@ func (r *LoopAllocationRule) Name() string {
 
 type DetectCycleRule struct{}
 
-func (r *DetectCycleRule) Check(filename string) ([]tt.Issue, error) {
-	return lints.DetectCycle(filename)
+func (r *DetectCycleRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectCycle(filename, node, fset)
 }
 
 func (r *DetectCycleRule) Name() string {
@@ -94,7 +97,7 @@ type CyclomaticComplexityRule struct {
 	Threshold int
 }
 
-func (r *CyclomaticComplexityRule) Check(filename string) ([]tt.Issue, error) {
+func (r *CyclomaticComplexityRule) Check(filename string, node *ast.File) ([]tt.Issue, error) {
 	return lints.DetectHighCyclomaticComplexity(filename, r.Threshold)
 }
 
@@ -107,7 +110,7 @@ func (r *CyclomaticComplexityRule) Name() string {
 // GnoSpecificRule checks for gno-specific package imports. (p, r and std)
 type GnoSpecificRule struct{}
 
-func (r *GnoSpecificRule) Check(filename string) ([]tt.Issue, error) {
+func (r *GnoSpecificRule) Check(filename string, _ *ast.File, _ *token.FileSet) ([]tt.Issue, error) {
 	return lints.DetectGnoPackageImports(filename)
 }
 

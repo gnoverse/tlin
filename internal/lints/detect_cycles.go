@@ -3,19 +3,12 @@ package lints
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 
 	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
-func DetectCycle(filename string) ([]tt.Issue, error) {
-	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
-	if err != nil {
-		return nil, err
-	}
-
+func DetectCycle(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
 	c := newCycle()
 	cycles := c.detectCycles(node)
 
