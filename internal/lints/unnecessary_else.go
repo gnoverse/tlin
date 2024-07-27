@@ -11,12 +11,6 @@ import (
 // This rule considers an else block unnecessary if the if block ends with a return statement.
 // In such cases, the else block can be removed and the code can be flattened to improve readability.
 func DetectUnnecessaryElse(f string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	// fset := token.NewFileSet()
-	// node, err := parser.ParseFile(fset, f, nil, parser.ParseComments)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	var issues []tt.Issue
 	ast.Inspect(node, func(n ast.Node) bool {
 		ifStmt, ok := n.(*ast.IfStmt)
