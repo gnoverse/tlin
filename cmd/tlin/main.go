@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gnoswap-labs/lint/formatter"
 	"github.com/gnoswap-labs/lint/internal"
@@ -14,7 +16,10 @@ import (
 	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
+const defaultTimeout = 5 * time.Minute
+
 func main() {
+	timeout := flag.Duration("timeout", defaultTimeout, "Set a timeout for the linter")
 	// verbose := flag.Bool("verbose", false, "Enable verbose output")
 	// formatJSON := flag.Bool("json", false, "Output results in JSON format")
 	cyclomaticComplexity := flag.Bool("cyclo", false, "Run cyclomatic complexity analysis")
@@ -45,6 +50,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
+	defer cancel()
+
 	if *ignoreRules != "" {
 		rules := strings.Split(*ignoreRules, ",")
 		for _, rule := range rules {
@@ -53,9 +61,29 @@ func main() {
 	}
 
 	if *cyclomaticComplexity {
-		runCyclomaticComplexityAnalysis(args, *cyclomaticThreshold)
+		runWithTimeout(ctx, func() {
+			runCyclomaticComplexityAnalysis(args, *cyclomaticThreshold)
+		})
 	} else {
-		runNormalLintProcess(engine, args)
+		runWithTimeout(ctx, func() {
+			runNormalLintProcess(engine, args)
+		})
+	}
+}
+
+func runWithTimeout(ctx context.Context, f func()) {
+	done := make(chan struct{})
+	go func() {
+		f()
+		close(done)
+	}()
+
+	select {
+	case <-ctx.Done():
+		fmt.Println("Linter timed out")
+		os.Exit(1)
+	case <-done:
+		return
 	}
 }
 
