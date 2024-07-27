@@ -77,7 +77,9 @@ func example2() int {
 			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
 			require.NoError(t, err)
 
-			issues, err := DetectUnnecessaryElse(tmpfile)
+			node, fset, err := ParseFile(tmpfile)
+
+			issues, err := DetectUnnecessaryElse(tmpfile, node, fset)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), "Number of detected unnecessary else statements doesn't match expected")
@@ -181,7 +183,10 @@ func unused2() {
 			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
 			require.NoError(t, err)
 
-			issues, err := DetectUnusedFunctions(tmpfile)
+			node, fset, err := ParseFile(tmpfile)
+			require.NoError(t, err)
+
+			issues, err := DetectUnusedFunctions(tmpfile, node, fset)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), "Number of detected unused functions doesn't match expected")
@@ -264,7 +269,10 @@ func main() {
 			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
 			require.NoError(t, err)
 
-			issues, err := DetectUnnecessarySliceLength(tmpfile)
+			node, fset, err := ParseFile(tmpfile)
+			require.NoError(t, err)
+
+			issues, err := DetectUnnecessarySliceLength(tmpfile, node, fset)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), "Number of detected unnecessary slice length doesn't match expected")
@@ -362,7 +370,10 @@ func example() {
 			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
 			require.NoError(t, err)
 
-			issues, err := DetectUnnecessaryConversions(tmpfile)
+			node, fset, err := ParseFile(tmpfile)
+			require.NoError(t, err)
+
+			issues, err := DetectUnnecessaryConversions(tmpfile, node, fset)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), "Number of detected unnecessary type conversions doesn't match expected")
@@ -476,7 +487,10 @@ func main() {
 			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
 			require.NoError(t, err)
 
-			issues, err := DetectLoopAllocation(tmpfile)
+			node, fset, err := ParseFile(tmpfile)
+			require.NoError(t, err)
+
+			issues, err := DetectLoopAllocation(tmpfile, node, fset)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), "Number of issues does not match expected")

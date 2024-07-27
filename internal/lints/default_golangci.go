@@ -3,11 +3,24 @@ package lints
 import (
 	"encoding/json"
 	_ "fmt"
+	"go/ast"
+	"go/parser"
 	"go/token"
 	"os/exec"
 
 	tt "github.com/gnoswap-labs/lint/internal/types"
 )
+
+func ParseFile(filename string) (*ast.File, *token.FileSet, error) {
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return node, fset, nil
+}
+
 
 type golangciOutput struct {
 	Issues []struct {

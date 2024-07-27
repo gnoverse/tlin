@@ -2,7 +2,6 @@ package lints
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
 
 	tt "github.com/gnoswap-labs/lint/internal/types"
@@ -15,13 +14,7 @@ import (
 //  3. Exported functions: Functions starting with a capital letter are excluded as they might be used in other packages.
 //
 // This rule helps in code cleanup and improves maintainability.
-func DetectUnusedFunctions(filename string) ([]tt.Issue, error) {
-	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
-	if err != nil {
-		return nil, err
-	}
-
+func DetectUnusedFunctions(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
 	declaredFuncs := make(map[string]*ast.FuncDecl)
 	calledFuncs := make(map[string]bool)
 

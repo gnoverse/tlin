@@ -4,20 +4,13 @@ import (
 	"fmt"
 	"go/ast"
 	"go/importer"
-	"go/parser"
 	"go/token"
 	"go/types"
 
 	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
-func DetectUnnecessaryConversions(filename string) ([]tt.Issue, error) {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
-	if err != nil {
-		return nil, err
-	}
-
+func DetectUnnecessaryConversions(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
 	info := &types.Info{
 		Types: make(map[ast.Expr]types.TypeAndValue),
 		Uses:  make(map[*ast.Ident]types.Object),
@@ -27,13 +20,13 @@ func DetectUnnecessaryConversions(filename string) ([]tt.Issue, error) {
 	conf := types.Config{Importer: importer.Default()}
 	//! DO NOT CHECK ERROR HERE.
 	//! error check may broke the lint formatting process.
-	conf.Check("", fset, []*ast.File{f}, info)
+	conf.Check("", fset, []*ast.File{node}, info)
 
 	var issues []tt.Issue
 	varDecls := make(map[*types.Var]ast.Node)
 
 	// First pass: collect variable declarations
-	ast.Inspect(f, func(n ast.Node) bool {
+	ast.Inspect(node, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.ValueSpec:
 			for _, name := range node.Names {
@@ -58,7 +51,7 @@ func DetectUnnecessaryConversions(filename string) ([]tt.Issue, error) {
 	})
 
 	// Second pass: check for unnecessary conversions
-	ast.Inspect(f, func(n ast.Node) bool {
+	ast.Inspect(node, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok || len(call.Args) != 1 {
 			return true
@@ -79,7 +72,7 @@ func DetectUnnecessaryConversions(filename string) ([]tt.Issue, error) {
 
 			// find parent node and retrieve the entire assignment statement
 			var parent ast.Node
-			ast.Inspect(f, func(node ast.Node) bool {
+			ast.Inspect(node, func(node ast.Node) bool {
 				if node == n {
 					return false
 				}
