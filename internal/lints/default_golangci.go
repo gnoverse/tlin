@@ -21,7 +21,6 @@ func ParseFile(filename string) (*ast.File, *token.FileSet, error) {
 	return node, fset, nil
 }
 
-
 type golangciOutput struct {
 	Issues []struct {
 		FromLinter string `json:"FromLinter"`
