@@ -133,6 +133,13 @@ High cyclomatic complexity can make code harder to understand and maintain. Gene
 
 To run this analysis, use the `-cyclo` flag along with an optional `-threshold` flag to set the [complexity threshold](https://learn.microsoft.com/en-us/visualstudio/code-quality/code-metrics-cyclomatic-complexity?view=vs-2022). The default threshold is 10.
 
+|Cyclomatic Complexity | Risk Evaluation |
+|----------------------|-----------------|
+|1-10                  | Low             |
+|11-20                 | Moderate        |
+|21-50                 | High            |
+|>50                   | Very High       |
+
 ```bash
 tlin -cyclo -threshold <threshold> <path>
 ```
