@@ -72,7 +72,7 @@ tlin allows addition of custom lint rules beyond the default golangci-lint rules
 ```go
 type NewRule struct{}
 
-func (r *NewRule) Check(filename string) ([]Issue, error) {
+func (r *NewRule) Check(filename string, node *ast.File) ([]types.Issue, error) {
     // Implement your lint rule logic here
     // return a slice of Issues and any error encountered
 }
@@ -93,13 +93,14 @@ func (e *Engine) registerDefaultRules() {
 3. (Optional) if your rule requires special formatting, create a new formatter in the `formatter` package:
 
    a. Create a new file (e.g., `formatter/new_rule.go`).
+
    b. Implement the `IssueFormatter` interface for your new rule:
 
    ```go
    type NewRuleFormatter struct{}
 
    func (f *NewRuleFormatter) Format(
-       issue lints.Issue,
+       issue types.Issue,
        snippet *internal.SourceCode,
    ) string {
        // Implement formatting logic for new rule here.
