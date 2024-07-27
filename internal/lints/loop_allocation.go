@@ -2,22 +2,15 @@ package lints
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
 
 	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
-func DetectLoopAllocation(filename string) ([]tt.Issue, error) {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
-	if err != nil {
-		return nil, err
-	}
-
+func DetectLoopAllocation(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
 	var issues []tt.Issue
 
-	ast.Inspect(f, func(n ast.Node) bool {
+	ast.Inspect(node, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.RangeStmt, *ast.ForStmt:
 			ast.Inspect(node, func(inner ast.Node) bool {
