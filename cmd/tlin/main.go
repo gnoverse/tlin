@@ -8,69 +8,79 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gnoswap-labs/lint/formatter"
 	"github.com/gnoswap-labs/lint/internal"
 	"github.com/gnoswap-labs/lint/internal/lints"
 	tt "github.com/gnoswap-labs/lint/internal/types"
+	"go.uber.org/zap"
 )
 
 const defaultTimeout = 5 * time.Minute
 
+type Config struct {
+	Timeout              time.Duration
+	CyclomaticComplexity bool
+	CyclomaticThreshold  int
+	IgnoreRules          string
+	Paths                []string
+}
+
+type LintEngine interface {
+	Run(filePath string) ([]tt.Issue, error)
+	IgnoreRule(rule string)
+}
+
 func main() {
-	timeout := flag.Duration("timeout", defaultTimeout, "Set a timeout for the linter. example: 1s, 1m, 1h")
-	// verbose := flag.Bool("verbose", false, "Enable verbose output")
-	// formatJSON := flag.Bool("json", false, "Output results in JSON format")
-	cyclomaticComplexity := flag.Bool("cyclo", false, "Run cyclomatic complexity analysis")
-	// |Cyclomatic Complexity | Risk Evaluation |
-	// |----------------------|-----------------|
-	// | 1-10                 | Low             |
-	// | 11-20                | Moderate        |
-	// | 21-50                | High            |
-	// | 51+                  | Very High       |
-	//
-	// [*] MaCabe's article recommends 10 or less, but up to 15 is acceptable (by Microsoft).
-	// [*] https://learn.microsoft.com/en-us/visualstudio/code-quality/code-metrics-cyclomatic-complexity?view=vs-2022
-	cyclomaticThreshold := flag.Int("threshold", 10, "Cyclomatic complexity threshold")
-	ignoreRules := flag.String("ignore", "", "Comma-separated list of lint rules to ignore")
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 
-	flag.Parse()
+	config := parseFlags()
 
-	args := flag.Args()
-	if len(args) == 0 {
-		fmt.Println("error: Please provide file or directory paths")
-		os.Exit(1)
-	}
-
-	// TODO: Cache the directory tree to avoid re-traversing the same directories.
-	rootDir := "."
-	engine, err := internal.NewEngine(rootDir)
-	if err != nil {
-		fmt.Printf("error initializing lint engine: %v\n", err)
-		os.Exit(1)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 	defer cancel()
 
-	if *ignoreRules != "" {
-		rules := strings.Split(*ignoreRules, ",")
+	engine, err := internal.NewEngine(".")
+	if err != nil {
+		logger.Fatal("Failed to initialize lint engine", zap.Error(err))
+	}
+
+	if config.IgnoreRules != "" {
+		rules := strings.Split(config.IgnoreRules, ",")
 		for _, rule := range rules {
 			engine.IgnoreRule(strings.TrimSpace(rule))
 		}
 	}
 
-	// TODO: We might be use the cached directory result when execute analysis functions.
-	if *cyclomaticComplexity {
+	if config.CyclomaticComplexity {
 		runWithTimeout(ctx, func() {
-			runCyclomaticComplexityAnalysis(args, *cyclomaticThreshold)
+			runCyclomaticComplexityAnalysis(ctx, logger, config.Paths, config.CyclomaticThreshold)
 		})
 	} else {
 		runWithTimeout(ctx, func() {
-			runNormalLintProcess(engine, args)
+			runNormalLintProcess(ctx, logger, engine, config.Paths)
 		})
 	}
+}
+
+func parseFlags() Config {
+	config := Config{}
+	flag.DurationVar(&config.Timeout, "timeout", defaultTimeout, "Set a timeout for the linter. example: 1s, 1m, 1h")
+	flag.BoolVar(&config.CyclomaticComplexity, "cyclo", false, "Run cyclomatic complexity analysis")
+	flag.IntVar(&config.CyclomaticThreshold, "threshold", 10, "Cyclomatic complexity threshold")
+	flag.StringVar(&config.IgnoreRules, "ignore", "", "Comma-separated list of lint rules to ignore")
+
+	flag.Parse()
+
+	config.Paths = flag.Args()
+	if len(config.Paths) == 0 {
+		fmt.Println("error: Please provide file or directory paths")
+		os.Exit(1)
+	}
+
+	return config
 }
 
 func runWithTimeout(ctx context.Context, f func()) {
@@ -89,115 +99,62 @@ func runWithTimeout(ctx context.Context, f func()) {
 	}
 }
 
-func runNormalLintProcess(engine *internal.Engine, args []string) {
-	var allIssues []tt.Issue
-	for _, path := range args {
-		info, err := os.Stat(path)
-		if err != nil {
-			fmt.Printf("error accessing %s: %v\n", path, err)
-			continue
-		}
-
-		if info.IsDir() {
-			err = filepath.Walk(path, func(filePath string, fileInfo os.FileInfo, err error) error {
-				if err != nil {
-					return err
-				}
-				if !fileInfo.IsDir() && filepath.Ext(filePath) == ".go" || filepath.Ext(filePath) == ".gno" {
-					issues, err := processFile(engine, filePath)
-					if err != nil {
-						fmt.Printf("error processing %s: %v\n", filePath, err)
-					} else {
-						allIssues = append(allIssues, issues...)
-					}
-				}
-				return nil
-			})
-			if err != nil {
-				fmt.Printf("error walking directory %s: %v\n", path, err)
-			}
-		} else {
-			if filepath.Ext(path) == ".go" || filepath.Ext(path) == ".gno" {
-				issues, err := processFile(engine, path)
-				if err != nil {
-					fmt.Printf("error processing %s: %v\n", path, err)
-				} else {
-					allIssues = append(allIssues, issues...)
-				}
-			} else {
-				fmt.Printf("skipping non-.co file: %s\n", path)
-			}
-		}
+func runNormalLintProcess(ctx context.Context, logger *zap.Logger, engine LintEngine, paths []string) {
+	issues, err := processFiles(ctx, logger, engine, paths, processFile)
+	if err != nil {
+		logger.Error("Error processing files", zap.Error(err))
+		os.Exit(1)
 	}
 
-	issuesByFile := make(map[string][]tt.Issue)
-	for _, issue := range allIssues {
-		issuesByFile[issue.Filename] = append(issuesByFile[issue.Filename], issue)
-	}
+	printIssues(logger, issues)
 
-	var sortedFiles []string
-	for filename := range issuesByFile {
-		sortedFiles = append(sortedFiles, filename)
-	}
-	sort.Strings(sortedFiles)
-
-	for _, filename := range sortedFiles {
-		issues := issuesByFile[filename]
-		sourceCode, err := internal.ReadSourceCode(filename)
-		if err != nil {
-			fmt.Printf("error reading source file %s: %v\n", filename, err)
-			continue
-		}
-		output := formatter.FormatIssuesWithArrows(issues, sourceCode)
-		fmt.Println(output)
-	}
-
-	if len(allIssues) > 0 {
+	if len(issues) > 0 {
 		os.Exit(1)
 	}
 }
 
-func runCyclomaticComplexityAnalysis(paths []string, threshold int) {
+func runCyclomaticComplexityAnalysis(ctx context.Context, logger *zap.Logger, paths []string, threshold int) {
+	issues, err := processFiles(ctx, logger, nil, paths, func(_ LintEngine, path string) ([]tt.Issue, error) {
+		return processCyclomaticComplexity(path, threshold)
+	})
+	if err != nil {
+		logger.Error("Error processing files for cyclomatic complexity", zap.Error(err))
+		os.Exit(1)
+	}
+
+	printIssues(logger, issues)
+
+	if len(issues) > 0 {
+		os.Exit(1)
+	}
+}
+
+func processFiles(ctx context.Context, logger *zap.Logger, engine LintEngine, paths []string, processor func(LintEngine, string) ([]tt.Issue, error)) ([]tt.Issue, error) {
 	var allIssues []tt.Issue
+	var mutex sync.Mutex
+	var wg sync.WaitGroup
+
 	for _, path := range paths {
-		issues, err := processCyclomaticComplexity(path, threshold)
-		if err != nil {
-			fmt.Printf("error processing %s: %v\n", path, err)
-		} else {
+		wg.Add(1)
+		go func(p string) {
+			defer wg.Done()
+			issues, err := processPath(ctx, logger, engine, p, processor)
+			if err != nil {
+				logger.Error("Error processing path", zap.String("path", p), zap.Error(err))
+				return
+			}
+			mutex.Lock()
 			allIssues = append(allIssues, issues...)
-		}
+			mutex.Unlock()
+		}(path)
 	}
 
-	issuesByFile := make(map[string][]tt.Issue)
-	for _, issue := range allIssues {
-		issuesByFile[issue.Filename] = append(issuesByFile[issue.Filename], issue)
-	}
+	wg.Wait()
 
-	// sorted by file name
-	var sortedFiles []string
-	for filename := range issuesByFile {
-		sortedFiles = append(sortedFiles, filename)
-	}
-	sort.Strings(sortedFiles)
-
-	// apply formatting
-	for _, filename := range sortedFiles {
-		issues := issuesByFile[filename]
-		sourceCode, err := internal.ReadSourceCode(filename)
-		if err != nil {
-			fmt.Printf("error reading source file %s: %v\n", filename, err)
-			continue
-		}
-		output := formatter.FormatIssuesWithArrows(issues, sourceCode)
-		fmt.Println(output)
-	}
-
-	if len(allIssues) > 0 {
-		os.Exit(1)
-	}
+	return allIssues, nil
 }
 
-func processCyclomaticComplexity(path string, threshold int) ([]tt.Issue, error) {
+func processPath(ctx context.Context, logger *zap.Logger, engine LintEngine, path string, processor func(LintEngine, string) ([]tt.Issue, error)) ([]tt.Issue, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("error accessing %s: %w", path, err)
@@ -209,38 +166,65 @@ func processCyclomaticComplexity(path string, threshold int) ([]tt.Issue, error)
 			if err != nil {
 				return err
 			}
-
 			if !fileInfo.IsDir() && hasDesiredExtension(filePath) {
-				fileIssue, err := lints.DetectHighCyclomaticComplexity(filePath, threshold)
-				if err != nil {
-					fmt.Printf("error processing %s: %v\n", filePath, err)
-				} else {
-					issues = append(issues, fileIssue...)
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+					fileIssues, err := processor(engine, filePath)
+					if err != nil {
+						logger.Error("Error processing file", zap.String("file", filePath), zap.Error(err))
+					} else {
+						issues = append(issues, fileIssues...)
+					}
 				}
 			}
 			return nil
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("error walking directory %s: %w", path, err)
 		}
 	} else if hasDesiredExtension(path) {
-		fileIssue, err := lints.DetectHighCyclomaticComplexity(path, threshold)
+		fileIssues, err := processor(engine, path)
 		if err != nil {
 			return nil, err
 		}
-		issues = append(issues, fileIssue...)
+		issues = append(issues, fileIssues...)
 	}
 
 	return issues, nil
 }
 
-func processFile(engine *internal.Engine, filePath string) ([]tt.Issue, error) {
-	issues, err := engine.Run(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("error linting %s: %w", filePath, err)
+func processFile(engine LintEngine, filePath string) ([]tt.Issue, error) {
+	return engine.Run(filePath)
+}
+
+func processCyclomaticComplexity(path string, threshold int) ([]tt.Issue, error) {
+	return lints.DetectHighCyclomaticComplexity(path, threshold)
+}
+
+func printIssues(logger *zap.Logger, issues []tt.Issue) {
+	issuesByFile := make(map[string][]tt.Issue)
+	for _, issue := range issues {
+		issuesByFile[issue.Filename] = append(issuesByFile[issue.Filename], issue)
 	}
-	return issues, nil
+
+	var sortedFiles []string
+	for filename := range issuesByFile {
+		sortedFiles = append(sortedFiles, filename)
+	}
+	sort.Strings(sortedFiles)
+
+	for _, filename := range sortedFiles {
+		fileIssues := issuesByFile[filename]
+		sourceCode, err := internal.ReadSourceCode(filename)
+		if err != nil {
+			logger.Error("Error reading source file", zap.String("file", filename), zap.Error(err))
+			continue
+		}
+		output := formatter.FormatIssuesWithArrows(fileIssues, sourceCode)
+		fmt.Println(output)
+	}
 }
 
 func hasDesiredExtension(path string) bool {
