@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"go/token"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -183,4 +185,74 @@ func TestRunWithTimeout(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("Function timed out unexpectedly")
 	}
+}
+
+func TestRunCFGAnalysis(t *testing.T) {
+	logger, _ := zap.NewProduction()
+
+	tempFile, err := os.CreateTemp("", "test*.go")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile.Name())
+
+	testCode := `package main 	// 1
+								// 2
+func mainFunc() { 				// 3
+    x := 1						// 4 
+    if x > 0 {					// 5
+        x = 2 					// 6
+    } else { 					// 7
+        x = 3 					// 8
+    } 							// 9
+} 								// 10
+								// 11
+func targetFunc() { 			// 12
+    y := 10 					// 13
+    for i := 0; i < 5; i++ { 	// 14
+        y += i 					// 15
+    } 							// 16
+} 								// 17
+								// 18
+func ignoredFunc() { 			// 19
+    z := "hello" 				// 20
+    println(z) 					// 21
+} 								// 22
+`
+	_, err = tempFile.Write([]byte(testCode))
+	assert.NoError(t, err)
+	tempFile.Close()
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	ctx := context.Background()
+	runCFGAnalysis(ctx, logger, []string{tempFile.Name()}, "targetFunc")
+
+	w.Close()
+	os.Stdout = oldStdout
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	output := buf.String()
+
+	assert.Contains(t, output, "CFG for function targetFunc in file")
+	assert.Contains(t, output, "digraph mgraph")
+	assert.Contains(t, output, "\"for loop")
+	assert.Contains(t, output, "\"assignment")
+	assert.NotContains(t, output, "mainFunc")
+	assert.NotContains(t, output, "ignoredFunc")
+
+	t.Logf("output: %s", output)
+
+	r, w, _ = os.Pipe()
+	os.Stdout = w
+
+	runCFGAnalysis(ctx, logger, []string{tempFile.Name()}, "nonExistentFunc")
+
+	w.Close()
+	os.Stdout = oldStdout
+	buf.Reset()
+	io.Copy(&buf, r)
+	output = buf.String()
+
+	assert.Contains(t, output, "Function not found: nonExistentFunc")
 }

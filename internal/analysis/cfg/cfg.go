@@ -58,7 +58,7 @@ func AnalyzeFunction(file *ast.File, fname string) *CFG {
 		}
 	}
 	return nil
-} 
+}
 
 // Preds returns a slice of all immediate predecessors for the given statement.
 // May include Entry node.
