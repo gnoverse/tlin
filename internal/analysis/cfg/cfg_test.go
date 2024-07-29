@@ -66,6 +66,94 @@ func TestFromStmts(t *testing.T) {
 	}
 }
 
+func TestAnalyzeSpecificFunction(t *testing.T) {
+    tests := []struct {
+        name           string
+        src            string
+        funcName       string
+        expectedBlocks int
+        shouldFind     bool
+    }{
+        {
+            name: "Main Function",
+            src: `
+                package main
+                func main() {
+                    x := 1
+                    if x > 0 {
+                        x = 2
+                    } else {
+                        x = 3
+                    }
+                }
+                func other() {}`,
+            funcName:       "main",
+            expectedBlocks: 6,
+            shouldFind:     true,
+        },
+        {
+            name: "Function Not Found",
+            src: `
+                package main
+                func main() {
+                    println("Hello")
+                }`,
+            funcName:       "notExist",
+            expectedBlocks: 0,
+            shouldFind:     false,
+        },
+        {
+            name: "Multiple Functions",
+            src: `
+                package main
+                func first() {
+                    x := 1
+                }
+                func second() {
+                    y := 2
+                    if y > 0 {
+                        y = 3
+                    }
+                }`,
+            funcName:       "second",
+            expectedBlocks: 5,
+            shouldFind:     true,
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            fset := token.NewFileSet()
+            file, err := parser.ParseFile(fset, "src.go", tt.src, 0)
+            if err != nil {
+                t.Fatalf("failed to parse source: %v", err)
+            }
+
+            cfg := AnalyzeFunction(file, tt.funcName)
+
+            if tt.shouldFind {
+                if cfg == nil {
+                    t.Fatalf("Expected to find function %s, but got nil CFG", tt.funcName)
+                }
+                blocks := cfg.Blocks()
+                if len(blocks) != tt.expectedBlocks {
+                    t.Errorf("Expected %d blocks, got %d", tt.expectedBlocks, len(blocks))
+                }
+                if cfg.Entry == nil {
+                    t.Error("Expected Entry node, got nil")
+                }
+                if cfg.Exit == nil {
+                    t.Error("Expected Exit node, got nil")
+                }
+            } else {
+                if cfg != nil {
+                    t.Errorf("Expected not to find function %s, but got a CFG", tt.funcName)
+                }
+            }
+        })
+    }
+}
+
 func TestCFG(t *testing.T) {
 	tests := []struct {
 		name           string

@@ -16,6 +16,7 @@ type CFGBuilder interface {
 	Build(stmts []ast.Stmt) *CFG
 	Sort(stmts []ast.Stmt)
 	PrintDot(f io.Writer, fset *token.FileSet, addl func(n ast.Stmt) string)
+	BuildFromFunc(f *ast.FuncDecl) *CFG
 }
 
 // CFG defines a control flow graph with statement-level granularity, in which
@@ -45,8 +46,19 @@ func FromStmts(s []ast.Stmt) *CFG {
 
 // FromFunc is a convenience function for creating a CFG from a given function declaration.
 func FromFunc(f *ast.FuncDecl) *CFG {
-	return FromStmts(f.Body.List)
+	return NewBuilder().BuildFromFunc(f)
 }
+
+func AnalyzeFunction(file *ast.File, fname string) *CFG {
+	for _, decl := range file.Decls {
+		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
+			if funcDecl.Name.Name == fname {
+				return FromFunc(funcDecl)
+			}
+		}
+	}
+	return nil
+} 
 
 // Preds returns a slice of all immediate predecessors for the given statement.
 // May include Entry node.
