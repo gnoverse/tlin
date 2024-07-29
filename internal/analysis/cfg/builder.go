@@ -42,6 +42,13 @@ func (b *builder) Build(s []ast.Stmt) *CFG {
 	}
 }
 
+func (b *builder) BuildFromFunc(f *ast.FuncDecl) *CFG {
+	if f.Body == nil {
+		return nil
+	}
+	return b.Build(f.Body.List)
+}
+
 // addSucc adds a control flow edge from all previous blocks to the block for the given statement.
 // It updates both the successors of the previous blocks and the predecessors of the current block.
 func (b *builder) addSucc(current ast.Stmt) {

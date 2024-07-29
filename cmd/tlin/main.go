@@ -4,6 +4,9 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,6 +16,7 @@ import (
 
 	"github.com/gnoswap-labs/lint/formatter"
 	"github.com/gnoswap-labs/lint/internal"
+	"github.com/gnoswap-labs/lint/internal/analysis/cfg"
 	"github.com/gnoswap-labs/lint/internal/lints"
 	tt "github.com/gnoswap-labs/lint/internal/types"
 	"go.uber.org/zap"
@@ -26,6 +30,8 @@ type Config struct {
 	CyclomaticThreshold  int
 	IgnoreRules          string
 	Paths                []string
+	CFGAnalysis          bool
+	FuncName             string
 }
 
 type LintEngine interface {
@@ -54,7 +60,11 @@ func main() {
 		}
 	}
 
-	if config.CyclomaticComplexity {
+	if config.CFGAnalysis {
+		runWithTimeout(ctx, func() {
+			runCFGAnalysis(ctx, logger, config.Paths, config.FuncName)
+		})
+	} else if config.CyclomaticComplexity {
 		runWithTimeout(ctx, func() {
 			runCyclomaticComplexityAnalysis(ctx, logger, config.Paths, config.CyclomaticThreshold)
 		})
@@ -71,6 +81,8 @@ func parseFlags() Config {
 	flag.BoolVar(&config.CyclomaticComplexity, "cyclo", false, "Run cyclomatic complexity analysis")
 	flag.IntVar(&config.CyclomaticThreshold, "threshold", 10, "Cyclomatic complexity threshold")
 	flag.StringVar(&config.IgnoreRules, "ignore", "", "Comma-separated list of lint rules to ignore")
+	flag.BoolVar(&config.CFGAnalysis, "cfg", false, "Run control flow graph analysis")
+	flag.StringVar(&config.FuncName, "func", "", "Function name for CFG analysis")
 
 	flag.Parse()
 
@@ -126,6 +138,35 @@ func runCyclomaticComplexityAnalysis(ctx context.Context, logger *zap.Logger, pa
 
 	if len(issues) > 0 {
 		os.Exit(1)
+	}
+}
+
+func runCFGAnalysis(_ context.Context, logger *zap.Logger, paths []string, funcName string) {
+	functionFound := false
+	for _, path := range paths {
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			logger.Error("Failed to parse file", zap.String("path", path), zap.Error(err))
+			continue
+		}
+
+		for _, decl := range f.Decls {
+			if fn, ok := decl.(*ast.FuncDecl); ok {
+				if fn.Name.Name == funcName {
+					cfgGraph := cfg.FromFunc(fn)
+					var buf strings.Builder
+					cfgGraph.PrintDot(&buf, fset, func(n ast.Stmt) string { return "" })
+					fmt.Printf("CFG for function %s in file %s:\n%s\n", funcName, path, buf.String())
+					functionFound = true
+					return
+				}
+			}
+		}
+	}
+
+	if !functionFound {
+		fmt.Printf("Function not found: %s\n", funcName)
 	}
 }
 
