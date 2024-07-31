@@ -41,16 +41,6 @@ func (r *UnnecessaryElseRule) Name() string {
 	return "unnecessary-else"
 }
 
-type UnusedFunctionRule struct{}
-
-func (r *UnusedFunctionRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectUnusedFunctions(filename, node, fset)
-}
-
-func (r *UnusedFunctionRule) Name() string {
-	return "unused-function"
-}
-
 type SimplifySliceExprRule struct{}
 
 func (r *SimplifySliceExprRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {

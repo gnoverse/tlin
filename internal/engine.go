@@ -35,7 +35,6 @@ func (e *Engine) registerDefaultRules() {
 	e.rules = append(e.rules,
 		&GolangciLintRule{},
 		&UnnecessaryElseRule{},
-		&UnusedFunctionRule{},
 		&SimplifySliceExprRule{},
 		&UnnecessaryConversionRule{},
 		&LoopAllocationRule{},
