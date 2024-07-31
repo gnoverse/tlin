@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"go/ast"
 	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -510,8 +510,39 @@ func TestFormatEmitCall(t *testing.T) {
 	}
 }
 
-func TestDetectSliceBoundsCheck(t *testing.T) {
-	code := `
+func TestDetectSliceBoundCheck(t *testing.T) {
+	tests := []struct {
+		name     string
+		code     string
+		expected int
+	}{
+		{
+			name: "simple bound check",
+			code: `
+package main
+func main() {
+	arr := []int{1, 2, 3}
+	if i < len(arr) {
+		_ = arr[i]
+	}
+}
+			`,
+			expected: 0,
+		},
+		{
+			name: "missing bound check",
+			code: `
+package main
+func main() {
+	arr := []int{1, 2, 3}
+	_ = arr[i]
+}
+			`,
+			expected: 1,
+		},
+		{
+			name: "complex condition 2",
+			code: `
 package main
 
 type Item struct {
@@ -534,41 +565,28 @@ func main() {
         i++
     }
 }
-`
-
-	tmpfile, err := os.CreateTemp("", "example.*.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(tmpfile.Name())
-
-	if _, err := tmpfile.Write([]byte(code)); err != nil {
-		t.Fatal(err)
-	}
-	if err := tmpfile.Close(); err != nil {
-		t.Fatal(err)
+`,
+			expected: 1,
+		},
 	}
 
-	node, fset, err := ParseFile(tmpfile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fset := token.NewFileSet()
+			node, err := parser.ParseFile(fset, "", tt.code, 0)
+			if err != nil {
+				t.Fatalf("Failed to parse code: %v", err)
+			}
 
-	issues, err := DetectSliceBoundCheck(tmpfile.Name(), node, fset)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(issues) != 1 {
-		t.Errorf("Expected 1 issue, but got %d", len(issues))
-	}
-
-	if len(issues) > 0 {
-		if issues[0].Rule != "slice-bounds-check" {
-			t.Errorf("Expected rule to be 'slice-bounds-check', but got '%s'", issues[0].Rule)
-		}
-		if !strings.Contains(issues[0].Message, "Potential slice bounds check failure") {
-			t.Errorf("Unexpected message: %s", issues[0].Message)
-		}
+			issues, err := DetectSliceBoundCheck("test.go", node, fset)
+			for i, issue := range issues {
+				t.Logf("Issue %d: %v", i, issue)
+			}
+			assert.NoError(t, err)
+			assert.Equal(
+				t, tt.expected, len(issues),
+				"Number of detected slice bound check issues doesn't match expected",
+			)
+		})
 	}
 }

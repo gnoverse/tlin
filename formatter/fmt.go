@@ -16,6 +16,7 @@ const (
 	SimplifySliceExpr   = "simplify-slice-range"
 	CycloComplexity     = "high-cyclomatic-complexity"
 	EmitFormat          = "emit-format"
+	SliceBound          = "slice-bounds-check"
 )
 
 // IssueFormatter is the interface that wraps the Format method.
@@ -51,6 +52,8 @@ func getFormatter(rule string) IssueFormatter {
 		return &CyclomaticComplexityFormatter{}
 	case EmitFormat:
 		return &EmitFormatFormatter{}
+	case SliceBound:
+		return &SliceBoundsCheckFormatter{}
 	default:
 		return &GeneralIssueFormatter{}
 	}
