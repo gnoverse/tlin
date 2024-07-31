@@ -15,6 +15,7 @@ const (
 	UnnecessaryTypeConv = "unnecessary-type-conversion"
 	SimplifySliceExpr   = "simplify-slice-range"
 	CycloComplexity     = "high-cyclomatic-complexity"
+	EmitFormat          = "emit-format"
 )
 
 // IssueFormatter is the interface that wraps the Format method.
@@ -48,6 +49,8 @@ func getFormatter(rule string) IssueFormatter {
 		return &UnnecessaryTypeConversionFormatter{}
 	case CycloComplexity:
 		return &CyclomaticComplexityFormatter{}
+	case EmitFormat:
+		return &EmitFormatFormatter{}
 	default:
 		return &GeneralIssueFormatter{}
 	}
@@ -60,10 +63,16 @@ func formatIssueHeader(issue tt.Issue) string {
 		lineStyle.Sprint(" --> ") + fileStyle.Sprint(issue.Filename) + "\n"
 }
 
-func buildSuggestion(result *strings.Builder, issue tt.Issue, lineStyle, suggestionStyle *color.Color) {
+func buildSuggestion(result *strings.Builder, issue tt.Issue, lineStyle, suggestionStyle *color.Color, startLine int) {
+	maxLineNumWidth := calculateMaxLineNumWidth(issue.End.Line)
+	padding := strings.Repeat(" ", maxLineNumWidth)
+
 	result.WriteString(suggestionStyle.Sprintf("Suggestion:\n"))
-	result.WriteString(lineStyle.Sprintf("%d | ", issue.Start.Line))
-	result.WriteString(fmt.Sprintf("%s\n", issue.Suggestion))
+	for i, line := range strings.Split(issue.Suggestion, "\n") {
+		lineNum := fmt.Sprintf("%d", startLine+i)
+		result.WriteString(lineStyle.Sprintf("%s%s | ", padding[:maxLineNumWidth-len(lineNum)], lineNum))
+		result.WriteString(fmt.Sprintf("%s\n", line))
+	}
 	result.WriteString("\n")
 }
 
@@ -71,4 +80,18 @@ func buildNote(result *strings.Builder, issue tt.Issue, suggestionStyle *color.C
 	result.WriteString(suggestionStyle.Sprint("Note: "))
 	result.WriteString(fmt.Sprintf("%s\n", issue.Note))
 	result.WriteString("\n")
+}
+
+func calculateMaxLineNumWidth(endLine int) int {
+	return len(fmt.Sprintf("%d", endLine))
+}
+
+func calculateMaxLineLength(lines []string, start, end int) int {
+	maxLen := 0
+	for i := start - 1; i < end; i++ {
+		if len(lines[i]) > maxLen {
+			maxLen = len(lines[i])
+		}
+	}
+	return maxLen
 }

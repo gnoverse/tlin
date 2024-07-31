@@ -29,7 +29,7 @@ func (f *UnnecessaryTypeConversionFormatter) Format(
 	result.WriteString(strings.Repeat(" ", visualColumn))
 	result.WriteString(messageStyle.Sprintf("^ %s\n\n", issue.Message))
 
-	buildSuggestion(&result, issue, lineStyle, suggestionStyle)
+	buildSuggestion(&result, issue, lineStyle, suggestionStyle, issue.Start.Line)
 	buildNote(&result, issue, suggestionStyle)
 
 	return result.String()

@@ -5,7 +5,6 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
-	_ "os"
 	"path/filepath"
 	"runtime"
 	"strings"

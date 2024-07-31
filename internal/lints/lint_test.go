@@ -1,6 +1,9 @@
 package lints
 
 import (
+	"fmt"
+	"go/ast"
+	"go/parser"
 	"os"
 	"path/filepath"
 	"testing"
@@ -391,6 +394,148 @@ func main() {
 			for _, issue := range issues {
 				assert.Contains(t, issue.Message, "Potential unnecessary allocation inside loop")
 			}
+		})
+	}
+}
+
+func TestDetectEmitFormat(t *testing.T) {
+	tests := []struct {
+		name     string
+		code     string
+		expected int
+	}{
+		{
+			name: "Emit with 3 arguments",
+			code: `
+package main
+
+import "std"
+
+func main() {
+    std.Emit("OwnershipChange", "newOwner", newOwner.String())
+}`,
+			expected: 0,
+		},
+		{
+			name: "Emit with more than 3 arguments",
+			code: `
+package main
+
+import "std"
+
+func main() {
+    std.Emit("OwnershipChange", "newOwner", newOwner.String(), "oldOwner", oldOwner.String())
+}`,
+			expected: 1,
+		},
+		{
+			name: "Emit with new line",
+			code: `
+package main
+
+import "std"
+
+func main() {
+    std.Emit(
+		"OwnershipChange",
+		"newOwner", newOwner.String(),
+		"oldOwner", oldOwner.String(),
+	)
+}`,
+			expected: 0,
+		},
+		{
+			name: "Emit with inconsistent new line",
+			code: `
+package main
+
+import "std"
+
+func main() {
+    std.Emit(
+		"OwnershipChange",
+		"newOwner", newOwner.String(),
+		"oldOwner", 
+		oldOwner.String(),
+		"anotherOwner", anotherOwner.String(),
+	)
+}
+`,
+			expected: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir, err := os.MkdirTemp("", "lint-test")
+			require.NoError(t, err)
+			defer os.RemoveAll(tmpDir)
+
+			tmpfile := filepath.Join(tmpDir, "test.go")
+			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
+			require.NoError(t, err)
+
+			node, fset, err := ParseFile(tmpfile)
+			require.NoError(t, err)
+
+			issues, err := DetectEmitFormat(tmpfile, node, fset)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expected, len(issues), fmt.Sprintf("Number of detected issues doesn't match expected. %v", issues))
+
+			if len(issues) > 0 {
+				assert.Equal(t, "emit-format", issues[0].Rule)
+				assert.Contains(t, issues[0].Message, "Consider formatting std.Emit call for better readability")
+			}
+		})
+	}
+}
+
+func TestFormatEmitCall(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:  "Simple Emit call",
+			input: `std.Emit("OwnershipChange", "newOwner", newOwner.String())`,
+			expected: `std.Emit(
+    "OwnershipChange",
+    "newOwner", newOwner.String(),
+)`,
+		},
+		{
+			name:  "Emit call with multiple key-value pairs",
+			input: `std.Emit("OwnershipChange", "newOwner", newOwner.String(), "oldOwner", oldOwner.String())`,
+			expected: `std.Emit(
+    "OwnershipChange",
+    "newOwner", newOwner.String(),
+    "oldOwner", oldOwner.String(),
+)`,
+		},
+		{
+			name:  "Emit call with function calls as values",
+			input: `std.Emit("Transfer", "from", sender.Address(), "to", recipient.Address(), "amount", token.Format(amount))`,
+			expected: `std.Emit(
+    "Transfer",
+    "from", sender.Address(),
+    "to", recipient.Address(),
+    "amount", token.Format(amount),
+)`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expr, err := parser.ParseExpr(tt.input)
+			assert.NoError(t, err)
+
+			callExpr, ok := expr.(*ast.CallExpr)
+			assert.True(t, ok)
+
+			result := formatEmitCall(callExpr)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
