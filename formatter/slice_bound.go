@@ -32,7 +32,12 @@ func (f *SliceBoundsCheckFormatter) Format(
 	result.WriteString(lineStyle.Sprintf("%s| ", padding))
 	result.WriteString(messageStyle.Sprintf("%s\n\n", issue.Message))
 
-	// buildSuggestion(&result, issue, lineStyle, suggestionStyle, startLine)
+	result.WriteString(warningStyle.Sprint("warning: "))
+	if issue.Category == "index-access" {
+        result.WriteString("Index access without bounds checking can lead to runtime panics.\n")
+    } else if issue.Category == "slice-expression" {
+        result.WriteString("Slice expressions without proper length checks may cause unexpected behavior.\n\n")
+    }
 
 	return result.String()
 }

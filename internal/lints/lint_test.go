@@ -561,7 +561,7 @@ func main() {
 
     i := 0
     for _, item := range sourceItems {
-        destinationItems[i] = item // Expect out-of-range linter warning here
+        destinationItems[i] = item
         i++
     }
 }
