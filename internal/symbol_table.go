@@ -12,13 +12,39 @@ import (
 	"sync"
 )
 
+type SymbolType int
+
+const (
+	Function SymbolType = iota
+	Type
+	Variable
+	Method
+)
+
+type SymbolInfo struct {
+	Name       string
+	Type       SymbolType
+	Package    string
+	FilePath   string
+	Interfaces []string // list of interfaces the symbol implements
+}
+
+func newSymbolInfo(name string, typ SymbolType, pkg, filePath string) SymbolInfo {
+	return SymbolInfo{
+		Name:     name,
+		Type:     typ,
+		Package:  pkg,
+		FilePath: filePath,
+	}
+}
+
 type SymbolTable struct {
-	symbols map[string]string // symbol name -> file path
+	symbols map[string]SymbolInfo
 	mu      sync.RWMutex
 }
 
 func BuildSymbolTable(rootDir string) (*SymbolTable, error) {
-	st := &SymbolTable{symbols: make(map[string]string)}
+	st := &SymbolTable{symbols: make(map[string]SymbolInfo)}
 	errChan := make(chan error, 1)
 	fileChan := make(chan string, 100)
 
@@ -76,19 +102,16 @@ func (st *SymbolTable) parseFile(path string) error {
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.FuncDecl:
-			funcName := x.Name.Name
-			fullName := packageName + "." + funcName
-			st.addSymbol(fullName, path)
-
+			symType := Function
+			if x.Recv != nil {
+				symType = Method
+			}
+			st.addSymbol(newSymbolInfo(x.Name.Name, symType, packageName, path))
 		case *ast.TypeSpec:
-			typeName := x.Name.Name
-			fullName := packageName + "." + typeName
-			st.addSymbol(fullName, path)
+			st.addSymbol(newSymbolInfo(x.Name.Name, Type, packageName, path))
 		case *ast.ValueSpec:
 			for _, ident := range x.Names {
-				varName := ident.Name
-				fullName := packageName + "." + varName
-				st.addSymbol(fullName, path)
+				st.addSymbol(newSymbolInfo(ident.Name, Variable, packageName, path))
 			}
 		}
 		return true
@@ -105,17 +128,28 @@ func (st *SymbolTable) IsDefined(symbol string) bool {
 	return exists
 }
 
-func (st *SymbolTable) GetSymbolPath(symbol string) (string, bool) {
+func (st *SymbolTable) GetSymbolInfo(symbol string) (SymbolInfo, bool) {
 	st.mu.RLock()
 	defer st.mu.RUnlock()
 
-	path, exists := st.symbols[symbol]
-	return path, exists
+	info, exists := st.symbols[symbol]
+	return info, exists
 }
 
-func (st *SymbolTable) addSymbol(key, value string) {
+func (st *SymbolTable) addSymbol(info SymbolInfo) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 
-	st.symbols[key] = value
+	key := info.Package + "." + info.Name
+	st.symbols[key] = info
+}
+
+func (st *SymbolTable) AddInterfaceImplementation(typeName, interfaceName string) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	if info, exists := st.symbols[typeName]; exists {
+		info.Interfaces = append(info.Interfaces, interfaceName)
+		st.symbols[typeName] = info
+	}
 }

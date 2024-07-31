@@ -21,6 +21,7 @@ func TestSymbolTable(t *testing.T) {
 type TestStruct struct {}
 func TestFunc() {}
 var TestVar int
+func (ts TestStruct) TestMethod() {}
 `
 	file1Path := filepath.Join(tmpDir, "file1.go")
 	err = os.WriteFile(file1Path, []byte(file1Content), 0o644)
@@ -37,24 +38,43 @@ func AnotherFunc() {}
 	st, err := BuildSymbolTable(tmpDir)
 	require.NoError(t, err)
 
-	assert.True(t, st.IsDefined("test.TestStruct"))
-	assert.True(t, st.IsDefined("test.TestFunc"))
-	assert.True(t, st.IsDefined("test.TestVar"))
-	assert.True(t, st.IsDefined("test.AnotherStruct"))
-	assert.True(t, st.IsDefined("test.AnotherFunc"))
-	assert.False(t, st.IsDefined("test.NonExistentSymbol"))
+	testCases := []struct {
+		symbol   string
+		expected bool
+		symType  SymbolType
+		filePath string
+	}{
+		{"test.TestStruct", true, Type, file1Path},
+		{"test.TestFunc", true, Function, file1Path},
+		{"test.TestVar", true, Variable, file1Path},
+		{"test.TestMethod", true, Method, file1Path},
+		{"test.AnotherStruct", true, Type, file2Path},
+		{"test.AnotherFunc", true, Function, file2Path},
+		{"test.NonExistentSymbol", false, Function, ""},
+	}
 
-	// validate symbol file paths
-	path, exists := st.GetSymbolPath("test.TestStruct")
+	for _, tc := range testCases {
+		t.Run(tc.symbol, func(t *testing.T) {
+			assert.Equal(t, tc.expected, st.IsDefined(tc.symbol))
+
+			if tc.expected {
+				info, exists := st.GetSymbolInfo(tc.symbol)
+				assert.True(t, exists)
+				assert.Equal(t, tc.symType, info.Type)
+				assert.Equal(t, tc.filePath, info.FilePath)
+				assert.Equal(t, "test", info.Package)
+			} else {
+				_, exists := st.GetSymbolInfo(tc.symbol)
+				assert.False(t, exists)
+			}
+		})
+	}
+
+	// Test AddInterfaceImplementation
+	st.AddInterfaceImplementation("test.TestStruct", "SomeInterface")
+	info, exists := st.GetSymbolInfo("test.TestStruct")
 	assert.True(t, exists)
-	assert.Equal(t, file1Path, path)
-
-	path, exists = st.GetSymbolPath("test.AnotherFunc")
-	assert.True(t, exists)
-	assert.Equal(t, file2Path, path)
-
-	_, exists = st.GetSymbolPath("test.NonExistentSymbol")
-	assert.False(t, exists)
+	assert.Contains(t, info.Interfaces, "SomeInterface")
 }
 
 func TestConcurrentSymbolTable(t *testing.T) {
