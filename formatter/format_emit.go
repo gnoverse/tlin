@@ -19,6 +19,8 @@ func (f *EmitFormatFormatter) Format(
 	maxLineNumWidth := calculateMaxLineNumWidth(issue.End.Line)
 	padding := strings.Repeat(" ", maxLineNumWidth+1)
 
+	result.WriteString(lineStyle.Sprintf("%s|\n", padding))
+
 	startLine := issue.Start.Line
 	endLine := issue.End.Line
 	for i := startLine; i <= endLine; i++ {

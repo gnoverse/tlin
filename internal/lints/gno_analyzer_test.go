@@ -10,6 +10,7 @@ import (
 )
 
 func TestRunLinter(t *testing.T) {
+	t.Parallel()
 	_, current, _, ok := runtime.Caller(0)
 	require.True(t, ok)
 
@@ -63,28 +64,30 @@ func TestRunLinter(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(filepath.Base(tc.filename), func(t *testing.T) {
-			file, deps, err := analyzeFile(tc.filename)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(filepath.Base(tt.filename), func(t *testing.T) {
+			t.Parallel()
+			file, deps, err := analyzeFile(tt.filename)
 			require.NoError(t, err)
 			require.NotNil(t, file)
 
 			issues := runGnoPackageLinter(file, deps)
 
-			assert.Equal(t, len(tc.expectedIssues), len(issues), "Number of issues doesn't match expected for %s", tc.filename)
+			assert.Equal(t, len(tt.expectedIssues), len(issues), "Number of issues doesn't match expected for %s", tt.filename)
 
-			for i, expected := range tc.expectedIssues {
-				assert.Equal(t, expected.rule, issues[i].Rule, "Rule doesn't match for issue %d in %s", i, tc.filename)
-				assert.Contains(t, issues[i].Message, expected.message, "Message doesn't match for issue %d in %s", i, tc.filename)
+			for i, expected := range tt.expectedIssues {
+				assert.Equal(t, expected.rule, issues[i].Rule, "Rule doesn't match for issue %d in %s", i, tt.filename)
+				assert.Contains(t, issues[i].Message, expected.message, "Message doesn't match for issue %d in %s", i, tt.filename)
 			}
 
-			for importPath, expected := range tc.expectedDeps {
+			for importPath, expected := range tt.expectedDeps {
 				dep, exists := deps[importPath]
-				assert.True(t, exists, "Dependency %s not found in %s", importPath, tc.filename)
+				assert.True(t, exists, "Dependency %s not found in %s", importPath, tt.filename)
 				if exists {
-					assert.Equal(t, expected.isGno, dep.IsGno, "IsGno mismatch for %s in %s", importPath, tc.filename)
-					assert.Equal(t, expected.isUsed, dep.IsUsed, "IsUsed mismatch for %s in %s", importPath, tc.filename)
-					assert.Equal(t, expected.isIgnored, dep.IsIgnored, "IsIgnored mismatch for %s in %s", importPath, tc.filename)
+					assert.Equal(t, expected.isGno, dep.IsGno, "IsGno mismatch for %s in %s", importPath, tt.filename)
+					assert.Equal(t, expected.isUsed, dep.IsUsed, "IsUsed mismatch for %s in %s", importPath, tt.filename)
+					assert.Equal(t, expected.isIgnored, dep.IsIgnored, "IsIgnored mismatch for %s in %s", importPath, tt.filename)
 				}
 			}
 		})

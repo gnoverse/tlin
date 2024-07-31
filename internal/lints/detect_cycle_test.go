@@ -7,6 +7,7 @@ import (
 )
 
 func TestDetectCycle(t *testing.T) {
+	t.Parallel()
 	src := `
 package main
 

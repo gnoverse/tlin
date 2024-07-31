@@ -2,19 +2,16 @@ package formatter
 
 import (
 	"go/token"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/gnoswap-labs/lint/internal"
 	tt "github.com/gnoswap-labs/lint/internal/types"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFormatIssuesWithArrows(t *testing.T) {
-	sourceCode := &internal.SourceCode{
+	t.Parallel()
+	code := &internal.SourceCode{
 		Lines: []string{
 			"package main",
 			"",
@@ -56,7 +53,7 @@ error: empty-if
 
 `
 
-	result := FormatIssuesWithArrows(issues, sourceCode)
+	result := FormatIssuesWithArrows(issues, code)
 
 	assert.Equal(t, expected, result, "Formatted output does not match expected")
 
@@ -92,7 +89,8 @@ error: empty-if
 }
 
 func TestFormatIssuesWithArrows_MultipleDigitsLineNumbers(t *testing.T) {
-	sourceCode := &internal.SourceCode{
+	t.Parallel()
+	code := &internal.SourceCode{
 		Lines: []string{
 			"package main",
 			"",
@@ -151,13 +149,14 @@ error: example
 
 `
 
-	result := FormatIssuesWithArrows(issues, sourceCode)
+	result := FormatIssuesWithArrows(issues, code)
 
 	assert.Equal(t, expected, result, "Formatted output with multiple digit line numbers does not match expected")
 }
 
 func TestFormatIssuesWithArrows_UnnecessaryElse(t *testing.T) {
-	sourceCode := &internal.SourceCode{
+	t.Parallel()
+	code := &internal.SourceCode{
 		Lines: []string{
 			"package main",
 			"",
@@ -203,102 +202,12 @@ The code inside the 'else' block has been moved outside, as it will only be exec
 
 `
 
-	result := FormatIssuesWithArrows(issues, sourceCode)
+	result := FormatIssuesWithArrows(issues, code)
 	assert.Equal(t, expected, result, "Formatted output does not match expected for unnecessary else")
 }
 
-func TestIntegratedLintEngine(t *testing.T) {
-	t.Skip("skipping integrated lint engine test")
-	tests := []struct {
-		name     string
-		code     string
-		expected []string
-	}{
-		{
-			name: "Detect unused issues",
-			code: `
-package main
-
-import (
-    "fmt"
-)
-
-func main() {
-    x := 1
-    fmt.Println("Hello")
-}
-`,
-			expected: []string{
-				"x declared and not used",
-			},
-		},
-		{
-			name: "Detect multiple issues",
-			code: `
-package main
-
-import (
-    "fmt"
-    "strings"
-)
-
-func main() {
-    x := 1
-    y := "unused"
-    fmt.Println("Hello")
-}
-`,
-			expected: []string{
-				"x declared and not used",
-				"y declared and not used",
-				`"strings" imported and not used`,
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tmpDir, err := os.MkdirTemp("", "lint-test")
-			require.NoError(t, err)
-			defer os.RemoveAll(tmpDir)
-
-			tmpfile := filepath.Join(tmpDir, "test.go")
-			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
-			require.NoError(t, err)
-
-			rootDir := "."
-			engine, err := internal.NewEngine(rootDir)
-			if err != nil {
-				t.Fatalf("unexpected error initializing lint engine: %v", err)
-			}
-
-			issues, err := engine.Run(tmpfile)
-			require.NoError(t, err)
-
-			assert.Equal(t, len(tt.expected), len(issues), "Number of issues doesn't match")
-
-			for _, exp := range tt.expected {
-				found := false
-				for _, issue := range issues {
-					if strings.Contains(issue.Message, exp) {
-						found = true
-						break
-					}
-				}
-				assert.True(t, found, "Expected issue not found: "+exp)
-			}
-
-			if len(issues) > 0 {
-				sourceCode, err := internal.ReadSourceCode(tmpfile)
-				require.NoError(t, err)
-				formattedIssues := FormatIssuesWithArrows(issues, sourceCode)
-				t.Logf("Found issues with arrows:\n%s", formattedIssues)
-			}
-		})
-	}
-}
-
 func TestUnnecessaryTypeConversionFormatter(t *testing.T) {
+	t.Parallel()
 	formatter := &UnnecessaryTypeConversionFormatter{}
 
 	issue := tt.Issue{
@@ -339,9 +248,10 @@ Note: Unnecessary type conversions can make the code less readable and may sligh
 }
 
 func TestEmitFormatFormatter_Format(t *testing.T) {
+	t.Parallel()
 	formatter := &EmitFormatFormatter{}
 
-	testCases := []struct {
+	tests := []struct {
 		name     string
 		issue    tt.Issue
 		snippet  *internal.SourceCode
@@ -371,8 +281,7 @@ func TestEmitFormatFormatter_Format(t *testing.T) {
 					"}",
 				},
 			},
-			expected: `error: emit-format
- --> test.go
+			expected: `  |
 3 | func main() {
 4 |     std.Emit("OwnershipChange", "newOwner", newOwner.String(), "oldOwner", oldOwner.String())
 5 | }
@@ -390,10 +299,13 @@ Suggestion:
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := formatter.Format(tc.issue, tc.snippet)
-			assert.Equal(t, tc.expected, result)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// Format does not render lint rule and filename
+			result := formatter.Format(tt.issue, tt.snippet)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
