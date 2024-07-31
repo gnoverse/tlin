@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -506,5 +507,68 @@ func TestFormatEmitCall(t *testing.T) {
 			result := formatEmitCall(callExpr)
 			assert.Equal(t, tt.expected, result)
 		})
+	}
+}
+
+func TestDetectSliceBoundsCheck(t *testing.T) {
+	code := `
+package main
+
+type Item struct {
+    Name  string
+    Value int
+}
+
+func main() {
+    sourceItems := []*Item{
+        {"item1", 10},
+        {"item2", 20},
+        {"item3", 30},
+    }
+
+    destinationItems := make([]*Item, 0, len(sourceItems))
+
+    i := 0
+    for _, item := range sourceItems {
+        destinationItems[i] = item // Expect out-of-range linter warning here
+        i++
+    }
+}
+`
+
+	tmpfile, err := os.CreateTemp("", "example.*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(code)); err != nil {
+		t.Fatal(err)
+	}
+	if err := tmpfile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	node, fset, err := ParseFile(tmpfile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	issues, err := DetectSliceBoundCheck(tmpfile.Name(), node, fset)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(issues) != 1 {
+		t.Errorf("Expected 1 issue, but got %d", len(issues))
+	}
+
+	if len(issues) > 0 {
+		if issues[0].Rule != "slice-bounds-check" {
+			t.Errorf("Expected rule to be 'slice-bounds-check', but got '%s'", issues[0].Rule)
+		}
+		if !strings.Contains(issues[0].Message, "Potential slice bounds check failure") {
+			t.Errorf("Unexpected message: %s", issues[0].Message)
+		}
 	}
 }

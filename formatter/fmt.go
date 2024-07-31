@@ -70,6 +70,11 @@ func buildSuggestion(result *strings.Builder, issue tt.Issue, lineStyle, suggest
 	result.WriteString(suggestionStyle.Sprintf("Suggestion:\n"))
 	for i, line := range strings.Split(issue.Suggestion, "\n") {
 		lineNum := fmt.Sprintf("%d", startLine+i)
+
+		if maxLineNumWidth < len(lineNum) {
+			maxLineNumWidth = len(lineNum)
+		}
+
 		result.WriteString(lineStyle.Sprintf("%s%s | ", padding[:maxLineNumWidth-len(lineNum)], lineNum))
 		result.WriteString(fmt.Sprintf("%s\n", line))
 	}
