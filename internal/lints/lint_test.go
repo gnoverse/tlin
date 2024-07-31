@@ -15,6 +15,7 @@ import (
 )
 
 func TestDetectUnnecessaryElse(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		code     string
@@ -73,7 +74,9 @@ func example2() int {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tmpDir, err := os.MkdirTemp("", "lint-test")
 			require.NoError(t, err)
 			defer os.RemoveAll(tmpDir)
@@ -101,6 +104,7 @@ func example2() int {
 }
 
 func TestDetectUnnecessarySliceLength(t *testing.T) {
+	t.Parallel()
 	baseMsg := "unnecessary use of len() in slice expression, can be simplified"
 	tests := []struct {
 		name     string
@@ -159,7 +163,9 @@ func main() {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tmpDir, err := os.MkdirTemp("", "lint-test")
 			require.NoError(t, err)
 			defer os.RemoveAll(tmpDir)
@@ -191,6 +197,7 @@ func main() {
 }
 
 func TestDetectUnnecessaryTypeConversion(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		code     string
@@ -260,7 +267,9 @@ func example() {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tmpDir, err := os.MkdirTemp("", "lint-test")
 			require.NoError(t, err)
 			defer os.RemoveAll(tmpDir)
@@ -288,6 +297,7 @@ func example() {
 }
 
 func TestDetectLoopAllocation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		code     string
@@ -377,7 +387,9 @@ func main() {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tmpDir, err := os.MkdirTemp("", "test")
 			require.NoError(t, err)
 			defer os.RemoveAll(tmpDir)
@@ -402,6 +414,7 @@ func main() {
 }
 
 func TestDetectEmitFormat(t *testing.T) {
+	t.Parallel()
 	_, current, _, _ := runtime.Caller(0)
 	testDir := filepath.Join(filepath.Dir(current), "..", "..", "testdata", "emit")
 
@@ -433,7 +446,9 @@ func TestDetectEmitFormat(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			path := filepath.Join(testDir, tt.filename)
 			content, err := os.ReadFile(path)
 			require.NoError(t, err)
@@ -463,6 +478,7 @@ func TestDetectEmitFormat(t *testing.T) {
 }
 
 func TestFormatEmitCall(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -498,7 +514,9 @@ func TestFormatEmitCall(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			expr, err := parser.ParseExpr(tt.input)
 			assert.NoError(t, err)
 
@@ -512,6 +530,7 @@ func TestFormatEmitCall(t *testing.T) {
 }
 
 func TestDetectSliceBoundCheck(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		code     string
@@ -572,7 +591,9 @@ func main() {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fset := token.NewFileSet()
 			node, err := parser.ParseFile(fset, "", tt.code, 0)
 			if err != nil {

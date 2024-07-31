@@ -12,6 +12,7 @@ import (
 )
 
 func TestSymbolTable(t *testing.T) {
+	t.Parallel()
 	tmpDir, err := os.MkdirTemp("", "symboltable-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
@@ -38,7 +39,7 @@ func AnotherFunc() {}
 	st, err := BuildSymbolTable(tmpDir)
 	require.NoError(t, err)
 
-	testCases := []struct {
+	tests := []struct {
 		symbol   string
 		expected bool
 		symType  SymbolType
@@ -53,18 +54,20 @@ func AnotherFunc() {}
 		{"test.NonExistentSymbol", false, Function, ""},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.symbol, func(t *testing.T) {
-			assert.Equal(t, tc.expected, st.IsDefined(tc.symbol))
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.symbol, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expected, st.IsDefined(tt.symbol))
 
-			if tc.expected {
-				info, exists := st.GetSymbolInfo(tc.symbol)
+			if tt.expected {
+				info, exists := st.GetSymbolInfo(tt.symbol)
 				assert.True(t, exists)
-				assert.Equal(t, tc.symType, info.Type)
-				assert.Equal(t, tc.filePath, info.FilePath)
+				assert.Equal(t, tt.symType, info.Type)
+				assert.Equal(t, tt.filePath, info.FilePath)
 				assert.Equal(t, "test", info.Package)
 			} else {
-				_, exists := st.GetSymbolInfo(tc.symbol)
+				_, exists := st.GetSymbolInfo(tt.symbol)
 				assert.False(t, exists)
 			}
 		})
@@ -78,6 +81,7 @@ func AnotherFunc() {}
 }
 
 func TestConcurrentSymbolTable(t *testing.T) {
+	t.Parallel()
 	tmpDir, err := os.MkdirTemp("", "concurrent-symboltable-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)

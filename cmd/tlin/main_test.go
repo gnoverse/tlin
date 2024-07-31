@@ -31,11 +31,10 @@ func (m *MockLintEngine) IgnoreRule(rule string) {
 }
 
 func TestParseFlags(t *testing.T) {
-	// Save original os.Args
+	t.Parallel()
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()
 
-	// Test case
 	os.Args = []string{"cmd", "-timeout", "10s", "-cyclo", "-threshold", "15", "-ignore", "rule1,rule2", "file1.go", "file2.go"}
 
 	config := parseFlags()
@@ -48,6 +47,7 @@ func TestParseFlags(t *testing.T) {
 }
 
 func TestProcessFile(t *testing.T) {
+	t.Parallel()
 	mockEngine := new(MockLintEngine)
 	expectedIssues := []types.Issue{
 		{
@@ -68,6 +68,7 @@ func TestProcessFile(t *testing.T) {
 }
 
 func TestProcessPath(t *testing.T) {
+	t.Parallel()
 	logger, _ := zap.NewProduction()
 	mockEngine := new(MockLintEngine)
 	ctx := context.Background()
@@ -115,6 +116,7 @@ func TestProcessPath(t *testing.T) {
 }
 
 func TestProcessFiles(t *testing.T) {
+	t.Parallel()
 	logger, _ := zap.NewProduction()
 	mockEngine := new(MockLintEngine)
 	ctx := context.Background()
@@ -161,6 +163,7 @@ func TestProcessFiles(t *testing.T) {
 }
 
 func TestHasDesiredExtension(t *testing.T) {
+	t.Parallel()
 	assert.True(t, hasDesiredExtension("test.go"))
 	assert.True(t, hasDesiredExtension("test.gno"))
 	assert.False(t, hasDesiredExtension("test.txt"))
@@ -168,6 +171,7 @@ func TestHasDesiredExtension(t *testing.T) {
 }
 
 func TestRunWithTimeout(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
@@ -188,6 +192,7 @@ func TestRunWithTimeout(t *testing.T) {
 }
 
 func TestRunCFGAnalysis(t *testing.T) {
+	t.Parallel()
 	logger, _ := zap.NewProduction()
 
 	tempFile, err := os.CreateTemp("", "test*.go")

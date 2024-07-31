@@ -12,6 +12,7 @@ import (
 )
 
 func TestFromStmts(t *testing.T) {
+	t.Parallel()
 	src := `
 		package main
 		func main() {
@@ -67,6 +68,7 @@ func TestFromStmts(t *testing.T) {
 }
 
 func TestAnalyzeSpecificFunction(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		src            string
@@ -122,7 +124,9 @@ func TestAnalyzeSpecificFunction(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fset := token.NewFileSet()
 			file, err := parser.ParseFile(fset, "src.go", tt.src, 0)
 			if err != nil {
@@ -155,6 +159,7 @@ func TestAnalyzeSpecificFunction(t *testing.T) {
 }
 
 func TestCFG(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		src            string
@@ -236,7 +241,9 @@ func TestCFG(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fset := token.NewFileSet()
 			node, err := parser.ParseFile(fset, "src.go", tt.src, 0)
 			if err != nil {
@@ -275,6 +282,7 @@ func TestCFG(t *testing.T) {
 }
 
 func TestPrintDot2(t *testing.T) {
+	t.Parallel()
 	src := `
 package main
 func main() {
@@ -337,18 +345,6 @@ digraph mgraph {
 	}
 }
 
-func normalizeDotOutput(dot string) string {
-	lines := strings.Split(dot, "\n")
-	var normalized []string
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed != "" {
-			normalized = append(normalized, trimmed)
-		}
-	}
-	return strings.Join(normalized, "\n")
-}
-
 // ref: https://github.com/godoctor/godoctor/blob/master/analysis/cfg/cfg_test.go#L500
 
 const (
@@ -357,6 +353,7 @@ const (
 )
 
 func TestBlockStmt(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
 package main
 
@@ -374,6 +371,7 @@ func bar(i int) {}`)
 }
 
 func TestIfElseIfGoto(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
   package main
 
@@ -402,6 +400,7 @@ func TestIfElseIfGoto(t *testing.T) {
 }
 
 func TestDoubleForBreak(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
   package main
 
@@ -428,6 +427,7 @@ func TestDoubleForBreak(t *testing.T) {
 }
 
 func TestFor(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
   package main
 
@@ -451,6 +451,7 @@ func TestFor(t *testing.T) {
 }
 
 func TestForContinue(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
   package main
 
@@ -479,6 +480,7 @@ func TestForContinue(t *testing.T) {
 }
 
 func TestIfElse(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
   package main
 
@@ -501,6 +503,7 @@ func TestIfElse(t *testing.T) {
 }
 
 func TestIfNoElse(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
   package main
 
@@ -521,6 +524,7 @@ func TestIfNoElse(t *testing.T) {
 }
 
 func TestIfElseIf(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
   package main
 
@@ -548,6 +552,7 @@ func TestIfElseIf(t *testing.T) {
 }
 
 func TestDefer(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
 package main
 
@@ -573,6 +578,7 @@ func foo() {
 }
 
 func TestRange(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
   package main
 
@@ -605,6 +611,7 @@ func TestRange(t *testing.T) {
 }
 
 func TestTypeSwitchDefault(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
   package main
 
@@ -628,6 +635,7 @@ func TestTypeSwitchDefault(t *testing.T) {
 }
 
 func TestTypeSwitchNoDefault(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
   package main
 
@@ -650,6 +658,7 @@ func TestTypeSwitchNoDefault(t *testing.T) {
 }
 
 func TestSwitch(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
   package main
   
@@ -685,6 +694,7 @@ func TestSwitch(t *testing.T) {
 }
 
 func TestLabeledFallthrough(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
   package main
 
@@ -717,6 +727,7 @@ func TestLabeledFallthrough(t *testing.T) {
 }
 
 func TestSelectDefault(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
   package main
 
@@ -749,6 +760,7 @@ func TestSelectDefault(t *testing.T) {
 }
 
 func TestDietyExistence(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
   package main
 
@@ -940,6 +952,7 @@ func (c *CFGWrapper) expectPreds(t *testing.T, s int, exp ...int) {
 }
 
 func TestPrintDot(t *testing.T) {
+	t.Parallel()
 	c := getWrapper(t, `
   package main
 
@@ -976,4 +989,16 @@ splines="ortho";
 			t.Fatalf("[%s]", dot)
 		}
 	}
+}
+
+func normalizeDotOutput(dot string) string {
+	lines := strings.Split(dot, "\n")
+	var normalized []string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			normalized = append(normalized, trimmed)
+		}
+	}
+	return strings.Join(normalized, "\n")
 }
