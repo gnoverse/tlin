@@ -19,24 +19,25 @@ func DetectSliceBoundCheck(filename string, node *ast.File, fset *token.FileSet)
 			}
 
 			if assignStmt, ok := findAssignmentForIdent(node, ident); ok {
-                if callExpr, ok := assignStmt.Rhs[0].(*ast.CallExpr); ok {
-                    if fun, ok := callExpr.Fun.(*ast.Ident); ok && fun.Name == "make" {
-                        // make로 생성된 슬라이스의 경우, 초기 길이가 0이면 위험할 수 있음
-                        if len(callExpr.Args) >= 2 {
-                            if lit, ok := callExpr.Args[1].(*ast.BasicLit); ok && lit.Value == "0" {
-                                issue := createIssue(x, ident, filename, fset)
-                                issues = append(issues, issue)
-                                return true
-                            }
-                        }
-                    }
-                }
-            }
+				if callExpr, ok := assignStmt.Rhs[0].(*ast.CallExpr); ok {
+					if fun, ok := callExpr.Fun.(*ast.Ident); ok && fun.Name == "make" {
+						// Slice created with make, it can be dangerous if the initial length is 0
+						// because the slice will be nil and accessing an index will panic
+						if len(callExpr.Args) >= 2 {
+							if lit, ok := callExpr.Args[1].(*ast.BasicLit); ok && lit.Value == "0" {
+								issue := createIssue(x, ident, filename, fset)
+								issues = append(issues, issue)
+								return true
+							}
+						}
+					}
+				}
+			}
 
-            if !isWithinSafeContext(node, x) && !isWithinBoundsCheck(node, x, ident) {
-                issue := createIssue(x, ident, filename, fset)
-                issues = append(issues, issue)
-            }
+			if !isWithinSafeContext(node, x) && !isWithinBoundsCheck(node, x, ident) {
+				issue := createIssue(x, ident, filename, fset)
+				issues = append(issues, issue)
+			}
 		}
 		return true
 	})
@@ -45,34 +46,34 @@ func DetectSliceBoundCheck(filename string, node *ast.File, fset *token.FileSet)
 }
 
 func createIssue(node ast.Node, ident *ast.Ident, filename string, fset *token.FileSet) tt.Issue {
-    var category, message, suggestion, note string
+	var category, message, suggestion, note string
 
-    switch x := node.(type) {
-    case *ast.IndexExpr:
+	switch x := node.(type) {
+	case *ast.IndexExpr:
 		if isConstantIndex(x.Index) {
 			return tt.Issue{}
 		}
 		category = "index-access"
-        message = "Potential out of bounds array/slice index access"
-        suggestion = fmt.Sprintf("if i < len(%s) { value := %s[i] }", ident.Name, ident.Name)
-        note = "Always check the length of the array/slice before accessing an index to prevent runtime panics."
-    case *ast.SliceExpr:
+		message = "Potential out of bounds array/slice index access"
+		suggestion = fmt.Sprintf("if i < len(%s) { value := %s[i] }", ident.Name, ident.Name)
+		note = "Always check the length of the array/slice before accessing an index to prevent runtime panics."
+	case *ast.SliceExpr:
 		category = "slice-expression"
-        message = "Potential out of bounds slice expression"
-        suggestion = fmt.Sprintf("%s = append(%s, newElement)", ident.Name, ident.Name)
-        note = "Consider using append() for slices to automatically handle capacity and prevent out of bounds errors."
-    }
+		message = "Potential out of bounds slice expression"
+		suggestion = fmt.Sprintf("%s = append(%s, newElement)", ident.Name, ident.Name)
+		note = "Consider using append() for slices to automatically handle capacity and prevent out of bounds errors."
+	}
 
-    return tt.Issue{
-        Rule:       "slice-bounds-check",
+	return tt.Issue{
+		Rule:       "slice-bounds-check",
 		Category:   category,
-        Filename:   filename,
-        Start:      fset.Position(node.Pos()),
-        End:        fset.Position(node.End()),
-        Message:    message,
-        Suggestion: suggestion,
-        Note:       note,
-    }
+		Filename:   filename,
+		Start:      fset.Position(node.Pos()),
+		End:        fset.Position(node.End()),
+		Message:    message,
+		Suggestion: suggestion,
+		Note:       note,
+	}
 }
 
 // getIdentForSliceOrArr checks if the node is within an if statement
@@ -155,35 +156,35 @@ func isCapOrLenCallWithIdent(call *ast.CallExpr, ident *ast.Ident) bool {
 //  4. If a safe context is found, it immediately stops traversal and returns true.
 //
 // Notes:
-//  - This function may not cover all possible safe usage scenarios.
-//  - Complex nested structures or indirect access through function calls may be difficult to analyze accurately.
+//   - This function may not cover all possible safe usage scenarios.
+//   - Complex nested structures or indirect access through function calls may be difficult to analyze accurately.
 func isWithinSafeContext(file *ast.File, node ast.Node) bool {
-    var safeContext bool
-    ast.Inspect(file, func(n ast.Node) bool {
-        if n == node {
-            return false
-        }
-        switch x := n.(type) {
-        case *ast.RangeStmt:
-            if containsNode(x.Body, node) {
+	var safeContext bool
+	ast.Inspect(file, func(n ast.Node) bool {
+		if n == node {
+			return false
+		}
+		switch x := n.(type) {
+		case *ast.RangeStmt:
+			if containsNode(x.Body, node) {
 				// inside a range statement, but check if the index expression is the range variable
-                if indexExpr, ok := node.(*ast.IndexExpr); ok {
-                    if ident, ok := indexExpr.X.(*ast.Ident); ok {
+				if indexExpr, ok := node.(*ast.IndexExpr); ok {
+					if ident, ok := indexExpr.X.(*ast.Ident); ok {
 						// accessing a different slice/array than the range variable is not safe
-                        safeContext = (ident.Name == x.Key.(*ast.Ident).Name)
-                    }
-                }
-                return false
-            }
-        case *ast.ForStmt:
-            if isForWithLenCheck(x) && containsNode(x.Body, node) {
-                safeContext = true
-                return false
-            }
-        }
-        return true
-    })
-    return safeContext
+						safeContext = (ident.Name == x.Key.(*ast.Ident).Name)
+					}
+				}
+				return false
+			}
+		case *ast.ForStmt:
+			if isForWithLenCheck(x) && containsNode(x.Body, node) {
+				safeContext = true
+				return false
+			}
+		}
+		return true
+	})
+	return safeContext
 }
 
 func isForWithLenCheck(forStmt *ast.ForStmt) bool {
@@ -217,21 +218,21 @@ func isBinaryExprLenCheck(expr *ast.BinaryExpr) bool {
 }
 
 func findAssignmentForIdent(file *ast.File, ident *ast.Ident) (*ast.AssignStmt, bool) {
-    var assignStmt *ast.AssignStmt
-    var found bool
+	var assignStmt *ast.AssignStmt
+	var found bool
 
-    ast.Inspect(file, func(n ast.Node) bool {
-        if assign, ok := n.(*ast.AssignStmt); ok {
-            for _, lhs := range assign.Lhs {
-                if id, ok := lhs.(*ast.Ident); ok && id.Name == ident.Name {
-                    assignStmt = assign
-                    found = true
-                    return false
-                }
-            }
-        }
-        return true
-    })
+	ast.Inspect(file, func(n ast.Node) bool {
+		if assign, ok := n.(*ast.AssignStmt); ok {
+			for _, lhs := range assign.Lhs {
+				if id, ok := lhs.(*ast.Ident); ok && id.Name == ident.Name {
+					assignStmt = assign
+					found = true
+					return false
+				}
+			}
+		}
+		return true
+	})
 
-    return assignStmt, found
+	return assignStmt, found
 }

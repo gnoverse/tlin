@@ -83,6 +83,7 @@ func example2() int {
 			require.NoError(t, err)
 
 			node, fset, err := ParseFile(tmpfile)
+			assert.NoError(t, err)
 
 			issues, err := DetectUnnecessaryElse(tmpfile, node, fset)
 			require.NoError(t, err)

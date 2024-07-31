@@ -16,8 +16,6 @@ func (f *EmitFormatFormatter) Format(
 ) string {
 	var result strings.Builder
 
-	result.WriteString(formatIssueHeader(issue))
-
 	maxLineNumWidth := calculateMaxLineNumWidth(issue.End.Line)
 	padding := strings.Repeat(" ", maxLineNumWidth+1)
 

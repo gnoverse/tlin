@@ -14,6 +14,9 @@ BINARY_MAC=$(BINARY_NAME)_mac
 # Main package path
 MAIN_PACKAGE=./cmd/tlin
 
+install:
+	go install $(MAIN_PACKAGE)
+
 # Build the project
 all: test build
 
