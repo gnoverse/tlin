@@ -48,20 +48,6 @@ func (f *UnnecessaryElseFormatter) Format(
 	return result.String()
 }
 
-func calculateMaxLineNumWidth(endLine int) int {
-	return len(fmt.Sprintf("%d", endLine))
-}
-
-func calculateMaxLineLength(lines []string, start, end int) int {
-	maxLen := 0
-	for i := start - 1; i < end; i++ {
-		if len(lines[i]) > maxLen {
-			maxLen = len(lines[i])
-		}
-	}
-	return maxLen
-}
-
 func formatSuggestion(issue tt.Issue, improvedSnippet string, startLine int) string {
 	var result strings.Builder
 	lines := strings.Split(improvedSnippet, "\n")

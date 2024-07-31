@@ -337,3 +337,63 @@ Note: Unnecessary type conversions can make the code less readable and may sligh
 
 	assert.Equal(t, expected, result, "Formatted output should match expected output")
 }
+
+func TestEmitFormatFormatter_Format(t *testing.T) {
+	formatter := &EmitFormatFormatter{}
+
+	testCases := []struct {
+		name     string
+		issue    tt.Issue
+		snippet  *internal.SourceCode
+		expected string
+	}{
+		{
+			name: "Simple Emit format issue",
+			issue: tt.Issue{
+				Rule:     "emit-format",
+				Filename: "test.go",
+				Start:    token.Position{Line: 3, Column: 5},
+				End:      token.Position{Line: 5, Column: 6},
+				Message:  "Consider formatting std.Emit call for better readability",
+				Suggestion: `std.Emit(
+    "OwnershipChange",
+    "newOwner", newOwner.String(),
+    "oldOwner", oldOwner.String(),
+)`,
+				// Note: "Formatting std.Emit calls with multiple key-value pairs improves readability.",
+			},
+			snippet: &internal.SourceCode{
+				Lines: []string{
+					"package main",
+					"",
+					"func main() {",
+					"    std.Emit(\"OwnershipChange\", \"newOwner\", newOwner.String(), \"oldOwner\", oldOwner.String())",
+					"}",
+				},
+			},
+			expected: `error: emit-format
+ --> test.go
+3 | func main() {
+4 |     std.Emit("OwnershipChange", "newOwner", newOwner.String(), "oldOwner", oldOwner.String())
+5 | }
+  | ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  | Consider formatting std.Emit call for better readability
+
+Suggestion:
+3 | std.Emit(
+4 |     "OwnershipChange",
+5 |     "newOwner", newOwner.String(),
+6 |     "oldOwner", oldOwner.String(),
+7 | )
+
+`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := formatter.Format(tc.issue, tc.snippet)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}

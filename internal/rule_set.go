@@ -81,6 +81,16 @@ func (r *DetectCycleRule) Name() string {
 	return "cycle-detection"
 }
 
+type EmitFormatRule struct{}
+
+func (r *EmitFormatRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectEmitFormat(filename, node, fset)
+}
+
+func (r *EmitFormatRule) Name() string {
+	return "emit-format"
+}
+
 // -----------------------------------------------------------------------------
 
 type CyclomaticComplexityRule struct {
