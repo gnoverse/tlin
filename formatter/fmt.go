@@ -16,6 +16,7 @@ const (
 	SimplifySliceExpr   = "simplify-slice-range"
 	CycloComplexity     = "high-cyclomatic-complexity"
 	EmitFormat          = "emit-format"
+	SliceBound          = "slice-bounds-check"
 )
 
 // IssueFormatter is the interface that wraps the Format method.
@@ -51,6 +52,8 @@ func getFormatter(rule string) IssueFormatter {
 		return &CyclomaticComplexityFormatter{}
 	case EmitFormat:
 		return &EmitFormatFormatter{}
+	case SliceBound:
+		return &SliceBoundsCheckFormatter{}
 	default:
 		return &GeneralIssueFormatter{}
 	}
@@ -70,6 +73,11 @@ func buildSuggestion(result *strings.Builder, issue tt.Issue, lineStyle, suggest
 	result.WriteString(suggestionStyle.Sprintf("Suggestion:\n"))
 	for i, line := range strings.Split(issue.Suggestion, "\n") {
 		lineNum := fmt.Sprintf("%d", startLine+i)
+
+		if maxLineNumWidth < len(lineNum) {
+			maxLineNumWidth = len(lineNum)
+		}
+
 		result.WriteString(lineStyle.Sprintf("%s%s | ", padding[:maxLineNumWidth-len(lineNum)], lineNum))
 		result.WriteString(fmt.Sprintf("%s\n", line))
 	}

@@ -91,6 +91,16 @@ func (r *EmitFormatRule) Name() string {
 	return "emit-format"
 }
 
+type SliceBoundCheckRule struct{}
+
+func (r *SliceBoundCheckRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectSliceBoundCheck(filename, node, fset)
+}
+
+func (r *SliceBoundCheckRule) Name() string {
+	return "slice-bounds-check"
+}
+
 // -----------------------------------------------------------------------------
 
 type CyclomaticComplexityRule struct {

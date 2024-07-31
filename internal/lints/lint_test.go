@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -505,6 +506,87 @@ func TestFormatEmitCall(t *testing.T) {
 
 			result := formatEmitCall(callExpr)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestDetectSliceBoundCheck(t *testing.T) {
+	tests := []struct {
+		name     string
+		code     string
+		expected int
+	}{
+		{
+			name: "simple bound check",
+			code: `
+package main
+func main() {
+	arr := []int{1, 2, 3}
+	if i < len(arr) {
+		_ = arr[i]
+	}
+}
+			`,
+			expected: 0,
+		},
+		{
+			name: "missing bound check",
+			code: `
+package main
+func main() {
+	arr := []int{1, 2, 3}
+	_ = arr[i]
+}
+			`,
+			expected: 1,
+		},
+		{
+			name: "complex condition 2",
+			code: `
+package main
+
+type Item struct {
+    Name  string
+    Value int
+}
+
+func main() {
+    sourceItems := []*Item{
+        {"item1", 10},
+        {"item2", 20},
+        {"item3", 30},
+    }
+
+    destinationItems := make([]*Item, 0, len(sourceItems))
+
+    i := 0
+    for _, item := range sourceItems {
+        destinationItems[i] = item
+        i++
+    }
+}
+`,
+			expected: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fset := token.NewFileSet()
+			node, err := parser.ParseFile(fset, "", tt.code, 0)
+			if err != nil {
+				t.Fatalf("Failed to parse code: %v", err)
+			}
+
+			issues, err := DetectSliceBoundCheck("test.go", node, fset)
+			for i, issue := range issues {
+				t.Logf("Issue %d: %v", i, issue)
+			}
+			assert.NoError(t, err)
+			assert.Equal(
+				t, tt.expected, len(issues),
+				"Number of detected slice bound check issues doesn't match expected",
+			)
 		})
 	}
 }

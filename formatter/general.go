@@ -13,6 +13,7 @@ const tabWidth = 8
 
 var (
 	errorStyle      = color.New(color.FgRed, color.Bold)
+	warningStyle	= color.New(color.FgHiYellow, color.Bold)
 	ruleStyle       = color.New(color.FgYellow, color.Bold)
 	fileStyle       = color.New(color.FgCyan, color.Bold)
 	lineStyle       = color.New(color.FgBlue, color.Bold)
