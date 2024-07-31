@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -399,80 +400,48 @@ func main() {
 }
 
 func TestDetectEmitFormat(t *testing.T) {
+	_, current, _, _ := runtime.Caller(0)
+	testDir := filepath.Join(filepath.Dir(current), "..", "..", "testdata", "emit")
+
 	tests := []struct {
 		name     string
-		code     string
+		filename string
 		expected int
 	}{
 		{
-			name: "Emit with 3 arguments",
-			code: `
-package main
-
-import "std"
-
-func main() {
-    std.Emit("OwnershipChange", "newOwner", newOwner.String())
-}`,
+			name:     "Emit with 3 arguments",
+			filename: "emit0.gno",
 			expected: 0,
 		},
 		{
-			name: "Emit with more than 3 arguments",
-			code: `
-package main
-
-import "std"
-
-func main() {
-    std.Emit("OwnershipChange", "newOwner", newOwner.String(), "oldOwner", oldOwner.String())
-}`,
+			name:     "Emit with more than 3 arguments",
+			filename: "emit1.gno",
 			expected: 1,
 		},
 		{
-			name: "Emit with new line",
-			code: `
-package main
-
-import "std"
-
-func main() {
-    std.Emit(
-		"OwnershipChange",
-		"newOwner", newOwner.String(),
-		"oldOwner", oldOwner.String(),
-	)
-}`,
+			name:     "Emit with new line",
+			filename: "emit2.gno",
 			expected: 0,
 		},
 		{
-			name: "Emit with inconsistent new line",
-			code: `
-package main
-
-import "std"
-
-func main() {
-    std.Emit(
-		"OwnershipChange",
-		"newOwner", newOwner.String(),
-		"oldOwner", 
-		oldOwner.String(),
-		"anotherOwner", anotherOwner.String(),
-	)
-}
-`,
+			name:     "Emit with inconsistent new line",
+			filename: "emit3.gno",
 			expected: 1,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(testDir, tt.filename)
+			content, err := os.ReadFile(path)
+			require.NoError(t, err)
+
 			tmpDir, err := os.MkdirTemp("", "lint-test")
 			require.NoError(t, err)
 			defer os.RemoveAll(tmpDir)
 
 			tmpfile := filepath.Join(tmpDir, "test.go")
-			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
+			err = os.WriteFile(tmpfile, content, 0o644)
 			require.NoError(t, err)
 
 			node, fset, err := ParseFile(tmpfile)
@@ -481,7 +450,7 @@ func main() {
 			issues, err := DetectEmitFormat(tmpfile, node, fset)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.expected, len(issues), fmt.Sprintf("Number of detected issues doesn't match expected. %v", issues))
+			assert.Equal(t, tt.expected, len(issues), fmt.Sprintf("Number of detected issues doesn't match expected for %s. %v", tt.filename, issues))
 
 			if len(issues) > 0 {
 				assert.Equal(t, "emit-format", issues[0].Rule)
