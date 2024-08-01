@@ -192,11 +192,12 @@ func TestFormatIssuesWithArrows_UnnecessaryElse(t *testing.T) {
   | unnecessary else block
 
 Suggestion:
+  |
 4 | if condition {
 5 | 	return true
 6 | }
 7 | return false
-
+  |
 Note: Unnecessary 'else' block removed.
 The code inside the 'else' block has been moved outside, as it will only be executed when the 'if' condition is false.
 
@@ -289,12 +290,13 @@ func TestEmitFormatFormatter_Format(t *testing.T) {
   | Consider formatting std.Emit call for better readability
 
 Suggestion:
+  |
 3 | std.Emit(
 4 |     "OwnershipChange",
 5 |     "newOwner", newOwner.String(),
 6 |     "oldOwner", oldOwner.String(),
 7 | )
-
+  |
 `,
 		},
 	}
