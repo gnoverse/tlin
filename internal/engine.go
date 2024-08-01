@@ -42,6 +42,7 @@ func (e *Engine) registerDefaultRules() {
 		&EmitFormatRule{},
 		&DetectCycleRule{},
 		&GnoSpecificRule{},
+		&UselessBreakRule{},
 	)
 }
 

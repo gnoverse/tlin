@@ -101,6 +101,16 @@ func (r *SliceBoundCheckRule) Name() string {
 	return "slice-bounds-check"
 }
 
+type UselessBreakRule struct{}
+
+func (r *UselessBreakRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectUselessBreak(filename, node, fset)
+}
+
+func (r *UselessBreakRule) Name() string {
+	return "useless-break"
+}
+
 // -----------------------------------------------------------------------------
 
 type CyclomaticComplexityRule struct {

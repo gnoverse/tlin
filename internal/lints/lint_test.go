@@ -627,3 +627,106 @@ func removeStringFromStringArr(arr []string, str string) []string {
 		})
 	}
 }
+
+func TestDetectUselessBreak(t *testing.T) {
+	tests := []struct {
+		name     string
+		code     string
+		expected int
+	}{
+		{
+			name: "No useless break",
+			code: `
+package main
+
+func main() {
+	switch x := 1; x {
+	case 1:
+		println("one")
+	case 2:
+		println("two")
+	default:
+		println("other")
+	}
+}`,
+			expected: 0,
+		},
+		{
+			name: "Useless break in switch",
+			code: `
+package main
+
+func main() {
+	switch x := 1; x {
+	case 1:
+		println("one")
+		break
+	case 2:
+		println("two")
+	default:
+		println("other")
+		break
+	}
+}`,
+			expected: 2,
+		},
+		{
+			name: "Useless break in select",
+			code: `
+package main
+
+func main() {
+	select {
+	case <-ch1:
+		println("received from ch1")
+		break
+	case <-ch2:
+		println("received from ch2")
+	default:
+		println("no communication")
+		break
+	}
+}`,
+			expected: 2,
+		},
+		{
+			name: "Labeled break (not useless)",
+			code: `
+package main
+
+func main() {
+outer:
+	for {
+		switch x := 1; x {
+		case 1:
+			println("one")
+			break outer
+		case 2:
+			println("two")
+		}
+	}
+}`,
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fset := token.NewFileSet()
+			node, err := parser.ParseFile(fset, "test.go", tt.code, parser.ParseComments)
+			require.NoError(t, err)
+
+			issues, err := DetectUselessBreak("test.go", node, fset)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expected, len(issues), "Number of detected useless break statements doesn't match expected")
+
+			if len(issues) > 0 {
+				for _, issue := range issues {
+					assert.Equal(t, "useless-break", issue.Rule)
+					assert.Contains(t, issue.Message, "useless break statement")
+				}
+			}
+		})
+	}
+}
