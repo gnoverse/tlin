@@ -160,6 +160,8 @@ func isCapOrLenCallWithIdent(call *ast.CallExpr, ident *ast.Ident) bool {
 //   - Complex nested structures or indirect access through function calls may be difficult to analyze accurately.
 func isWithinSafeContext(file *ast.File, node ast.Node) bool {
 	var safeContext bool
+	var rangeIndex *ast.Ident
+
 	ast.Inspect(file, func(n ast.Node) bool {
 		if n == node {
 			return false
@@ -167,11 +169,22 @@ func isWithinSafeContext(file *ast.File, node ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.RangeStmt:
 			if containsNode(x.Body, node) {
+				// Store the range index variable
+				if ident, ok := x.Key.(*ast.Ident); ok {
+					rangeIndex = ident
+				}
+				// Check if the node is a safe slice operation using the range index
+				if sliceExpr, ok := node.(*ast.SliceExpr); ok {
+					if isRangeIndexSlice(sliceExpr, rangeIndex) {
+						safeContext = true
+						return false
+					}
+				}
 				// inside a range statement, but check if the index expression is the range variable
 				if indexExpr, ok := node.(*ast.IndexExpr); ok {
 					if ident, ok := indexExpr.X.(*ast.Ident); ok {
 						// accessing a different slice/array than the range variable is not safe
-						safeContext = (ident.Name == x.Key.(*ast.Ident).Name)
+						safeContext = (ident.Name == rangeIndex.Name)
 					}
 				}
 				return false
@@ -187,6 +200,7 @@ func isWithinSafeContext(file *ast.File, node ast.Node) bool {
 	return safeContext
 }
 
+// isForWithLenCheck checks if a for statement has a length check condition.
 func isForWithLenCheck(forStmt *ast.ForStmt) bool {
 	if cond, ok := forStmt.Cond.(*ast.BinaryExpr); ok {
 		if isBinaryExprLenCheck(cond) {
@@ -196,6 +210,7 @@ func isForWithLenCheck(forStmt *ast.ForStmt) bool {
 	return false
 }
 
+// isConstantIndex determines if an expression is a constant index.
 func isConstantIndex(expr ast.Expr) bool {
 	switch x := expr.(type) {
 	case *ast.BasicLit:
@@ -206,6 +221,7 @@ func isConstantIndex(expr ast.Expr) bool {
 	return false
 }
 
+// isBinaryExprLenCheck checks if a binary expression is a length check.
 func isBinaryExprLenCheck(expr *ast.BinaryExpr) bool {
 	if expr.Op == token.LSS || expr.Op == token.LEQ {
 		if call, ok := expr.Y.(*ast.CallExpr); ok {
@@ -217,6 +233,7 @@ func isBinaryExprLenCheck(expr *ast.BinaryExpr) bool {
 	return false
 }
 
+// findAssignmentForIdent finds the assignment statement for a given identifier.
 func findAssignmentForIdent(file *ast.File, ident *ast.Ident) (*ast.AssignStmt, bool) {
 	var assignStmt *ast.AssignStmt
 	var found bool
@@ -235,4 +252,55 @@ func findAssignmentForIdent(file *ast.File, ident *ast.Ident) (*ast.AssignStmt, 
 	})
 
 	return assignStmt, found
+}
+
+// isRangeIndexSlice checks if a node is a safe slice operation within a range loop.
+func isRangeIndexSlice(node ast.Node, rangeIndex *ast.Ident) bool {
+	switch expr := node.(type) {
+	case *ast.SliceExpr:
+		return isRangeIndexInSlice(expr, rangeIndex)
+	case *ast.CallExpr:
+		// Check for append(arr[:i], arr[i+1:]...) pattern
+		if fun, ok := expr.Fun.(*ast.Ident); ok && fun.Name == "append" {
+			for _, arg := range expr.Args {
+				if slice, ok := arg.(*ast.SliceExpr); ok {
+					if isRangeIndexInSlice(slice, rangeIndex) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+// isRangeIndexInSlice checks if a slice expression uses the range loop index.
+func isRangeIndexInSlice(sliceExpr *ast.SliceExpr, rangeIndex *ast.Ident) bool {
+	// Check low bound
+	if isRangeIndexExpr(sliceExpr.Low, rangeIndex) {
+		return true
+	}
+
+	// Check high bound
+	if isRangeIndexExpr(sliceExpr.High, rangeIndex) {
+		return true
+	}
+
+	// Check for Ellipsis
+	if sliceExpr.Slice3 {
+		return isRangeIndexExpr(sliceExpr.Max, rangeIndex)
+	}
+
+	return false
+}
+
+// isRangeIndexExpr recursively checks if an expression uses the range loop index.
+func isRangeIndexExpr(expr ast.Expr, rangeIndex *ast.Ident) bool {
+	switch e := expr.(type) {
+	case *ast.Ident:
+		return e.Name == rangeIndex.Name
+	case *ast.BinaryExpr:
+		return isRangeIndexExpr(e.X, rangeIndex) || isRangeIndexExpr(e.Y, rangeIndex)
+	}
+	return false
 }
