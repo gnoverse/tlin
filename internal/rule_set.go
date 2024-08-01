@@ -102,6 +102,19 @@ func (r *SliceBoundCheckRule) Name() string {
 }
 
 // -----------------------------------------------------------------------------
+// Regex related rules
+
+type RepeatedRegexCompilationRule struct{}
+
+func (r *RepeatedRegexCompilationRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectRepeatedRegexCompilation(filename)
+}
+
+func (r *RepeatedRegexCompilationRule) Name() string {
+	return "repeated-regex-compilation"
+}
+
+// -----------------------------------------------------------------------------
 
 type CyclomaticComplexityRule struct {
 	Threshold int

@@ -42,6 +42,9 @@ func (e *Engine) registerDefaultRules() {
 		&EmitFormatRule{},
 		&DetectCycleRule{},
 		&GnoSpecificRule{},
+
+		// regex
+		&RepeatedRegexCompilationRule{},
 	)
 }
 
