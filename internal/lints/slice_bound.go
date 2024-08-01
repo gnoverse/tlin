@@ -200,6 +200,7 @@ func isWithinSafeContext(file *ast.File, node ast.Node) bool {
 	return safeContext
 }
 
+// isForWithLenCheck checks if a for statement has a length check condition.
 func isForWithLenCheck(forStmt *ast.ForStmt) bool {
 	if cond, ok := forStmt.Cond.(*ast.BinaryExpr); ok {
 		if isBinaryExprLenCheck(cond) {
@@ -209,6 +210,7 @@ func isForWithLenCheck(forStmt *ast.ForStmt) bool {
 	return false
 }
 
+// isConstantIndex determines if an expression is a constant index.
 func isConstantIndex(expr ast.Expr) bool {
 	switch x := expr.(type) {
 	case *ast.BasicLit:
@@ -219,6 +221,7 @@ func isConstantIndex(expr ast.Expr) bool {
 	return false
 }
 
+// isBinaryExprLenCheck checks if a binary expression is a length check.
 func isBinaryExprLenCheck(expr *ast.BinaryExpr) bool {
 	if expr.Op == token.LSS || expr.Op == token.LEQ {
 		if call, ok := expr.Y.(*ast.CallExpr); ok {
@@ -230,6 +233,7 @@ func isBinaryExprLenCheck(expr *ast.BinaryExpr) bool {
 	return false
 }
 
+// findAssignmentForIdent finds the assignment statement for a given identifier.
 func findAssignmentForIdent(file *ast.File, ident *ast.Ident) (*ast.AssignStmt, bool) {
 	var assignStmt *ast.AssignStmt
 	var found bool
@@ -250,6 +254,7 @@ func findAssignmentForIdent(file *ast.File, ident *ast.Ident) (*ast.AssignStmt, 
 	return assignStmt, found
 }
 
+// isRangeIndexSlice checks if a node is a safe slice operation within a range loop.
 func isRangeIndexSlice(node ast.Node, rangeIndex *ast.Ident) bool {
 	switch expr := node.(type) {
 	case *ast.SliceExpr:
@@ -269,6 +274,7 @@ func isRangeIndexSlice(node ast.Node, rangeIndex *ast.Ident) bool {
 	return false
 }
 
+// isRangeIndexInSlice checks if a slice expression uses the range loop index.
 func isRangeIndexInSlice(sliceExpr *ast.SliceExpr, rangeIndex *ast.Ident) bool {
 	// Check low bound
 	if isRangeIndexExpr(sliceExpr.Low, rangeIndex) {
@@ -288,6 +294,7 @@ func isRangeIndexInSlice(sliceExpr *ast.SliceExpr, rangeIndex *ast.Ident) bool {
 	return false
 }
 
+// isRangeIndexExpr recursively checks if an expression uses the range loop index.
 func isRangeIndexExpr(expr ast.Expr, rangeIndex *ast.Ident) bool {
 	switch e := expr.(type) {
 	case *ast.Ident:
