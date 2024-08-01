@@ -48,7 +48,9 @@ func (c *cycle) analyzeFuncDecl(fn *ast.FuncDecl) {
 		switch x := n.(type) {
 		case *ast.CallExpr:
 			if ident, ok := x.Fun.(*ast.Ident); ok {
-				c.dependencies[name] = append(c.dependencies[name], ident.Name)
+				if ident.Name == name {
+					c.dependencies[name] = append(c.dependencies[name], ident.Name)
+				}
 			}
 		case *ast.FuncLit:
 			c.analyzeFuncLit(x, name)
@@ -135,7 +137,7 @@ func (c *cycle) dfs(name string) {
 	for _, dep := range c.dependencies[name] {
 		if !c.visited[dep] {
 			c.dfs(dep)
-		} else if contains(c.stack, dep) {
+		} else if contains(c.stack, dep) && dep != name {
 			cycle := append(c.stack[indexOf(c.stack, dep):], dep)
 			res := fmt.Sprintf("%v", cycle)
 			c.cycles = append(c.cycles, res)
