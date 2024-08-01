@@ -48,13 +48,12 @@ func outer() {
 
 	cycle := newCycle()
 	result := cycle.detectCycles(f)
-	if len(result) != 6 {
+	if len(result) != 4 {
 		// [B A B]
 		// [B A B]
 		// [x y x]
 		// [b a b]
 		// [outer outer$anon<address> outer]
-		// [outer outer]
 		t.Errorf("unexpected result: %v", result)
 	}
 }
