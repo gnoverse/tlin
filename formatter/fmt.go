@@ -9,25 +9,15 @@ import (
 	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
-// rule set
-const (
-	UnnecessaryElse     = "unnecessary-else"
-	UnnecessaryTypeConv = "unnecessary-type-conversion"
-	SimplifySliceExpr   = "simplify-slice-range"
-	CycloComplexity     = "high-cyclomatic-complexity"
-	EmitFormat          = "emit-format"
-	SliceBound          = "slice-bounds-check"
-)
-
 // IssueFormatter is the interface that wraps the Format method.
 // Implementations of this interface are responsible for formatting specific types of lint issues.
 type IssueFormatter interface {
 	Format(issue tt.Issue, snippet *internal.SourceCode) string
 }
 
-// FormatIssuesWithArrows formats a slice of issues into a human-readable string.
+// GenetateFormattedIssue formats a slice of issues into a human-readable string.
 // It uses the appropriate formatter for each issue based on its rule.
-func FormatIssuesWithArrows(issues []tt.Issue, snippet *internal.SourceCode) string {
+func GenetateFormattedIssue(issues []tt.Issue, snippet *internal.SourceCode) string {
 	var builder strings.Builder
 	for _, issue := range issues {
 		builder.WriteString(formatIssueHeader(issue))
@@ -88,10 +78,6 @@ func buildNote(result *strings.Builder, issue tt.Issue, suggestionStyle *color.C
 	result.WriteString(suggestionStyle.Sprint("Note: "))
 	result.WriteString(fmt.Sprintf("%s\n", issue.Note))
 	result.WriteString("\n")
-}
-
-func calculateMaxLineNumWidth(endLine int) int {
-	return len(fmt.Sprintf("%d", endLine))
 }
 
 func calculateMaxLineLength(lines []string, start, end int) int {

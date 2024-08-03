@@ -263,7 +263,7 @@ func printIssues(logger *zap.Logger, issues []tt.Issue) {
 			logger.Error("Error reading source file", zap.String("file", filename), zap.Error(err))
 			continue
 		}
-		output := formatter.FormatIssuesWithArrows(fileIssues, sourceCode)
+		output := formatter.GenetateFormattedIssue(fileIssues, sourceCode)
 		fmt.Println(output)
 	}
 }
