@@ -11,40 +11,22 @@ import (
 type CyclomaticComplexityFormatter struct{}
 
 func (f *CyclomaticComplexityFormatter) Format(issue tt.Issue, snippet *internal.SourceCode) string {
-	var result strings.Builder
-
-	maxLineNumWidth := len(fmt.Sprintf("%d", len(snippet.Lines)))
-
-	// add vertical line
-	vl := fmt.Sprintf("%s |\n", strings.Repeat(" ", maxLineNumWidth))
-	result.WriteString(lineStyle.Sprintf(vl))
-
-	// function declaration
-	functionDeclaration := snippet.Lines[issue.Start.Line-1]
-	result.WriteString(formatLine(issue.Start.Line, maxLineNumWidth, functionDeclaration))
-
-	// print complexity
-	complexityInfo := fmt.Sprintf("Cyclomatic Complexity: %s", strings.TrimPrefix(issue.Message, "function "))
-	result.WriteString(formatLine(0, maxLineNumWidth, complexityInfo))
-
-	// print suggestion
-	result.WriteString("\n")
-	result.WriteString(suggestionStyle.Sprint("Suggestion: "))
-	result.WriteString(issue.Suggestion)
-
-	// print note
-	result.WriteString("\n")
-	result.WriteString(suggestionStyle.Sprint("Note: "))
-	result.WriteString(issue.Note)
-
-	result.WriteString("\n")
-
-	return result.String()
+	builder := NewIssueFormatterBuilder(issue, snippet)
+	return builder.
+		AddCodeSnippet().
+		AddComplexityInfo().
+		AddSuggestion().
+		AddNote().
+		Build()
 }
 
-func formatLine(lineNum, maxWidth int, content string) string {
-	if lineNum > 0 {
-		return lineStyle.Sprintf(fmt.Sprintf("%%%dd | ", maxWidth), lineNum) + content + "\n"
-	}
-	return lineStyle.Sprintf(fmt.Sprintf("%%%ds | ", maxWidth), "") + messageStyle.Sprint(content) + "\n"
+func (b *IssueFormatterBuilder) AddComplexityInfo() *IssueFormatterBuilder {
+	maxLineNumWidth := calculateMaxLineNumWidth(b.issue.End.Line)
+	padding := strings.Repeat(" ", maxLineNumWidth+1)
+
+	complexityInfo := fmt.Sprintf("Cyclomatic Complexity: %s", strings.TrimPrefix(b.issue.Message, "function "))
+	b.result.WriteString(lineStyle.Sprintf("%s| ", padding))
+	b.result.WriteString(messageStyle.Sprintf("%s\n\n", complexityInfo))
+
+	return b
 }

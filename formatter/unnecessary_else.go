@@ -8,64 +8,56 @@ import (
 	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
-// UnnecessaryElseFormatter is a formatter specifically designed for the "unnecessary-else" rule.
 type UnnecessaryElseFormatter struct{}
 
-func (f *UnnecessaryElseFormatter) Format(
-	issue tt.Issue,
-	snippet *internal.SourceCode,
-) string {
+func (f *UnnecessaryElseFormatter) Format(issue tt.Issue, snippet *internal.SourceCode) string {
 	var result strings.Builder
-	ifStartLine, elseEndLine := issue.Start.Line-2, issue.End.Line
 
+	// 1. Calculate dimensions
+	startLine := issue.Start.Line - 2 // Include the 'if' line
+	endLine := issue.End.Line
+	maxLineNumWidth := calculateMaxLineNumWidth(endLine)
+	maxLineLength := calculateMaxLineLength(snippet.Lines, startLine, endLine)
+
+	// 2. Write header
+	padding := strings.Repeat(" ", maxLineNumWidth+1)
+	result.WriteString(lineStyle.Sprintf("%s|\n", padding))
+
+	// 3. Write code snippet
+	for i := startLine; i <= endLine; i++ {
+		line := expandTabs(snippet.Lines[i-1])
+		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, i)
+		result.WriteString(lineStyle.Sprintf("%s | %s\n", lineNum, line))
+	}
+
+	// 4. Write underline and message
+	result.WriteString(lineStyle.Sprintf("%s| ", padding))
+	result.WriteString(messageStyle.Sprintf("%s\n", strings.Repeat("~", maxLineLength)))
+	result.WriteString(lineStyle.Sprintf("%s| ", padding))
+	result.WriteString(messageStyle.Sprintf("%s\n\n", issue.Message))
+
+	// 5. Write suggestion
 	code := strings.Join(snippet.Lines, "\n")
-	problemSnippet := internal.ExtractSnippet(issue, code, ifStartLine-1, elseEndLine-1)
+	problemSnippet := internal.ExtractSnippet(issue, code, startLine-1, endLine-1)
 	suggestion, err := internal.RemoveUnnecessaryElse(problemSnippet)
 	if err != nil {
 		suggestion = problemSnippet
 	}
 
-	maxLineNumWidth := calculateMaxLineNumWidth(elseEndLine)
-	padding := strings.Repeat(" ", maxLineNumWidth-1)
-	result.WriteString(lineStyle.Sprintf("  %s|\n", padding))
-
-	maxLen := calculateMaxLineLength(snippet.Lines, ifStartLine, elseEndLine)
-	for i := ifStartLine; i <= elseEndLine; i++ {
-		line := expandTabs(snippet.Lines[i-1])
-		lineNumberStr := fmt.Sprintf("%*d", maxLineNumWidth, i)
-		result.WriteString(lineStyle.Sprintf("%s | ", lineNumberStr))
-		result.WriteString(line + "\n")
-	}
-
-	result.WriteString(lineStyle.Sprintf("  %s| ", padding))
-	result.WriteString(messageStyle.Sprintf("%s\n", strings.Repeat("~", maxLen)))
-	result.WriteString(lineStyle.Sprintf("  %s| ", padding))
-	result.WriteString(messageStyle.Sprintf("%s\n\n", issue.Message))
-
-	result.WriteString(formatSuggestion(issue, suggestion, ifStartLine))
-	result.WriteString("\n")
-
-	return result.String()
-}
-
-func formatSuggestion(issue tt.Issue, improvedSnippet string, startLine int) string {
-	var result strings.Builder
-	lines := strings.Split(improvedSnippet, "\n")
-	maxLineNumWidth := calculateMaxLineNumWidth(issue.End.Line)
-
 	result.WriteString(suggestionStyle.Sprint("Suggestion:\n"))
-
-	for i, line := range lines {
+	result.WriteString(lineStyle.Sprintf("%s|\n", padding))
+	suggestionLines := strings.Split(suggestion, "\n")
+	for i, line := range suggestionLines {
 		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, startLine+i)
-		result.WriteString(lineStyle.Sprintf("%s | ", lineNum))
-		result.WriteString(fmt.Sprintln(line))
+		result.WriteString(lineStyle.Sprintf("%s | %s\n", lineNum, line))
 	}
-
-	// Add a note explaining the improvement
+	result.WriteString(lineStyle.Sprintf("%s|", padding))
 	result.WriteString("\n")
+
+	// 6. Write note
 	result.WriteString(suggestionStyle.Sprint("Note: "))
 	result.WriteString("Unnecessary 'else' block removed.\n")
-	result.WriteString("The code inside the 'else' block has been moved outside, as it will only be executed when the 'if' condition is false.\n")
+	result.WriteString("The code inside the 'else' block has been moved outside, as it will only be executed when the 'if' condition is false.\n\n")
 
 	return result.String()
 }

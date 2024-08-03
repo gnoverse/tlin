@@ -10,33 +10,35 @@ import (
 
 type EmitFormatFormatter struct{}
 
-func (f *EmitFormatFormatter) Format(
-	issue tt.Issue,
-	snippet *internal.SourceCode,
-) string {
-	var result strings.Builder
+func (f *EmitFormatFormatter) Format(issue tt.Issue, snippet *internal.SourceCode) string {
+	builder := NewIssueFormatterBuilder(issue, snippet)
+	return builder.
+		// AddHeader().
+		AddCodeSnippet().
+		AddUnderlineAndMessage().
+		AddEmitFormatSuggestion().
+		AddNote().
+		Build()
+}
 
-	maxLineNumWidth := calculateMaxLineNumWidth(issue.End.Line)
-	padding := strings.Repeat(" ", maxLineNumWidth+1)
-
-	result.WriteString(lineStyle.Sprintf("%s|\n", padding))
-
-	startLine := issue.Start.Line
-	endLine := issue.End.Line
-	for i := startLine; i <= endLine; i++ {
-		line := expandTabs(snippet.Lines[i-1])
-		result.WriteString(lineStyle.Sprintf("%s%d | ", padding[:maxLineNumWidth-len(fmt.Sprintf("%d", i))], i))
-		result.WriteString(line + "\n")
+func (b *IssueFormatterBuilder) AddEmitFormatSuggestion() *IssueFormatterBuilder {
+	if b.issue.Suggestion == "" {
+		return b
 	}
 
-	result.WriteString(lineStyle.Sprintf("%s| ", padding))
-	result.WriteString(messageStyle.Sprintf("%s\n", strings.Repeat("~", calculateMaxLineLength(snippet.Lines, startLine, endLine))))
-	result.WriteString(lineStyle.Sprintf("%s| ", padding))
-	result.WriteString(messageStyle.Sprintf("%s\n\n", issue.Message))
+	maxLineNumWidth := calculateMaxLineNumWidth(b.issue.End.Line)
+	padding := strings.Repeat(" ", maxLineNumWidth+1)
 
-	buildSuggestion(&result, issue, lineStyle, suggestionStyle, startLine)
+	b.result.WriteString(suggestionStyle.Sprint("Suggestion:\n"))
+	b.result.WriteString(lineStyle.Sprintf("%s|\n", padding))
 
-	// buildNote(&result, issue, suggestionStyle)
+	suggestionLines := strings.Split(b.issue.Suggestion, "\n")
+	for i, line := range suggestionLines {
+		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, b.issue.Start.Line+i)
+		b.result.WriteString(lineStyle.Sprintf("%s | %s\n", lineNum, line))
+	}
 
-	return result.String()
+	b.result.WriteString(lineStyle.Sprintf("%s|\n", padding))
+
+	return b
 }

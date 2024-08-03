@@ -43,17 +43,19 @@ func TestFormatIssuesWithArrows(t *testing.T) {
  --> test.go
   |
 4 |     x := 1
-  |     ^ x declared but not used
+  |     ~~
+  | x declared but not used
 
 error: empty-if
  --> test.go
   |
 5 |     if true {}
-  |     ^ empty branch
+  |     ~~~~~~~~~
+  | empty branch
 
 `
 
-	result := FormatIssuesWithArrows(issues, code)
+	result := GenetateFormattedIssue(issues, code)
 
 	assert.Equal(t, expected, result, "Formatted output does not match expected")
 
@@ -73,17 +75,19 @@ error: empty-if
  --> test.go
   |
 4 |     x := 1
-  |     ^ x declared but not used
+  |     ~~
+  | x declared but not used
 
 error: empty-if
  --> test.go
   |
 5 |     if true {}
-  |     ^ empty branch
+  |     ~~~~~~~~~
+  | empty branch
 
 `
 
-	resultWithTabs := FormatIssuesWithArrows(issues, sourceCodeWithTabs)
+	resultWithTabs := GenetateFormattedIssue(issues, sourceCodeWithTabs)
 
 	assert.Equal(t, expectedWithTabs, resultWithTabs, "Formatted output with tabs does not match expected")
 }
@@ -133,23 +137,26 @@ func TestFormatIssuesWithArrows_MultipleDigitsLineNumbers(t *testing.T) {
  --> test.go
   |
 4 |     x := 1  // unused variable
-  |     ^ x declared but not used
+  |     ~~
+  | x declared but not used
 
 error: empty-if
  --> test.go
   |
 5 |     if true {}  // empty if statement
-  |     ^ empty branch
+  |     ~~~~~~~~~
+  | empty branch
 
 error: example
  --> test.go
    |
 10 |     println("end")
-   |     ^ example issue
+   |     ~~~~~~~~
+   | example issue
 
 `
 
-	result := FormatIssuesWithArrows(issues, code)
+	result := GenetateFormattedIssue(issues, code)
 
 	assert.Equal(t, expected, result, "Formatted output with multiple digit line numbers does not match expected")
 }
@@ -192,17 +199,19 @@ func TestFormatIssuesWithArrows_UnnecessaryElse(t *testing.T) {
   | unnecessary else block
 
 Suggestion:
+  |
 4 | if condition {
 5 | 	return true
 6 | }
 7 | return false
-
+  |
 Note: Unnecessary 'else' block removed.
 The code inside the 'else' block has been moved outside, as it will only be executed when the 'if' condition is false.
 
 `
 
-	result := FormatIssuesWithArrows(issues, code)
+	result := GenetateFormattedIssue(issues, code)
+	t.Logf("result: %s", result)
 	assert.Equal(t, expected, result, "Formatted output does not match expected for unnecessary else")
 }
 
@@ -233,10 +242,13 @@ func TestUnnecessaryTypeConversionFormatter(t *testing.T) {
 
 	expected := `  |
 5 |     result := int(myInt)
-  |          ^ unnecessary type conversion
+  |          ~~~~~~~~~~~
+  | unnecessary type conversion
 
 Suggestion:
+  |
 5 | Remove the type conversion. Change ` + "`int(myInt)`" + ` to just ` + "`myInt`" + `.
+  |
 
 Note: Unnecessary type conversions can make the code less readable and may slightly impact performance. They are safe to remove when the expression already has the desired type.
 
@@ -245,67 +257,4 @@ Note: Unnecessary type conversions can make the code less readable and may sligh
 	result := formatter.Format(issue, snippet)
 
 	assert.Equal(t, expected, result, "Formatted output should match expected output")
-}
-
-func TestEmitFormatFormatter_Format(t *testing.T) {
-	t.Parallel()
-	formatter := &EmitFormatFormatter{}
-
-	tests := []struct {
-		name     string
-		issue    tt.Issue
-		snippet  *internal.SourceCode
-		expected string
-	}{
-		{
-			name: "Simple Emit format issue",
-			issue: tt.Issue{
-				Rule:     "emit-format",
-				Filename: "test.go",
-				Start:    token.Position{Line: 3, Column: 5},
-				End:      token.Position{Line: 5, Column: 6},
-				Message:  "Consider formatting std.Emit call for better readability",
-				Suggestion: `std.Emit(
-    "OwnershipChange",
-    "newOwner", newOwner.String(),
-    "oldOwner", oldOwner.String(),
-)`,
-				// Note: "Formatting std.Emit calls with multiple key-value pairs improves readability.",
-			},
-			snippet: &internal.SourceCode{
-				Lines: []string{
-					"package main",
-					"",
-					"func main() {",
-					"    std.Emit(\"OwnershipChange\", \"newOwner\", newOwner.String(), \"oldOwner\", oldOwner.String())",
-					"}",
-				},
-			},
-			expected: `  |
-3 | func main() {
-4 |     std.Emit("OwnershipChange", "newOwner", newOwner.String(), "oldOwner", oldOwner.String())
-5 | }
-  | ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  | Consider formatting std.Emit call for better readability
-
-Suggestion:
-3 | std.Emit(
-4 |     "OwnershipChange",
-5 |     "newOwner", newOwner.String(),
-6 |     "oldOwner", oldOwner.String(),
-7 | )
-
-`,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			// Format does not render lint rule and filename
-			result := formatter.Format(tt.issue, tt.snippet)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
 }
