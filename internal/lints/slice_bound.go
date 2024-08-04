@@ -8,6 +8,7 @@ import (
 	tt "github.com/gnoswap-labs/lint/internal/types"
 )
 
+// TODO: Make more precisely.
 func DetectSliceBoundCheck(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
 	var issues []tt.Issue
 	ast.Inspect(node, func(n ast.Node) bool {

@@ -91,6 +91,10 @@ func example2() int {
 			issues, err := DetectUnnecessaryElse(tmpfile, node, fset)
 			require.NoError(t, err)
 
+			for i, issue := range issues {
+				t.Logf("Suggestion %d: %v", i, issue.Suggestion)
+			}
+
 			assert.Equal(t, tt.expected, len(issues), "Number of detected unnecessary else statements doesn't match expected")
 
 			if len(issues) > 0 {
