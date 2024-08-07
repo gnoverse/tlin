@@ -13,7 +13,7 @@ type EmitFormatFormatter struct{}
 func (f *EmitFormatFormatter) Format(issue tt.Issue, snippet *internal.SourceCode) string {
 	builder := NewIssueFormatterBuilder(issue, snippet)
 	return builder.
-		// AddHeader().
+		AddHeader().
 		AddCodeSnippet().
 		AddUnderlineAndMessage().
 		AddEmitFormatSuggestion().

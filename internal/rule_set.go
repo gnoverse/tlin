@@ -31,16 +31,6 @@ func (r *GolangciLintRule) Name() string {
 	return "golangci-lint"
 }
 
-type UnnecessaryElseRule struct{}
-
-func (r *UnnecessaryElseRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectUnnecessaryElse(filename, node, fset)
-}
-
-func (r *UnnecessaryElseRule) Name() string {
-	return "unnecessary-else"
-}
-
 type SimplifySliceExprRule struct{}
 
 func (r *SimplifySliceExprRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
