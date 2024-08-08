@@ -34,11 +34,11 @@ func NewEngine(rootDir string) (*Engine, error) {
 func (e *Engine) registerDefaultRules() {
 	e.rules = append(e.rules,
 		&GolangciLintRule{},
-		&UnnecessaryElseRule{},
+		// &UnnecessaryElseRule{},
+		&EarlyReturnOpportunityRule{},
 		&SimplifySliceExprRule{},
 		&UnnecessaryConversionRule{},
 		&LoopAllocationRule{},
-		// &SliceBoundCheckRule{},
 		&EmitFormatRule{},
 		&DetectCycleRule{},
 		&GnoSpecificRule{},

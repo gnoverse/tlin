@@ -16,7 +16,7 @@ func (f *GeneralIssueFormatter) Format(
 ) string {
 	builder := NewIssueFormatterBuilder(issue, snippet)
 	return builder.
-		// AddHeader().
+		AddHeader().
 		AddCodeSnippet().
 		AddUnderlineAndMessage().
 		Build()

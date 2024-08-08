@@ -31,16 +31,6 @@ func (r *GolangciLintRule) Name() string {
 	return "golangci-lint"
 }
 
-type UnnecessaryElseRule struct{}
-
-func (r *UnnecessaryElseRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectUnnecessaryElse(filename, node, fset)
-}
-
-func (r *UnnecessaryElseRule) Name() string {
-	return "unnecessary-else"
-}
-
 type SimplifySliceExprRule struct{}
 
 func (r *SimplifySliceExprRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
@@ -109,6 +99,17 @@ func (r *UselessBreakRule) Check(filename string, node *ast.File, fset *token.Fi
 
 func (r *UselessBreakRule) Name() string {
 	return "useless-break"
+}
+
+// TODO: should be replace unnecessary-else rule.
+type EarlyReturnOpportunityRule struct{}
+
+func (r *EarlyReturnOpportunityRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectEarlyReturnOpportunities(filename, node, fset)
+}
+
+func (r *EarlyReturnOpportunityRule) Name() string {
+	return "early-return-opportunity"
 }
 
 // -----------------------------------------------------------------------------
