@@ -11,7 +11,7 @@ import (
 
 // rule set
 const (
-	EarlyReturn 	   = "early-return-opportunity"
+	EarlyReturn 	   = "early-return"
 	UnnecessaryTypeConv = "unnecessary-type-conversion"
 	SimplifySliceExpr   = "simplify-slice-range"
 	CycloComplexity     = "high-cyclomatic-complexity"

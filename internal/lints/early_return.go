@@ -43,7 +43,7 @@ func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token
 			}
 
 			issue := tt.Issue{
-				Rule:     "early-return-opportunity",
+				Rule:     "early-return",
 				Filename: filename,
 				Start:    fset.Position(ifStmt.Pos()),
 				End:      fset.Position(ifStmt.End()),
@@ -129,7 +129,7 @@ func RemoveUnnecessaryElse(snippet string) (string, error) {
 func removeUnnecessaryElseAndEarlyReturnRecursive(node ast.Node) {
 	ast.Inspect(node, func(n ast.Node) bool {
 		if ifStmt, ok := n.(*ast.IfStmt); ok {
-			processIfStmtForEarlyReturn(ifStmt, node)
+			processIfStmt(ifStmt, node)
 			removeUnnecessaryElseAndEarlyReturnRecursive(ifStmt.Body)
 			if ifStmt.Else != nil {
 				removeUnnecessaryElseAndEarlyReturnRecursive(ifStmt.Else)
@@ -140,7 +140,7 @@ func removeUnnecessaryElseAndEarlyReturnRecursive(node ast.Node) {
 	})
 }
 
-func processIfStmtForEarlyReturn(ifStmt *ast.IfStmt, node ast.Node) {
+func processIfStmt(ifStmt *ast.IfStmt, node ast.Node) {
 	if ifStmt.Else != nil {
 		ifBranch := branch.BlockBranch(ifStmt.Body)
 		if ifBranch.BranchKind.Deviates() {
@@ -155,7 +155,7 @@ func processIfStmtForEarlyReturn(ifStmt *ast.IfStmt, node ast.Node) {
 				ifStmt.Else = nil
 			}
 		} else if elseIfStmt, ok := ifStmt.Else.(*ast.IfStmt); ok {
-			processIfStmtForEarlyReturn(elseIfStmt, ifStmt)
+			processIfStmt(elseIfStmt, ifStmt)
 		}
 	}
 }
@@ -195,7 +195,14 @@ func findParentBlockStmt(root ast.Node, child ast.Node) *ast.BlockStmt {
 func insertStatementsAfter(block *ast.BlockStmt, target ast.Stmt, stmts []ast.Stmt) {
 	for i, stmt := range block.List {
 		if stmt == target {
+			// insert new statements after the target statement
 			block.List = append(block.List[:i+1], append(stmts, block.List[i+1:]...)...)
+
+			for j := i + 1; j < len(block.List); j++ {
+				if newIfStmt, ok := block.List[j].(*ast.IfStmt); ok {
+					processIfStmt(newIfStmt, block)
+				}
+			}
 			break
 		}
 	}

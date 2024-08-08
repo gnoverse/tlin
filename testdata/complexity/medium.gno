@@ -4,8 +4,10 @@ func mediumComplexity(x, y int) int {
     if x > y {
         if x > 10 {
             return x * 2
-        } else {
+        } else if x > 5 {
             return x + y
+        } else {
+            return x - y
         }
     } else if y > 10 {
         return y * 2
