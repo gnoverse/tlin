@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gnoswap-labs/lint/formatter"
@@ -172,25 +171,14 @@ func runCFGAnalysis(_ context.Context, logger *zap.Logger, paths []string, funcN
 
 func processFiles(ctx context.Context, logger *zap.Logger, engine LintEngine, paths []string, processor func(LintEngine, string) ([]tt.Issue, error)) ([]tt.Issue, error) {
 	var allIssues []tt.Issue
-	var mutex sync.Mutex
-	var wg sync.WaitGroup
-
 	for _, path := range paths {
-		wg.Add(1)
-		go func(p string) {
-			defer wg.Done()
-			issues, err := processPath(ctx, logger, engine, p, processor)
-			if err != nil {
-				logger.Error("Error processing path", zap.String("path", p), zap.Error(err))
-				return
-			}
-			mutex.Lock()
-			allIssues = append(allIssues, issues...)
-			mutex.Unlock()
-		}(path)
+		issues, err := processPath(ctx, logger, engine, path, processor)
+		if err != nil {
+			logger.Error("Error processing path", zap.String("path", path), zap.Error(err))
+			return nil, err
+		}
+		allIssues = append(allIssues, issues...)
 	}
-
-	wg.Wait()
 
 	return allIssues, nil
 }
@@ -208,16 +196,11 @@ func processPath(ctx context.Context, logger *zap.Logger, engine LintEngine, pat
 				return err
 			}
 			if !fileInfo.IsDir() && hasDesiredExtension(filePath) {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				default:
-					fileIssues, err := processor(engine, filePath)
-					if err != nil {
-						logger.Error("Error processing file", zap.String("file", filePath), zap.Error(err))
-					} else {
-						issues = append(issues, fileIssues...)
-					}
+				fileIssues, err := processor(engine, filePath)
+				if err != nil {
+					logger.Error("Error processing file", zap.String("file", filePath), zap.Error(err))
+				} else {
+					issues = append(issues, fileIssues...)
 				}
 			}
 			return nil

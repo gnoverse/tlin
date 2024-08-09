@@ -3,7 +3,7 @@ package branch
 import "go/ast"
 
 type Call struct {
-	Pkg string // package name
+	Pkg  string // package name
 	Name string // function name
 }
 

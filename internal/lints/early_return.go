@@ -43,11 +43,11 @@ func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token
 			}
 
 			issue := tt.Issue{
-				Rule:     "early-return",
-				Filename: filename,
-				Start:    fset.Position(ifStmt.Pos()),
-				End:      fset.Position(ifStmt.End()),
-				Message:  "This if-else chain can be simplified using early returns",
+				Rule:       "early-return",
+				Filename:   filename,
+				Start:      fset.Position(ifStmt.Pos()),
+				End:        fset.Position(ifStmt.End()),
+				Message:    "This if-else chain can be simplified using early returns",
 				Suggestion: suggestion,
 			}
 			issues = append(issues, issue)
