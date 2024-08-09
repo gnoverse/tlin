@@ -13,7 +13,7 @@ type CyclomaticComplexityFormatter struct{}
 func (f *CyclomaticComplexityFormatter) Format(issue tt.Issue, snippet *internal.SourceCode) string {
 	builder := NewIssueFormatterBuilder(issue, snippet)
 	return builder.
-		AddHeader().
+		AddHeader(warningHeader).
 		AddCodeSnippet().
 		AddComplexityInfo().
 		AddSuggestion().
