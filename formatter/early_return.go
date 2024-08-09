@@ -10,7 +10,7 @@ type EarlyReturnOpportunityFormatter struct{}
 func (f *EarlyReturnOpportunityFormatter) Format(issue tt.Issue, snippet *internal.SourceCode) string {
 	builder := NewIssueFormatterBuilder(issue, snippet)
 	return builder.
-		AddHeader().
+		AddHeader(warningHeader).
 		AddCodeSnippet().
 		AddUnderlineAndMessage().
 		AddSuggestion().

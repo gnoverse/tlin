@@ -10,7 +10,7 @@ type UnnecessaryTypeConversionFormatter struct{}
 func (f *UnnecessaryTypeConversionFormatter) Format(issue tt.Issue, snippet *internal.SourceCode) string {
 	builder := NewIssueFormatterBuilder(issue, snippet)
 	return builder.
-		AddHeader().
+		AddHeader(errorHeader).
 		AddCodeSnippet().
 		AddUnderlineAndMessage().
 		AddSuggestion().

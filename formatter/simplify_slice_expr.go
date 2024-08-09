@@ -10,7 +10,7 @@ type SimplifySliceExpressionFormatter struct{}
 func (f *SimplifySliceExpressionFormatter) Format(issue tt.Issue, snippet *internal.SourceCode) string {
 	builder := NewIssueFormatterBuilder(issue, snippet)
 	return builder.
-		AddHeader().
+		AddHeader(errorHeader).
 		AddCodeSnippet().
 		AddUnderlineAndMessage().
 		AddSuggestion().

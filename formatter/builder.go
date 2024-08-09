@@ -11,7 +11,7 @@ import (
 
 // rule set
 const (
-	EarlyReturn 	   = "early-return"
+	EarlyReturn         = "early-return"
 	UnnecessaryTypeConv = "unnecessary-type-conversion"
 	SimplifySliceExpr   = "simplify-slice-range"
 	CycloComplexity     = "high-cyclomatic-complexity"
@@ -86,9 +86,24 @@ func NewIssueFormatterBuilder(issue tt.Issue, snippet *internal.SourceCode) *Iss
 	}
 }
 
-func (b *IssueFormatterBuilder) AddHeader() *IssueFormatterBuilder {
-	// add error type and rule name
-	b.result.WriteString(errorStyle.Sprint("error: "))
+// headerType represents the type of header to be added to the formatted issue.
+// The header can be either a warning or an error.
+type headerType int
+
+const (
+	warningHeader headerType = iota
+	errorHeader
+)
+
+func (b *IssueFormatterBuilder) AddHeader(kind headerType) *IssueFormatterBuilder {
+	// add header type and rule name
+	switch kind {
+	case errorHeader:
+		b.result.WriteString(errorStyle.Sprint("error: "))
+	case warningHeader:
+		b.result.WriteString(warningStyle.Sprint("warning: "))
+	}
+
 	b.result.WriteString(ruleStyle.Sprintln(b.issue.Rule))
 
 	// add file name
@@ -190,7 +205,7 @@ type BaseFormatter struct{}
 func (f *BaseFormatter) Format(issue tt.Issue, snippet *internal.SourceCode) string {
 	builder := NewIssueFormatterBuilder(issue, snippet)
 	return builder.
-		AddHeader().
+		AddHeader(warningHeader).
 		AddCodeSnippet().
 		AddUnderlineAndMessage().
 		AddSuggestion().
@@ -239,14 +254,4 @@ func calculateVisualColumn(line string, column int) int {
 		}
 	}
 	return visualColumn
-}
-
-func calculateMaxLineLength(lines []string, start, end int) int {
-	maxLen := 0
-	for i := start - 1; i < end; i++ {
-		if len(lines[i]) > maxLen {
-			maxLen = len(lines[i])
-		}
-	}
-	return maxLen
 }
