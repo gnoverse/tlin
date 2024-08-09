@@ -105,9 +105,13 @@ func (b *IssueFormatterBuilder) AddHeader(kind headerType) *IssueFormatterBuilde
 	}
 
 	b.result.WriteString(ruleStyle.Sprintln(b.issue.Rule))
+	
+	endLine := b.issue.End.Line
+	maxLineNumWidth := calculateMaxLineNumWidth(endLine)
+	padding := strings.Repeat(" ", maxLineNumWidth)
 
 	// add file name
-	b.result.WriteString(lineStyle.Sprint(" --> "))
+	b.result.WriteString(lineStyle.Sprint(fmt.Sprintf("%s--> ", padding)))
 	b.result.WriteString(fileStyle.Sprintln(b.issue.Filename))
 
 	return b

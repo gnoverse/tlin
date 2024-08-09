@@ -148,7 +148,7 @@ error: empty-if
   | empty branch
 
 error: example
- --> test.go
+  --> test.go
    |
 10 |     println("end")
    |     ~~~~~~~~
