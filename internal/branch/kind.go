@@ -27,8 +27,8 @@ const (
 	Regular
 )
 
-func (k BranchKind) IsEmpty() bool { return k == Empty }
-func (k BranchKind) Returns() bool { return k == Return }
+func (k BranchKind) IsEmpty() bool  { return k == Empty }
+func (k BranchKind) Returns() bool  { return k == Return }
 func (k BranchKind) Branch() Branch { return Branch{BranchKind: k} }
 
 func (k BranchKind) Deviates() bool {

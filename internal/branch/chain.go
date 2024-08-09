@@ -8,9 +8,9 @@ type Args struct {
 }
 
 type Chain struct {
-	If Branch
-	Else Branch
-	HasInitializer bool
+	If                   Branch
+	Else                 Branch
+	HasInitializer       bool
 	HasPriorNonDeviating bool
-	AtBlockEnd bool
+	AtBlockEnd           bool
 }

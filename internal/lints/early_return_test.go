@@ -12,15 +12,15 @@ import (
 )
 
 func TestDetectEarlyReturnOpportunities(t *testing.T) {
-    t.Skip("skipping test")
-    tests := []struct {
-        name     string
-        code     string
-        expected int // number of expected issues
-    }{
-        {
-            name: "Simple early return opportunity",
-            code: `
+	t.Skip("skipping test")
+	tests := []struct {
+		name     string
+		code     string
+		expected int // number of expected issues
+	}{
+		{
+			name: "Simple early return opportunity",
+			code: `
 package main
 
 func example(x int) string {
@@ -30,11 +30,11 @@ func example(x int) string {
         return "less or equal"
     }
 }`,
-            expected: 1,
-        },
-        {
-            name: "No early return opportunity",
-            code: `
+			expected: 1,
+		},
+		{
+			name: "No early return opportunity",
+			code: `
 package main
 
 func example(x int) string {
@@ -43,11 +43,11 @@ func example(x int) string {
     }
     return "less or equal"
 }`,
-            expected: 0,
-        },
-        {
-            name: "Nested if with early return opportunity",
-            code: `
+			expected: 0,
+		},
+		{
+			name: "Nested if with early return opportunity",
+			code: `
 package main
 
 func example(x, y int) string {
@@ -61,11 +61,11 @@ func example(x, y int) string {
         return "x <= 10"
     }
 }`,
-            expected: 2, // One for the outer if-else, one for the inner
-        },
-        {
-            name: "Early return with additional logic",
-            code: `
+			expected: 2, // One for the outer if-else, one for the inner
+		},
+		{
+			name: "Early return with additional logic",
+			code: `
 package main
 
 func example(x int) string {
@@ -77,11 +77,11 @@ func example(x int) string {
         return "less or equal"
     }
 }`,
-            expected: 1,
-        },
-        {
-            name: "Multiple early return opportunities",
-            code: `
+			expected: 1,
+		},
+		{
+			name: "Multiple early return opportunities",
+			code: `
 package main
 
 func example(x, y int) string {
@@ -99,11 +99,11 @@ func example(x, y int) string {
         }
     }
 }`,
-            expected: 3, // One for the outer if-else, two for the inner ones
-        },
-        {
-            name: "Early return with break",
-            code: `
+			expected: 3, // One for the outer if-else, two for the inner ones
+		},
+		{
+			name: "Early return with break",
+			code: `
 package main
 
 func example(x int) {
@@ -116,11 +116,11 @@ func example(x int) {
         }
     }
 }`,
-            expected: 1,
-        },
-        {
-            name: "No early return with single branch",
-            code: `
+			expected: 1,
+		},
+		{
+			name: "No early return with single branch",
+			code: `
 package main
 
 func example(x int) {
@@ -129,46 +129,46 @@ func example(x int) {
     }
     doSomethingElse()
 }`,
-            expected: 0,
-        },
-    }
+			expected: 0,
+		},
+	}
 
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            tmpDir, err := os.MkdirTemp("", "lint-test")
-            require.NoError(t, err)
-            defer os.RemoveAll(tmpDir)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir, err := os.MkdirTemp("", "lint-test")
+			require.NoError(t, err)
+			defer os.RemoveAll(tmpDir)
 
-            tmpfile := filepath.Join(tmpDir, "test.go")
-            err = os.WriteFile(tmpfile, []byte(tt.code), 0644)
-            require.NoError(t, err)
+			tmpfile := filepath.Join(tmpDir, "test.go")
+			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
+			require.NoError(t, err)
 
-            fset := token.NewFileSet()
+			fset := token.NewFileSet()
 			node, err := parser.ParseFile(fset, "", tt.code, 0)
 			if err != nil {
 				t.Fatalf("Failed to parse code: %v", err)
 			}
 
-            issues, err := DetectEarlyReturnOpportunities(tmpfile, node, fset)
-            require.NoError(t, err)
+			issues, err := DetectEarlyReturnOpportunities(tmpfile, node, fset)
+			require.NoError(t, err)
 
-            // assert.Equal(t, tt.expected, len(issues), "Number of detected early return opportunities doesn't match expected")
-            if len(issues) != tt.expected {
-                for _, issue := range issues {
-                    t.Logf("Issue: %v", issue)
-                    t.Logf("suggestion: %v", issue.Suggestion)
-                }
-            }
-            assert.Equal(t, tt.expected, len(issues), "Number of detected early return opportunities doesn't match expected")
+			// assert.Equal(t, tt.expected, len(issues), "Number of detected early return opportunities doesn't match expected")
+			if len(issues) != tt.expected {
+				for _, issue := range issues {
+					t.Logf("Issue: %v", issue)
+					t.Logf("suggestion: %v", issue.Suggestion)
+				}
+			}
+			assert.Equal(t, tt.expected, len(issues), "Number of detected early return opportunities doesn't match expected")
 
-            if len(issues) > 0 {
-                for _, issue := range issues {
-                    assert.Equal(t, "early-return", issue.Rule)
-                    assert.Contains(t, issue.Message, "can be simplified using early returns")
-                }
-            }
-        })
-    }
+			if len(issues) > 0 {
+				for _, issue := range issues {
+					assert.Equal(t, "early-return", issue.Rule)
+					assert.Contains(t, issue.Message, "can be simplified using early returns")
+				}
+			}
+		})
+	}
 }
 
 func TestRemoveUnnecessaryElse(t *testing.T) {
