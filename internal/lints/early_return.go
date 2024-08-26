@@ -1,6 +1,7 @@
 package lints
 
 import (
+	"bytes"
 	"go/ast"
 	"go/format"
 	"go/parser"
@@ -22,7 +23,6 @@ func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token
 	if err != nil {
 		return nil, err
 	}
-	src := string(content)
 
 	var inspectNode func(n ast.Node) bool
 	inspectNode = func(n ast.Node) bool {
@@ -33,9 +33,7 @@ func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token
 
 		chain := analyzeIfElseChain(ifStmt)
 		if canUseEarlyReturn(chain) {
-			startLine := fset.Position(ifStmt.Pos()).Line - 1
-			endLine := fset.Position(ifStmt.End()).Line
-			snippet := ExtractSnippet(src, startLine, endLine)
+			snippet := extractSnippet(ifStmt, fset, content)
 
 			suggestion, err := generateEarlyReturnSuggestion(snippet)
 			if err != nil {
@@ -208,36 +206,41 @@ func insertStatementsAfter(block *ast.BlockStmt, target ast.Stmt, stmts []ast.St
 	}
 }
 
-func ExtractSnippet(code string, startLine, endLine int) string {
-	lines := strings.Split(code, "\n")
+func extractSnippet(node ast.Node, fset *token.FileSet, fileContent []byte) string {
+	startPos := fset.Position(node.Pos())
+	endPos := fset.Position(node.End())
 
-	// ensure we don't go out of bounds
-	if startLine < 0 {
-		startLine = 0
-	}
-	if endLine > len(lines) {
-		endLine = len(lines)
-	}
+	// extract the relevant portion of the file content
+	snippet := fileContent[startPos.Offset:endPos.Offset]
+	snippet = bytes.TrimLeft(snippet, " \t\n")
 
-	// extract the relevant lines
-	snippet := lines[startLine:endLine]
-
-	// trim any leading empty lines
-	for len(snippet) > 0 && strings.TrimSpace(snippet[0]) == "" {
-		snippet = snippet[1:]
-	}
-
-	// ensure the last line is included if it's a closing brace
-	if endLine < len(lines) && strings.TrimSpace(lines[endLine]) == "}" {
-		snippet = append(snippet, lines[endLine])
+	// ensure we include the entire first line
+	if startPos.Column > 1 {
+		lineStart := bytes.LastIndex(fileContent[:startPos.Offset], []byte{'\n'})
+		if lineStart == -1 {
+			lineStart = 0
+		} else {
+			lineStart++ // Move past the newline
+		}
+		prefix := fileContent[lineStart:startPos.Offset]
+		snippet = append(bytes.TrimLeft(prefix, " \t"), snippet...)
 	}
 
-	// trim any trailing empty lines
-	for len(snippet) > 0 && strings.TrimSpace(snippet[len(snippet)-1]) == "" {
-		snippet = snippet[:len(snippet)-1]
+	// ensure we include any closing brace on its own line
+	if endPos.Column > 1 {
+		nextNewline := bytes.Index(fileContent[endPos.Offset:], []byte{'\n'})
+		if nextNewline != -1 {
+			line := bytes.TrimSpace(fileContent[endPos.Offset : endPos.Offset+nextNewline])
+			if len(line) == 1 && line[0] == '}' {
+				snippet = append(snippet, line...)
+				snippet = append(snippet, '\n')
+			}
+		}
 	}
 
-	return strings.Join(snippet, "\n")
+	snippet = bytes.TrimRight(snippet, " \t\n")
+
+	return string(snippet)
 }
 
 func generateEarlyReturnSuggestion(snippet string) (string, error) {
