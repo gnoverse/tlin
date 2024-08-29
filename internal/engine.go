@@ -12,19 +12,28 @@ import (
 
 // Engine manages the linting process.
 type Engine struct {
-	SymbolTable  *SymbolTable
+	symTable     *SymbolTable
 	rules        []LintRule
 	ignoredRules map[string]bool
+	cache        *Cache
 }
 
 // NewEngine creates a new lint engine.
-func NewEngine(rootDir string) (*Engine, error) {
+func NewEngine(rootDir, cacheDir string) (*Engine, error) {
 	st, err := BuildSymbolTable(rootDir)
 	if err != nil {
 		return nil, fmt.Errorf("error building symbol table: %w", err)
 	}
 
-	engine := &Engine{SymbolTable: st}
+	cache, err := NewCache(cacheDir)
+	if err != nil {
+		return nil, fmt.Errorf("error creating cache: %w", err)
+	}
+
+	engine := &Engine{
+		symTable: st,
+		cache:    cache,
+	}
 	engine.registerDefaultRules()
 
 	return engine, nil
@@ -34,7 +43,6 @@ func NewEngine(rootDir string) (*Engine, error) {
 func (e *Engine) registerDefaultRules() {
 	e.rules = append(e.rules,
 		&GolangciLintRule{},
-		// &UnnecessaryElseRule{},
 		&EarlyReturnOpportunityRule{},
 		&SimplifySliceExprRule{},
 		&UnnecessaryConversionRule{},
@@ -54,6 +62,11 @@ func (e *Engine) AddRule(rule LintRule) {
 
 // Run applies all lint rules to the given file and returns a slice of Issues.
 func (e *Engine) Run(filename string) ([]tt.Issue, error) {
+	// check cache first
+	if cachedIssue, found := e.cache.Get(filename); found {
+		return cachedIssue, nil
+	}
+
 	tempFile, err := e.prepareFile(filename)
 	if err != nil {
 		return nil, err
@@ -86,6 +99,11 @@ func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 		}
 	}
 
+	// cache the issues
+	if err := e.cache.Set(filename, filtered); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to cache lint results: %v\n", err)
+	}
+
 	return filtered, nil
 }
 
@@ -114,7 +132,7 @@ func (e *Engine) filterUndefinedIssues(issues []tt.Issue) []tt.Issue {
 	for _, issue := range issues {
 		if issue.Rule == "typecheck" && strings.Contains(issue.Message, "undefined:") {
 			symbol := strings.TrimSpace(strings.TrimPrefix(issue.Message, "undefined:"))
-			if e.SymbolTable.IsDefined(symbol) {
+			if e.symTable.IsDefined(symbol) {
 				// ignore issues if the symbol is defined in the symbol table
 				continue
 			}
