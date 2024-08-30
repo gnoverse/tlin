@@ -7,24 +7,31 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	tt "github.com/gnoswap-labs/tlin/internal/types"
 )
 
-type FileMetadata struct {
-	Hash string
+type fileMetadata struct {
+	Hash         string
 	LastModified time.Time
 }
 
 type CacheEntry struct {
-	Metadata FileMetadata
-	Issues []tt.Issue
+	Metadata     fileMetadata
+	Issues       []tt.Issue
+	CreatedAt    time.Time
+	LastAccessed time.Time
 }
 
 type Cache struct {
-	CacheDir string
-	Entries map[string]CacheEntry
+	CacheDir         string
+	entries          map[string]CacheEntry
+	mutex            sync.RWMutex
+	maxAge           time.Duration
+	dependencyFiles  []string
+	dependencyHashes map[string]string
 }
 
 func NewCache(cacheDir string) (*Cache, error) {
@@ -33,12 +40,19 @@ func NewCache(cacheDir string) (*Cache, error) {
 	}
 
 	cache := &Cache{
-		CacheDir: cacheDir,
-		Entries: make(map[string]CacheEntry),
+		CacheDir:         cacheDir,
+		entries:          make(map[string]CacheEntry),
+		maxAge:           1 * time.Hour,
+		dependencyFiles:  []string{},
+		dependencyHashes: make(map[string]string),
 	}
 
 	if err := cache.load(); err != nil {
 		return nil, fmt.Errorf("failed to load cache: %w", err)
+	}
+
+	if err := cache.updateDependencyHashes(); err != nil {
+		return nil, fmt.Errorf("failed to update dependency hashes: %w", err)
 	}
 
 	return cache, nil
@@ -57,7 +71,7 @@ func (c *Cache) load() error {
 	defer file.Close()
 
 	decoder := gob.NewDecoder(file)
-	if err := decoder.Decode(&c.Entries); err != nil {
+	if err := decoder.Decode(&c.entries); err != nil {
 		return fmt.Errorf("failed to decode cache file: %w", err)
 	}
 
@@ -73,7 +87,7 @@ func (c *Cache) save() error {
 	defer file.Close()
 
 	encoder := gob.NewEncoder(file)
-	if err := encoder.Encode(c.Entries); err != nil {
+	if err := encoder.Encode(c.entries); err != nil {
 		return fmt.Errorf("failed to encode cache file: %w", err)
 	}
 
@@ -81,57 +95,137 @@ func (c *Cache) save() error {
 }
 
 func (c *Cache) Set(filename string, issues []tt.Issue) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	metadata, err := getFileMetadata(filename)
 	if err != nil {
 		return fmt.Errorf("failed to get file metadata: %w", err)
 	}
 
-	c.Entries[filename] = CacheEntry{
-		Metadata: metadata,
-		Issues: issues,
+	c.entries[filename] = CacheEntry{
+		Metadata:     metadata,
+		Issues:       issues,
+		CreatedAt:    time.Now(),
+		LastAccessed: time.Now(),
 	}
 
 	return c.save()
 }
 
 func (c *Cache) Get(filename string) ([]tt.Issue, bool) {
-	entry, exists := c.Entries[filename]
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	entry, exists := c.entries[filename]
 	if !exists {
 		return nil, false
 	}
 
-	metadata, err := getFileMetadata(filename)
-	if err != nil {
+	if c.isEntryInvalid(filename, entry) {
+		delete(c.entries, filename)
 		return nil, false
 	}
 
-	if entry.Metadata.Hash != metadata.Hash ||
-		!entry.Metadata.LastModified.Equal(metadata.LastModified) {
-		return nil, false
-	}
+	entry.LastAccessed = time.Now()
+	c.entries[filename] = entry
 
 	return entry.Issues, true
 }
 
-func getFileMetadata(filename string) (FileMetadata, error) {
+func (c *Cache) isEntryInvalid(filename string, entry CacheEntry) bool {
+	// too old
+	if time.Since(entry.CreatedAt) > c.maxAge {
+		return true
+	}
+
+	currentMetadata, err := getFileMetadata(filename)
+	if err != nil || currentMetadata != entry.Metadata {
+		return true
+	}
+
+	if c.haveDependenciesChanged() {
+		return true
+	}
+
+	return false
+}
+
+func (c *Cache) haveDependenciesChanged() bool {
+	for _, file := range c.dependencyFiles {
+		hash, err := getFileHash(file)
+		if err != nil {
+			return true
+		}
+
+		if hash != c.dependencyHashes[file] {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (c *Cache) updateDependencyHashes() error {
+	for _, file := range c.dependencyFiles {
+		hash, err := getFileHash(file)
+		if err != nil {
+			return fmt.Errorf("failed to get hash for %s: %w", file, err)
+		}
+		c.dependencyHashes[file] = hash
+	}
+	return nil
+}
+
+func (c *Cache) SetMaxAge(duration time.Duration) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	c.maxAge = duration
+}
+
+func (c *Cache) InvalidateAll() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	c.entries = make(map[string]CacheEntry)
+	_ = c.save() // ignore error aas this is a manual operation
+}
+
+func getFileMetadata(filename string) (fileMetadata, error) {
 	file, err := os.Open(filename)
 	if err != nil {
-		return FileMetadata{}, fmt.Errorf("failed to open file: %w", err)
+		return fileMetadata{}, fmt.Errorf("failed to open file: %w", err)
 	}
 	defer file.Close()
 
 	hash := md5.New()
-	if _, err := io.Copy(hash, file); err != nil{
-		return FileMetadata{}, fmt.Errorf("failed to calculate hash: %w", err)
+	if _, err := io.Copy(hash, file); err != nil {
+		return fileMetadata{}, fmt.Errorf("failed to calculate hash: %w", err)
 	}
 
 	info, err := file.Stat()
 	if err != nil {
-		return FileMetadata{}, fmt.Errorf("failed to get file info: %w", err)
+		return fileMetadata{}, fmt.Errorf("failed to get file info: %w", err)
 	}
 
-	return FileMetadata{
-		Hash: fmt.Sprintf("%x", hash.Sum(nil)),
+	return fileMetadata{
+		Hash:         fmt.Sprintf("%x", hash.Sum(nil)),
 		LastModified: info.ModTime(),
 	}, nil
+}
+
+func getFileHash(filename string) (string, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return "", fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	hash := md5.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }

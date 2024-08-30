@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	tt "github.com/gnoswap-labs/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	tt "github.com/gnoswap-labs/tlin/internal/types"
 )
 
 func TestCache(t *testing.T) {
@@ -143,4 +143,48 @@ func main() {
 		require.NoError(t, err)
 		assert.NotEqual(t, issues, newIssues)
 	})
+}
+
+func TestCacheConcurrency(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "cache-concurrency-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	cacheDir := filepath.Join(tempDir, "cache")
+	cache, err := NewCache(cacheDir)
+	require.NoError(t, err)
+
+	testFile := filepath.Join(tempDir, "test.go")
+	writeTestFile(t, testFile, "package main\n\nfunc main() {}\n")
+
+	issues := []tt.Issue{{
+		Rule:     "test-rule",
+		Category: "test",
+		Filename: testFile,
+		Message:  "Test issue",
+		Start:    token.Position{Line: 1, Column: 1},
+		End:      token.Position{Line: 1, Column: 10},
+	}}
+
+	// Run concurrent get and set operations
+	for i := 0; i < 100; i++ {
+		go func() {
+			err := cache.Set(testFile, issues)
+			assert.NoError(t, err)
+		}()
+
+		go func() {
+			_, _ = cache.Get(testFile)
+		}()
+	}
+
+	time.Sleep(time.Second)
+}
+
+func writeTestFile(t *testing.T, filename string, content string) {
+	err := os.WriteFile(filename, []byte(content), 0644)
+	require.NoError(t, err)
+
+	// Ensure file modification time is different
+	time.Sleep(time.Second)
 }

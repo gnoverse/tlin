@@ -21,7 +21,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const defaultTimeout = 5 * time.Minute
+const (
+	defaultTimeout  = 5 * time.Minute
+	defaultCacheDir = ".tlin-cache"
+)
 
 type Config struct {
 	Timeout              time.Duration
@@ -31,11 +34,17 @@ type Config struct {
 	Paths                []string
 	CFGAnalysis          bool
 	FuncName             string
+	UseCache             bool
+	CacheDir             string
+	CacheMaxAge          time.Duration
+	InvalidateCache      bool
 }
 
 type LintEngine interface {
 	Run(filePath string) ([]tt.Issue, error)
 	IgnoreRule(rule string)
+	// SetCacheOptions(useCache bool, cacheDir string, maxAge time.Duration)
+	// InvalidateCache() error
 }
 
 func main() {
@@ -47,7 +56,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 	defer cancel()
 
-	engine, err := internal.NewEngine(".")
+	engine, err := internal.NewEngine(".", defaultCacheDir)
 	if err != nil {
 		logger.Fatal("Failed to initialize lint engine", zap.Error(err))
 	}
