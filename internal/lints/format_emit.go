@@ -5,7 +5,7 @@ import (
 	"go/token"
 	"strings"
 
-	tt "github.com/gnoswap-labs/lint/internal/types"
+	tt "github.com/gnoswap-labs/tlin/internal/types"
 )
 
 func DetectEmitFormat(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {

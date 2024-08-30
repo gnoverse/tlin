@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gnoswap-labs/lint/formatter"
-	"github.com/gnoswap-labs/lint/internal"
-	"github.com/gnoswap-labs/lint/internal/analysis/cfg"
-	"github.com/gnoswap-labs/lint/internal/lints"
-	tt "github.com/gnoswap-labs/lint/internal/types"
+	"github.com/gnoswap-labs/tlin/formatter"
+	"github.com/gnoswap-labs/tlin/internal"
+	"github.com/gnoswap-labs/tlin/internal/analysis/cfg"
+	"github.com/gnoswap-labs/tlin/internal/lints"
+	tt "github.com/gnoswap-labs/tlin/internal/types"
 	"go.uber.org/zap"
 )
 

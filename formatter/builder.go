@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/gnoswap-labs/lint/internal"
-	tt "github.com/gnoswap-labs/lint/internal/types"
+	"github.com/gnoswap-labs/tlin/internal"
+	tt "github.com/gnoswap-labs/tlin/internal/types"
 )
 
 // rule set
@@ -105,7 +105,7 @@ func (b *IssueFormatterBuilder) AddHeader(kind headerType) *IssueFormatterBuilde
 	}
 
 	b.result.WriteString(ruleStyle.Sprintln(b.issue.Rule))
-	
+
 	endLine := b.issue.End.Line
 	maxLineNumWidth := calculateMaxLineNumWidth(endLine)
 	padding := strings.Repeat(" ", maxLineNumWidth)

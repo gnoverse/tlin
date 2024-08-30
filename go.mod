@@ -1,4 +1,4 @@
-module github.com/gnoswap-labs/lint
+module github.com/gnoswap-labs/tlin
 
 go 1.22.2
 

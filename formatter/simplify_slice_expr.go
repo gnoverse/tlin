@@ -1,8 +1,8 @@
 package formatter
 
 import (
-	"github.com/gnoswap-labs/lint/internal"
-	tt "github.com/gnoswap-labs/lint/internal/types"
+	"github.com/gnoswap-labs/tlin/internal"
+	tt "github.com/gnoswap-labs/tlin/internal/types"
 )
 
 type SimplifySliceExpressionFormatter struct{}
