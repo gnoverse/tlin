@@ -43,8 +43,8 @@ type Config struct {
 type LintEngine interface {
 	Run(filePath string) ([]tt.Issue, error)
 	IgnoreRule(rule string)
-	// SetCacheOptions(useCache bool, cacheDir string, maxAge time.Duration)
-	// InvalidateCache() error
+	SetCacheOptions(useCache bool, cacheDir string, maxAge time.Duration)
+	InvalidateCache() error
 }
 
 func main() {
@@ -56,9 +56,19 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 	defer cancel()
 
-	engine, err := internal.NewEngine(".", defaultCacheDir)
+	engine, err := internal.NewEngine(".", config.UseCache, config.CacheDir)
 	if err != nil {
 		logger.Fatal("Failed to initialize lint engine", zap.Error(err))
+	}
+
+	engine.SetCacheOptions(config.UseCache, config.CacheDir, config.CacheMaxAge)
+
+	if config.InvalidateCache {
+		if err := engine.InvalidateCache(); err != nil {
+			logger.Error("failed to invalidate cache", zap.Error(err))
+		} else {
+			logger.Info("cache invalidated successfully")
+		}
 	}
 
 	if config.IgnoreRules != "" {
@@ -91,6 +101,10 @@ func parseFlags() Config {
 	flag.StringVar(&config.IgnoreRules, "ignore", "", "Comma-separated list of lint rules to ignore")
 	flag.BoolVar(&config.CFGAnalysis, "cfg", false, "Run control flow graph analysis")
 	flag.StringVar(&config.FuncName, "func", "", "Function name for CFG analysis")
+	flag.BoolVar(&config.UseCache, "cache", true, "Use caching for lint results")
+	flag.StringVar(&config.CacheDir, "cache-dir", defaultCacheDir, "Directory to store cache files")
+	flag.DurationVar(&config.CacheMaxAge, "cache-max-age", 24*time.Hour, "Maximum age of cache entries")
+	flag.BoolVar(&config.InvalidateCache, "invalidate-cache", false, "Invalidate the entire cache")
 
 	flag.Parse()
 

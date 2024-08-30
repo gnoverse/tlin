@@ -16,18 +16,27 @@ import (
 	"go.uber.org/zap"
 )
 
-// MockLintEngine is a mock implementation of the LintEngine interface
-type MockLintEngine struct {
+// mockLintEngine is a mock implementation of the LintEngine interface
+type mockLintEngine struct {
 	mock.Mock
 }
 
-func (m *MockLintEngine) Run(filePath string) ([]types.Issue, error) {
+func (m *mockLintEngine) Run(filePath string) ([]types.Issue, error) {
 	args := m.Called(filePath)
 	return args.Get(0).([]types.Issue), args.Error(1)
 }
 
-func (m *MockLintEngine) IgnoreRule(rule string) {
+func (m *mockLintEngine) IgnoreRule(rule string) {
 	m.Called(rule)
+}
+
+func (m *mockLintEngine) InvalidateCache() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *mockLintEngine) SetCacheOptions(useCache bool, cacheDir string, maxAge time.Duration) {
+	m.Called(useCache, cacheDir, maxAge)
 }
 
 func TestParseFlags(t *testing.T) {
@@ -48,7 +57,7 @@ func TestParseFlags(t *testing.T) {
 
 func TestProcessFile(t *testing.T) {
 	t.Parallel()
-	mockEngine := new(MockLintEngine)
+	mockEngine := new(mockLintEngine)
 	expectedIssues := []types.Issue{
 		{
 			Rule:     "test-rule",
@@ -70,7 +79,7 @@ func TestProcessFile(t *testing.T) {
 func TestProcessPath(t *testing.T) {
 	t.Parallel()
 	logger, _ := zap.NewProduction()
-	mockEngine := new(MockLintEngine)
+	mockEngine := new(mockLintEngine)
 	ctx := context.Background()
 
 	tempDir, err := os.MkdirTemp("", "test")
@@ -118,7 +127,7 @@ func TestProcessPath(t *testing.T) {
 func TestProcessFiles(t *testing.T) {
 	t.Parallel()
 	logger, _ := zap.NewProduction()
-	mockEngine := new(MockLintEngine)
+	mockEngine := new(mockLintEngine)
 	ctx := context.Background()
 
 	tempFile1, err := os.CreateTemp("", "test1*.go")

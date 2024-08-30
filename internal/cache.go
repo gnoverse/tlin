@@ -40,19 +40,12 @@ func NewCache(cacheDir string) (*Cache, error) {
 	}
 
 	cache := &Cache{
-		CacheDir:         cacheDir,
-		entries:          make(map[string]CacheEntry),
-		maxAge:           1 * time.Hour,
-		dependencyFiles:  []string{},
-		dependencyHashes: make(map[string]string),
+		CacheDir: cacheDir,
+		entries:  make(map[string]CacheEntry),
 	}
 
 	if err := cache.load(); err != nil {
 		return nil, fmt.Errorf("failed to load cache: %w", err)
-	}
-
-	if err := cache.updateDependencyHashes(); err != nil {
-		return nil, fmt.Errorf("failed to update dependency hashes: %w", err)
 	}
 
 	return cache, nil

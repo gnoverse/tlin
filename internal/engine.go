@@ -5,35 +5,52 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gnoswap-labs/tlin/internal/lints"
 	tt "github.com/gnoswap-labs/tlin/internal/types"
 )
+
+const defaultMaxAge = 30 * time.Minute
 
 // Engine manages the linting process.
 type Engine struct {
 	symTable     *SymbolTable
 	rules        []LintRule
 	ignoredRules map[string]bool
-	cache        *Cache
+
+	// cache related fields
+	cache       *Cache
+	useCache    bool
+	cacheDir    string
+	cacheMaxAge time.Duration
 }
 
 // NewEngine creates a new lint engine.
-func NewEngine(rootDir, cacheDir string) (*Engine, error) {
+func NewEngine(rootDir string, useCache bool, cacheDir string) (*Engine, error) {
 	st, err := BuildSymbolTable(rootDir)
 	if err != nil {
 		return nil, fmt.Errorf("error building symbol table: %w", err)
 	}
 
-	cache, err := NewCache(cacheDir)
-	if err != nil {
-		return nil, fmt.Errorf("error creating cache: %w", err)
+	engine := &Engine{
+		symTable:    st,
+		useCache:    useCache,
+		cacheDir:    cacheDir,
+		cacheMaxAge: 24 * time.Hour, // Default cache max age
 	}
 
-	engine := &Engine{
-		symTable: st,
-		cache:    cache,
+	if useCache {
+		if err := os.MkdirAll(cacheDir, 0755); err != nil {
+			return nil, fmt.Errorf("error creating cache directory: %w", err)
+		}
+		cache, err := NewCache(cacheDir)
+		if err != nil {
+			return nil, fmt.Errorf("error creating cache: %w", err)
+		}
+		engine.cache = cache
 	}
+
 	engine.registerDefaultRules()
 
 	return engine, nil
@@ -60,11 +77,30 @@ func (e *Engine) AddRule(rule LintRule) {
 	e.rules = append(e.rules, rule)
 }
 
+func (e *Engine) SetCacheOptions(useCache bool, cacheDir string, maxAge time.Duration) {
+	e.useCache = useCache
+	e.cacheDir = cacheDir
+	e.cacheMaxAge = maxAge
+
+	if e.cache != nil {
+		e.cache.SetMaxAge(maxAge)
+	}
+}
+
+func (e *Engine) InvalidateCache() error {
+	if e.cache == nil {
+		return fmt.Errorf("cache is not enabled")
+	}
+	e.cache.InvalidateAll()
+	return nil
+}
+
 // Run applies all lint rules to the given file and returns a slice of Issues.
 func (e *Engine) Run(filename string) ([]tt.Issue, error) {
-	// check cache first
-	if cachedIssue, found := e.cache.Get(filename); found {
-		return cachedIssue, nil
+	if e.useCache {
+		if cached, found := e.cache.Get(filename); found {
+			return cached, nil
+		}
 	}
 
 	tempFile, err := e.prepareFile(filename)
@@ -99,9 +135,10 @@ func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 		}
 	}
 
-	// cache the issues
-	if err := e.cache.Set(filename, filtered); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: failed to cache lint results: %v\n", err)
+	if e.useCache {
+		if err := e.cache.Set(filename, filtered); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to cache lint results: %v\n", err)
+		}
 	}
 
 	return filtered, nil
