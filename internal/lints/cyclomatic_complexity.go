@@ -7,7 +7,7 @@ import (
 	"go/token"
 
 	"github.com/fzipp/gocyclo"
-	tt "github.com/gnoswap-labs/lint/internal/types"
+	tt "github.com/gnoswap-labs/tlin/internal/types"
 )
 
 func DetectHighCyclomaticComplexity(filename string, threshold int) ([]tt.Issue, error) {

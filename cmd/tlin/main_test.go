@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gnoswap-labs/lint/internal/types"
+	"github.com/gnoswap-labs/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"

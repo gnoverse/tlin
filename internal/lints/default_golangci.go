@@ -8,7 +8,7 @@ import (
 	"go/token"
 	"os/exec"
 
-	tt "github.com/gnoswap-labs/lint/internal/types"
+	tt "github.com/gnoswap-labs/tlin/internal/types"
 )
 
 func ParseFile(filename string) (*ast.File, *token.FileSet, error) {

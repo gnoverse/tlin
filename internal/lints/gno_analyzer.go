@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	tt "github.com/gnoswap-labs/lint/internal/types"
+	tt "github.com/gnoswap-labs/tlin/internal/types"
 )
 
 const (
