@@ -16,6 +16,7 @@ import (
 	"github.com/gnoswap-labs/tlin/formatter"
 	"github.com/gnoswap-labs/tlin/internal"
 	"github.com/gnoswap-labs/tlin/internal/analysis/cfg"
+	"github.com/gnoswap-labs/tlin/internal/fixer"
 	"github.com/gnoswap-labs/tlin/internal/lints"
 	tt "github.com/gnoswap-labs/tlin/internal/types"
 	"go.uber.org/zap"
@@ -31,6 +32,8 @@ type Config struct {
 	Paths                []string
 	CFGAnalysis          bool
 	FuncName             string
+	AutoFix              bool
+	DryRun               bool
 }
 
 type LintEngine interface {
@@ -72,6 +75,16 @@ func main() {
 			runNormalLintProcess(ctx, logger, engine, config.Paths)
 		})
 	}
+
+	if config.AutoFix {
+		runWithTimeout(ctx, func() {
+			runAutoFix(ctx, logger, engine, config.Paths, config.DryRun)
+		})
+	} else {
+		runWithTimeout(ctx, func() {
+			runNormalLintProcess(ctx, logger, engine, config.Paths)
+		})
+	}
 }
 
 func parseFlags() Config {
@@ -82,6 +95,9 @@ func parseFlags() Config {
 	flag.StringVar(&config.IgnoreRules, "ignore", "", "Comma-separated list of lint rules to ignore")
 	flag.BoolVar(&config.CFGAnalysis, "cfg", false, "Run control flow graph analysis")
 	flag.StringVar(&config.FuncName, "func", "", "Function name for CFG analysis")
+
+	flag.BoolVar(&config.AutoFix, "fix", false, "Automatically fix issues")
+	flag.BoolVar(&config.DryRun, "dry-run", false, "Show what would be fixed without actually fixing")
 
 	flag.Parse()
 
@@ -121,6 +137,31 @@ func runNormalLintProcess(ctx context.Context, logger *zap.Logger, engine LintEn
 
 	if len(issues) > 0 {
 		os.Exit(1)
+	}
+}
+
+func runAutoFix(ctx context.Context, logger *zap.Logger, engine LintEngine, paths []string, dryRun bool) {
+	fix := fixer.New(dryRun)
+
+	for _, path := range paths {
+		issues, err := processPath(ctx, logger, engine, path, processFile)
+		if err != nil {
+			logger.Error(
+				"error processing path",
+				zap.String("path", path),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		err = fix.Fix(path, issues)
+		if err != nil {
+			logger.Error(
+				"error fixing issues",
+				zap.String("path", path),
+				zap.Error(err),
+			)
+		}
 	}
 }
 
@@ -183,7 +224,7 @@ func processFiles(ctx context.Context, logger *zap.Logger, engine LintEngine, pa
 	return allIssues, nil
 }
 
-func processPath(ctx context.Context, logger *zap.Logger, engine LintEngine, path string, processor func(LintEngine, string) ([]tt.Issue, error)) ([]tt.Issue, error) {
+func processPath(_ context.Context, logger *zap.Logger, engine LintEngine, path string, processor func(LintEngine, string) ([]tt.Issue, error)) ([]tt.Issue, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("error accessing %s: %w", path, err)
