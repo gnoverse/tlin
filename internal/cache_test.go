@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	tt "github.com/gnoswap-labs/lint/internal/types"
+	tt "github.com/gnoswap-labs/tlin/internal/types"
 )
 
 func TestCache(t *testing.T) {
@@ -80,7 +80,6 @@ func TestCache(t *testing.T) {
 }
 
 func TestCacheWithEngine(t *testing.T) {
-	t.Skip("TODO: Fix")
 	tmpDir, err := os.MkdirTemp("", "cache-engine-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
@@ -103,7 +102,7 @@ func main() {
 		// First run
 		issues, err := engine.Run(filename)
 		require.NoError(t, err)
-		assert.NotEmpty(t, issues)
+		assert.NotEmpty(t, issues) // must contain self-assigned variable issue
 
 		// Second run (should hit cache)
 		cachedIssues, err := engine.Run(filename)

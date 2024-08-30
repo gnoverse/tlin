@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	tt "github.com/gnoswap-labs/lint/internal/types"
+	tt "github.com/gnoswap-labs/tlin/internal/types"
 )
 
 type FileMetadata struct {
