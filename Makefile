@@ -62,4 +62,7 @@ install-linter:
 lint:
 	golangci-lint run
 
+fmt:
+	go fmt ./...
+
 .PHONY: all build test clean run deps build-linux build-windows build-mac build-all install-linter lint

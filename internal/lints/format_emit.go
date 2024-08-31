@@ -26,8 +26,7 @@ func DetectEmitFormat(filename string, node *ast.File, fset *token.FileSet) ([]t
 						End:        fset.Position(call.End()),
 						Message:    "Consider formatting std.Emit call for better readability",
 						Suggestion: formatEmitCall(call),
-						// TODO: should we need to show the note?
-						// Note:     "Formatting std.Emit calls with key-value pairs on separate lines improves readability.\nThis makes it easier to understand the structure of the emitted event and its associated data.",
+						Confidence: 1.0,
 					}
 					issues = append(issues, issue)
 				}
