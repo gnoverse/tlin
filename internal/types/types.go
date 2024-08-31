@@ -12,4 +12,5 @@ type Issue struct {
 	Note       string
 	Start      token.Position
 	End        token.Position
+	Confidence float64 // 0.0 to 1.0
 }

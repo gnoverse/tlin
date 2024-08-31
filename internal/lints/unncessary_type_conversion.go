@@ -115,6 +115,7 @@ func DetectUnnecessaryConversions(filename string, node *ast.File, fset *token.F
 				Message:    "unnecessary type conversion",
 				Suggestion: suggestion,
 				Note:       memo,
+				Confidence: 0.8,
 			})
 		}
 

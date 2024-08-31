@@ -22,7 +22,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const defaultTimeout = 5 * time.Minute
+const (
+	defaultTimeout             = 5 * time.Minute
+	defaultConfidenceThreshold = 0.75
+)
 
 type Config struct {
 	Timeout              time.Duration
@@ -34,6 +37,7 @@ type Config struct {
 	FuncName             string
 	AutoFix              bool
 	DryRun               bool
+	ConfidenceThreshold  float64
 }
 
 type LintEngine interface {
@@ -77,9 +81,11 @@ func main() {
 	}
 
 	if config.AutoFix {
-		runWithTimeout(ctx, func() {
-			runAutoFix(ctx, logger, engine, config.Paths, config.DryRun)
-		})
+		if config.ConfidenceThreshold < 0 || config.ConfidenceThreshold > 1 {
+			fmt.Println("error: confidence threshold must be between 0 and 1")
+			os.Exit(1)
+		}
+		runAutoFix(ctx, logger, engine, config.Paths, config.DryRun, config.ConfidenceThreshold)
 	} else {
 		runWithTimeout(ctx, func() {
 			runNormalLintProcess(ctx, logger, engine, config.Paths)
@@ -98,6 +104,7 @@ func parseFlags() Config {
 
 	flag.BoolVar(&config.AutoFix, "fix", false, "Automatically fix issues")
 	flag.BoolVar(&config.DryRun, "dry-run", false, "Show what would be fixed without actually fixing")
+	flag.Float64Var(&config.ConfidenceThreshold, "confidence", defaultConfidenceThreshold, "Minimum confidence threshold for fixing issues")
 
 	flag.Parse()
 
@@ -140,8 +147,8 @@ func runNormalLintProcess(ctx context.Context, logger *zap.Logger, engine LintEn
 	}
 }
 
-func runAutoFix(ctx context.Context, logger *zap.Logger, engine LintEngine, paths []string, dryRun bool) {
-	fix := fixer.New(dryRun)
+func runAutoFix(ctx context.Context, logger *zap.Logger, engine LintEngine, paths []string, dryRun bool, confidenceThreshold float64) {
+	fix := fixer.New(dryRun, confidenceThreshold)
 
 	for _, path := range paths {
 		issues, err := processPath(ctx, logger, engine, path, processFile)

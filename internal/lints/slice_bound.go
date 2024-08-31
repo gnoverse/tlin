@@ -74,6 +74,7 @@ func createIssue(node ast.Node, ident *ast.Ident, filename string, fset *token.F
 		Message:    message,
 		Suggestion: suggestion,
 		Note:       note,
+		Confidence: 0.8,
 	}
 }
 
