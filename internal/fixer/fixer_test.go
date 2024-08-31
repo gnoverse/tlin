@@ -12,47 +12,188 @@ import (
 )
 
 func TestAutoFixer(t *testing.T) {
-	t.Run("Fix issues", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp(os.TempDir(), "autofixer-test")
-		require.NoError(t, err)
-
-		testFile := filepath.Join(tmpDir, "test.go")
-		initContent := `package main
+	t.Run("Fix - Simple case", func(t *testing.T) {
+		_, testFile, cleanup := setupTestFile(t, `package main
 
 func main() {
-	slice := []int{1, 2, 3}
-	_ = slice[:len(slice)]
-}`
-		err = os.WriteFile(testFile, []byte(initContent), 0644)
-		require.NoError(t, err)
+    slice := []int{1, 2, 3}
+    _ = slice[:len(slice)]
+}`)
+		defer cleanup()
 
 		issues := []tt.Issue{
 			{
 				Rule:       "simplify-slice-range",
 				Filename:   testFile,
 				Message:    "unnecessary use of len() in slice expression, can be simplified",
-				Start:      token.Position{Line: 5, Column: 6},
+				Start:      token.Position{Line: 5, Column: 5},
 				End:        token.Position{Line: 5, Column: 24},
-				Suggestion: `_ = slice[:]`,
+				Suggestion: "_ = slice[:]",
 			},
 		}
 
-		autoFixer := New(false)
-		autoFixer.autoConfirm = true
-
-		err = autoFixer.Fix(testFile, issues)
+		fixer := New(false)
+		fixer.autoConfirm = true
+		err := fixer.Fix(testFile, issues)
 		require.NoError(t, err)
 
-		fixed, err := os.ReadFile(testFile)
+		content, err := os.ReadFile(testFile)
 		require.NoError(t, err)
 
-		expectedContent := `package main
+		expected := `package main
 
 func main() {
 	slice := []int{1, 2, 3}
 	_ = slice[:]
 }
 `
-		assert.Equal(t, expectedContent, string(fixed))
+		assert.Equal(t, expected, string(content))
 	})
+
+	t.Run("Fix - Multiple issues", func(t *testing.T) {
+		_, testFile, cleanup := setupTestFile(t, `package main
+
+func main() {
+	slice1 := []int{1, 2, 3}
+	_ = slice1[:len(slice1)]
+
+	slice2 := []string{"a", "b", "c"}
+	_ = slice2[:len(slice2)]
+}`)
+		defer cleanup()
+
+		issues := []tt.Issue{
+			{
+				Rule:       "simplify-slice-range",
+				Filename:   testFile,
+				Message:    "unnecessary use of len() in slice expression, can be simplified",
+				Start:      token.Position{Line: 5, Column: 5},
+				End:        token.Position{Line: 5, Column: 26},
+				Suggestion: "_ = slice1[:]",
+			},
+			{
+				Rule:       "simplify-slice-range",
+				Filename:   testFile,
+				Message:    "unnecessary use of len() in slice expression, can be simplified",
+				Start:      token.Position{Line: 8, Column: 5},
+				End:        token.Position{Line: 8, Column: 26},
+				Suggestion: "_ = slice2[:]",
+			},
+		}
+
+		fixer := New(false)
+		fixer.autoConfirm = true
+		err := fixer.Fix(testFile, issues)
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(testFile)
+		require.NoError(t, err)
+
+		expected := `package main
+
+func main() {
+	slice1 := []int{1, 2, 3}
+	_ = slice1[:]
+
+	slice2 := []string{"a", "b", "c"}
+	_ = slice2[:]
+}
+`
+		assert.Equal(t, expected, string(content))
+	})
+
+	t.Run("Fix - Preserve indentation", func(t *testing.T) {
+		_, testFile, cleanup := setupTestFile(t, `package main
+
+func main() {
+	if true {
+		slice := []int{1, 2, 3}
+		_ = slice[:len(slice)]
+	}
+}`)
+		defer cleanup()
+
+		issues := []tt.Issue{
+			{
+				Rule:       "simplify-slice-range",
+				Filename:   testFile,
+				Message:    "unnecessary use of len() in slice expression, can be simplified",
+				Start:      token.Position{Line: 6, Column: 3},
+				End:        token.Position{Line: 6, Column: 22},
+				Suggestion: "_ = slice[:]",
+			},
+		}
+
+		fixer := New(false)
+		fixer.autoConfirm = true
+		err := fixer.Fix(testFile, issues)
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(testFile)
+		require.NoError(t, err)
+
+		expected := `package main
+
+func main() {
+	if true {
+		slice := []int{1, 2, 3}
+		_ = slice[:]
+	}
+}
+`
+		assert.Equal(t, expected, string(content))
+	})
+
+	t.Run("DryRun", func(t *testing.T) {
+		_, testFile, cleanup := setupTestFile(t, `package main
+
+func main() {
+    slice := []int{1, 2, 3}
+    _ = slice[:len(slice)]
+}`)
+		defer cleanup()
+
+		issues := []tt.Issue{
+			{
+				Rule:       "simplify-slice-range",
+				Filename:   testFile,
+				Message:    "unnecessary use of len() in slice expression, can be simplified",
+				Start:      token.Position{Line: 5, Column: 5},
+				End:        token.Position{Line: 5, Column: 24},
+				Suggestion: "_ = slice[:]",
+			},
+		}
+
+		fixer := New(true) // dry-run mode
+		fixer.autoConfirm = true
+		err := fixer.Fix(testFile, issues)
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(testFile)
+		require.NoError(t, err)
+
+		// Content should remain unchanged in dry-run mode
+		expected := `package main
+
+func main() {
+    slice := []int{1, 2, 3}
+    _ = slice[:len(slice)]
+}`
+		assert.Equal(t, expected, string(content))
+	})
+}
+
+func setupTestFile(t *testing.T, content string) (string, string, func()) {
+	tmpDir, err := os.MkdirTemp("", "autofixer-test")
+	require.NoError(t, err)
+
+	testFile := filepath.Join(tmpDir, "test.go")
+	err = os.WriteFile(testFile, []byte(content), 0644)
+	require.NoError(t, err)
+
+	cleanup := func() {
+		os.RemoveAll(tmpDir)
+	}
+
+	return tmpDir, testFile, cleanup
 }
