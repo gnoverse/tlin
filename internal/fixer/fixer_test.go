@@ -218,13 +218,66 @@ func main() {
 		content, err := os.ReadFile(testFile)
 		require.NoError(t, err)
 
-		// Content should remain unchanged in dry-run mode
 		expected := `package main
 
 func main() {
     slice := []int{1, 2, 3}
     _ = slice[:len(slice)]
 }`
+		assert.Equal(t, expected, string(content))
+	})
+
+	t.Run("FixIssues - Emit function formatting", func(t *testing.T) {
+		_, testFile, cleanup := setupTestFile(t, `package main
+
+import "std"
+
+func main() {
+    newOwner := "Alice"
+    oldOwner := "Bob"
+    std.Emit("OwnershipChange",
+	"newOwner", newOwner, "oldOwner", oldOwner)
+}`)
+		defer cleanup()
+
+		issues := []tt.Issue{
+			{
+				Rule:     "emit-format",
+				Filename: testFile,
+				Message:  "Consider formatting std.Emit call for better readability",
+				Start:    token.Position{Line: 8, Column: 5},
+				End:      token.Position{Line: 9, Column: 44},
+				Suggestion: `std.Emit(
+    "OwnershipChange",
+    "newOwner", newOwner,
+    "oldOwner", oldOwner,
+)`,
+				Confidence: 0.9,
+			},
+		}
+
+		fixer := New(false, 0.8)
+		fixer.autoConfirm = true
+		err := fixer.Fix(testFile, issues)
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(testFile)
+		require.NoError(t, err)
+
+		expected := `package main
+
+import "std"
+
+func main() {
+	newOwner := "Alice"
+	oldOwner := "Bob"
+	std.Emit(
+		"OwnershipChange",
+		"newOwner", newOwner,
+		"oldOwner", oldOwner,
+	)
+}
+`
 		assert.Equal(t, expected, string(content))
 	})
 }
