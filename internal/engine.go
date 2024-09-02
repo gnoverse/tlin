@@ -34,7 +34,6 @@ func NewEngine(rootDir string) (*Engine, error) {
 func (e *Engine) registerDefaultRules() {
 	e.rules = append(e.rules,
 		&GolangciLintRule{},
-		// &UnnecessaryElseRule{},
 		&EarlyReturnOpportunityRule{},
 		&SimplifySliceExprRule{},
 		&UnnecessaryConversionRule{},
@@ -44,6 +43,7 @@ func (e *Engine) registerDefaultRules() {
 		&GnoSpecificRule{},
 		&RepeatedRegexCompilationRule{},
 		&UselessBreakRule{},
+		&DeferRule{},
 	)
 }
 
