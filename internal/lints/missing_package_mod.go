@@ -34,7 +34,7 @@ func DetectMissingModPackage(filename string, node *ast.File, fset *token.FileSe
 	for pkg := range requiredPackages {
 		if !declaredPackages[pkg] {
 			issue := tt.Issue{
-				Rule:     "missing-package",
+				Rule:     "gno-mod-tidy",
 				Filename: modFile,
 				Start:    token.Position{Filename: modFile},
 				End:      token.Position{Filename: modFile},

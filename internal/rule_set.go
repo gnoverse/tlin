@@ -128,7 +128,7 @@ func (r *MissingModPackageRule) Check(filename string, node *ast.File, fset *tok
 }
 
 func (r *MissingModPackageRule) Name() string {
-	return "missing-package"
+	return "gno-mod-tidy"
 }
 
 // -----------------------------------------------------------------------------

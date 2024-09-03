@@ -18,7 +18,7 @@ const (
 	EmitFormat          = "emit-format"
 	SliceBound          = "slice-bounds-check"
 	Defers              = "defer-issues"
-	MissingModPackage   = "missing-package"
+	MissingModPackage   = "gno-mod-tidy"
 )
 
 const tabWidth = 8
