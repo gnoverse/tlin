@@ -38,12 +38,27 @@ func checkUselessBreak(stmts []ast.Stmt, filename string, fset *token.FileSet, i
 
 	lastStmt := stmts[len(stmts)-1]
 	if breakStmt, ok := lastStmt.(*ast.BranchStmt); ok && breakStmt.Tok == token.BREAK && breakStmt.Label == nil {
+		startPos := fset.Position(breakStmt.Pos())
+		endPos := fset.Position(breakStmt.End())
+
 		*issues = append(*issues, tt.Issue{
 			Rule:     "useless-break",
 			Filename: filename,
-			Start:    fset.Position(breakStmt.Pos()),
-			End:      fset.Position(breakStmt.End()),
-			Message:  "useless break statement at the end of case clause",
+			Start: tt.UniversalPosition{
+				Filename: filename,
+				Line:     startPos.Line,
+				Column:   startPos.Column,
+				Offset:   startPos.Offset,
+				Length:   endPos.Offset - startPos.Offset,
+			},
+			End: tt.UniversalPosition{
+				Filename: filename,
+				Line:     endPos.Line,
+				Column:   endPos.Column,
+				Offset:   endPos.Offset,
+				Length:   0,
+			},
+			Message: "useless break statement at the end of case clause",
 		})
 	}
 }

@@ -1,7 +1,6 @@
 package formatter
 
 import (
-	"go/token"
 	"testing"
 
 	"github.com/gnoswap-labs/tlin/internal"
@@ -26,16 +25,32 @@ func TestFormatIssuesWithArrows(t *testing.T) {
 		{
 			Rule:     "unused-variable",
 			Filename: "test.go",
-			Start:    token.Position{Line: 4, Column: 5},
-			End:      token.Position{Line: 4, Column: 6},
-			Message:  "x declared but not used",
+			Start: tt.UniversalPosition{
+				Filename: "test.go",
+				Line:     4,
+				Column:   5,
+			},
+			End: tt.UniversalPosition{
+				Filename: "test.go",
+				Line:     4,
+				Column:   6,
+			},
+			Message: "x declared but not used",
 		},
 		{
 			Rule:     "empty-if",
 			Filename: "test.go",
-			Start:    token.Position{Line: 5, Column: 5},
-			End:      token.Position{Line: 5, Column: 13},
-			Message:  "empty branch",
+			Start: tt.UniversalPosition{
+				Filename: "test.go",
+				Line:     5,
+				Column:   5,
+			},
+			End: tt.UniversalPosition{
+				Filename: "test.go",
+				Line:     5,
+				Column:   13,
+			},
+			Message: "empty branch",
 		},
 	}
 
@@ -113,23 +128,41 @@ func TestFormatIssuesWithArrows_MultipleDigitsLineNumbers(t *testing.T) {
 		{
 			Rule:     "unused-variable",
 			Filename: "test.go",
-			Start:    token.Position{Line: 4, Column: 5},
-			End:      token.Position{Line: 4, Column: 6},
-			Message:  "x declared but not used",
+			Start: tt.UniversalPosition{
+				Line:   4,
+				Column: 5,
+			},
+			End: tt.UniversalPosition{
+				Line:   4,
+				Column: 6,
+			},
+			Message: "x declared but not used",
 		},
 		{
 			Rule:     "empty-if",
 			Filename: "test.go",
-			Start:    token.Position{Line: 5, Column: 5},
-			End:      token.Position{Line: 5, Column: 13},
-			Message:  "empty branch",
+			Start: tt.UniversalPosition{
+				Line:   5,
+				Column: 5,
+			},
+			End: tt.UniversalPosition{
+				Line:   5,
+				Column: 13,
+			},
+			Message: "empty branch",
 		},
 		{
 			Rule:     "example",
 			Filename: "test.go",
-			Start:    token.Position{Line: 10, Column: 5},
-			End:      token.Position{Line: 10, Column: 12},
-			Message:  "example issue",
+			Start: tt.UniversalPosition{
+				Line:   10,
+				Column: 5,
+			},
+			End: tt.UniversalPosition{
+				Line:   10,
+				Column: 12,
+			},
+			Message: "example issue",
 		},
 	}
 
@@ -182,9 +215,15 @@ func TestFormatIssuesWithArrows_UnnecessaryElse(t *testing.T) {
 		{
 			Rule:     "unnecessary-else",
 			Filename: "test.go",
-			Start:    token.Position{Line: 6, Column: 5},
-			End:      token.Position{Line: 8, Column: 5},
-			Message:  "unnecessary else block",
+			Start: tt.UniversalPosition{
+				Line:   6,
+				Column: 8,
+			},
+			End: tt.UniversalPosition{
+				Line:   8,
+				Column: 5,
+			},
+			Message: "unnecessary else block",
 		},
 	}
 
@@ -221,10 +260,16 @@ func TestUnnecessaryTypeConversionFormatter(t *testing.T) {
 	formatter := &UnnecessaryTypeConversionFormatter{}
 
 	issue := tt.Issue{
-		Rule:       "unnecessary-type-conversion",
-		Filename:   "test.go",
-		Start:      token.Position{Line: 5, Column: 10},
-		End:        token.Position{Line: 5, Column: 20},
+		Rule:     "unnecessary-type-conversion",
+		Filename: "test.go",
+		Start: tt.UniversalPosition{
+			Line:   5,
+			Column: 10,
+		},
+		End: tt.UniversalPosition{
+			Line:   5,
+			Column: 20,
+		},
 		Message:    "unnecessary type conversion",
 		Suggestion: "Remove the type conversion. Change `int(myInt)` to just `myInt`.",
 		Note:       "Unnecessary type conversions can make the code less readable and may slightly impact performance. They are safe to remove when the expression already has the desired type.",

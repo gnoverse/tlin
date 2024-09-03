@@ -12,14 +12,29 @@ func DetectCycle(filename string, node *ast.File, fset *token.FileSet) ([]tt.Iss
 	c := newCycle()
 	cycles := c.detectCycles(node)
 
+	startPos := fset.Position(node.Pos())
+	endPos := fset.Position(node.End())
+
 	var issues []tt.Issue
 	for _, cycle := range cycles {
 		issue := tt.Issue{
 			Rule:     "cycle-detection",
 			Filename: filename,
-			Start:    fset.Position(node.Pos()),
-			End:      fset.Position(node.End()),
-			Message:  "Detected cycle in function call: " + cycle,
+			Start: tt.UniversalPosition{
+				Filename: filename,
+				Line:     startPos.Line,
+				Column:   startPos.Column,
+				Offset:   startPos.Offset,
+				Length:   endPos.Offset - startPos.Offset,
+			},
+			End: tt.UniversalPosition{
+				Filename: filename,
+				Line:     endPos.Line,
+				Column:   endPos.Column,
+				Offset:   endPos.Offset,
+				Length:   0,
+			},
+			Message: "Detected cycle in function call: " + cycle,
 		}
 		issues = append(issues, issue)
 	}

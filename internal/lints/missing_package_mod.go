@@ -36,9 +36,22 @@ func DetectMissingModPackage(filename string, node *ast.File, fset *token.FileSe
 			issue := tt.Issue{
 				Rule:     "gno-mod-tidy",
 				Filename: modFile,
-				Start:    token.Position{Filename: modFile},
-				End:      token.Position{Filename: modFile},
-				Message:  fmt.Sprintf("Package %s is imported but not declared in gno.mod file.\nRun `gno mod tidy`", pkg),
+				// TODO: fix line and column
+				Start: tt.UniversalPosition{
+					Filename: modFile,
+					Line:     0,
+					Column:   0,
+					Offset:   0,
+					Length:   0,
+				},
+				End: tt.UniversalPosition{
+					Filename: modFile,
+					Line:     0,
+					Column:   0,
+					Offset:   0,
+					Length:   0,
+				},
+				Message: fmt.Sprintf("Package %s is imported but not declared in gno.mod file.\nRun `gno mod tidy`", pkg),
 			}
 			issues = append(issues, issue)
 		}

@@ -107,11 +107,26 @@ func DetectUnnecessaryConversions(filename string, node *ast.File, fset *token.F
 				}
 			}
 
+			startPos := fset.Position(call.Pos())
+			endPos := fset.Position(call.End())
+
 			issues = append(issues, tt.Issue{
-				Rule:       "unnecessary-type-conversion",
-				Filename:   filename,
-				Start:      fset.Position(call.Pos()),
-				End:        fset.Position(call.End()),
+				Rule:     "unnecessary-type-conversion",
+				Filename: filename,
+				Start: tt.UniversalPosition{
+					Filename: filename,
+					Line:     startPos.Line,
+					Column:   startPos.Column,
+					Offset:   startPos.Offset,
+					Length:   endPos.Offset - startPos.Offset,
+				},
+				End: tt.UniversalPosition{
+					Filename: filename,
+					Line:     endPos.Line,
+					Column:   endPos.Column,
+					Offset:   endPos.Offset,
+					Length:   0,
+				},
 				Message:    "unnecessary type conversion",
 				Suggestion: suggestion,
 				Note:       memo,

@@ -1,7 +1,6 @@
 package fixer
 
 import (
-	"go/token"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,11 +24,23 @@ func main() {
 
 		issues := []tt.Issue{
 			{
-				Rule:       "simplify-slice-range",
-				Filename:   testFile,
-				Message:    "unnecessary use of len() in slice expression, can be simplified",
-				Start:      token.Position{Line: 5, Column: 5},
-				End:        token.Position{Line: 5, Column: 24},
+				Rule:     "simplify-slice-range",
+				Filename: testFile,
+				Message:  "unnecessary use of len() in slice expression, can be simplified",
+				Start: tt.UniversalPosition{
+					Filename: testFile,
+					Line:     5,
+					Column:   5,
+					Offset:   0,
+					Length:   0,
+				},
+				End: tt.UniversalPosition{
+					Filename: testFile,
+					Line:     5,
+					Column:   24,
+					Offset:   0,
+					Length:   0,
+				},
 				Suggestion: "_ = slice[:]",
 				Confidence: 0.9,
 			},
@@ -64,11 +75,19 @@ func main() {
 
 		issues := []tt.Issue{
 			{
-				Rule:       "simplify-slice-range",
-				Filename:   testFile,
-				Message:    "unnecessary use of len() in slice expression, can be simplified",
-				Start:      token.Position{Line: 5, Column: 5},
-				End:        token.Position{Line: 5, Column: 24},
+				Rule:     "simplify-slice-range",
+				Filename: testFile,
+				Message:  "unnecessary use of len() in slice expression, can be simplified",
+				Start: tt.UniversalPosition{
+					Filename: testFile,
+					Line:     5,
+					Column:   5,
+				},
+				End: tt.UniversalPosition{
+					Filename: testFile,
+					Line:     5,
+					Column:   24,
+				},
 				Suggestion: "_ = slice[:]",
 				Confidence: 0.3,
 			},
@@ -106,20 +125,36 @@ func main() {
 
 		issues := []tt.Issue{
 			{
-				Rule:       "simplify-slice-range",
-				Filename:   testFile,
-				Message:    "unnecessary use of len() in slice expression, can be simplified",
-				Start:      token.Position{Line: 5, Column: 5},
-				End:        token.Position{Line: 5, Column: 26},
+				Rule:     "simplify-slice-range",
+				Filename: testFile,
+				Message:  "unnecessary use of len() in slice expression, can be simplified",
+				Start: tt.UniversalPosition{
+					Filename: testFile,
+					Line:     5,
+					Column:   5,
+				},
+				End: tt.UniversalPosition{
+					Filename: testFile,
+					Line:     5,
+					Column:   26,
+				},
 				Suggestion: "_ = slice1[:]",
 				Confidence: 0.9,
 			},
 			{
-				Rule:       "simplify-slice-range",
-				Filename:   testFile,
-				Message:    "unnecessary use of len() in slice expression, can be simplified",
-				Start:      token.Position{Line: 8, Column: 5},
-				End:        token.Position{Line: 8, Column: 26},
+				Rule:     "simplify-slice-range",
+				Filename: testFile,
+				Message:  "unnecessary use of len() in slice expression, can be simplified",
+				Start: tt.UniversalPosition{
+					Filename: testFile,
+					Line:     8,
+					Column:   5,
+				},
+				End: tt.UniversalPosition{
+					Filename: testFile,
+					Line:     8,
+					Column:   26,
+				},
 				Suggestion: "_ = slice2[:]",
 				Confidence: 0.9,
 			},
@@ -159,11 +194,19 @@ func main() {
 
 		issues := []tt.Issue{
 			{
-				Rule:       "simplify-slice-range",
-				Filename:   testFile,
-				Message:    "unnecessary use of len() in slice expression, can be simplified",
-				Start:      token.Position{Line: 6, Column: 3},
-				End:        token.Position{Line: 6, Column: 22},
+				Rule:     "simplify-slice-range",
+				Filename: testFile,
+				Message:  "unnecessary use of len() in slice expression, can be simplified",
+				Start: tt.UniversalPosition{
+					Filename: testFile,
+					Line:     6,
+					Column:   3,
+				},
+				End: tt.UniversalPosition{
+					Filename: testFile,
+					Line:     6,
+					Column:   22,
+				},
 				Suggestion: "_ = slice[:]",
 				Confidence: 0.9,
 			},
@@ -200,11 +243,19 @@ func main() {
 
 		issues := []tt.Issue{
 			{
-				Rule:       "simplify-slice-range",
-				Filename:   testFile,
-				Message:    "unnecessary use of len() in slice expression, can be simplified",
-				Start:      token.Position{Line: 5, Column: 5},
-				End:        token.Position{Line: 5, Column: 24},
+				Rule:     "simplify-slice-range",
+				Filename: testFile,
+				Message:  "unnecessary use of len() in slice expression, can be simplified",
+				Start: tt.UniversalPosition{
+					Filename: testFile,
+					Line:     5,
+					Column:   5,
+				},
+				End: tt.UniversalPosition{
+					Filename: testFile,
+					Line:     5,
+					Column:   24,
+				},
 				Suggestion: "_ = slice[:]",
 				Confidence: 0.9,
 			},
@@ -245,8 +296,16 @@ func main() {
 				Rule:     "emit-format",
 				Filename: testFile,
 				Message:  "Consider formatting std.Emit call for better readability",
-				Start:    token.Position{Line: 8, Column: 5},
-				End:      token.Position{Line: 9, Column: 44},
+				Start: tt.UniversalPosition{
+					Filename: testFile,
+					Line:     8,
+					Column:   5,
+				},
+				End: tt.UniversalPosition{
+					Filename: testFile,
+					Line:     9,
+					Column:   44,
+				},
 				Suggestion: `std.Emit(
     "OwnershipChange",
     "newOwner", newOwner,

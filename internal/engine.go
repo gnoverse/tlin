@@ -38,7 +38,6 @@ func (e *Engine) registerDefaultRules() {
 		&EarlyReturnOpportunityRule{},
 		&SimplifySliceExprRule{},
 		&UnnecessaryConversionRule{},
-		&LoopAllocationRule{},
 		&EmitFormatRule{},
 		&DetectCycleRule{},
 		&GnoSpecificRule{},

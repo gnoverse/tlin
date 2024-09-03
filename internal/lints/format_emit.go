@@ -16,14 +16,29 @@ func DetectEmitFormat(filename string, node *ast.File, fset *token.FileSet) ([]t
 			return true
 		}
 
+		startPos := fset.Position(call.Pos())
+		endPos := fset.Position(call.End())
+
 		if fun, ok := call.Fun.(*ast.SelectorExpr); ok {
 			if x, ok := fun.X.(*ast.Ident); ok && x.Name == "std" && fun.Sel.Name == "Emit" {
 				if len(call.Args) > 3 && !isEmitCorrectlyFormatted(call, fset) {
 					issue := tt.Issue{
-						Rule:       "emit-format",
-						Filename:   filename,
-						Start:      fset.Position(call.Pos()),
-						End:        fset.Position(call.End()),
+						Rule:     "emit-format",
+						Filename: filename,
+						Start: tt.UniversalPosition{
+							Filename: filename,
+							Line:     startPos.Line,
+							Column:   startPos.Column,
+							Offset:   startPos.Offset,
+							Length:   endPos.Offset - startPos.Offset,
+						},
+						End: tt.UniversalPosition{
+							Filename: filename,
+							Line:     endPos.Line,
+							Column:   endPos.Column,
+							Offset:   endPos.Offset,
+							Length:   0,
+						},
 						Message:    "Consider formatting std.Emit call for better readability",
 						Suggestion: formatEmitCall(call),
 						Confidence: 1.0,

@@ -3,17 +3,17 @@ package main
 import (
 	"bytes"
 	"context"
-	"go/token"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/gnoswap-labs/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
+
+	tt "github.com/gnoswap-labs/tlin/internal/types"
 )
 
 // MockLintEngine is a mock implementation of the LintEngine interface
@@ -21,9 +21,9 @@ type MockLintEngine struct {
 	mock.Mock
 }
 
-func (m *MockLintEngine) Run(filePath string) ([]types.Issue, error) {
+func (m *MockLintEngine) Run(filePath string) ([]tt.Issue, error) {
 	args := m.Called(filePath)
-	return args.Get(0).([]types.Issue), args.Error(1)
+	return args.Get(0).([]tt.Issue), args.Error(1)
 }
 
 func (m *MockLintEngine) IgnoreRule(rule string) {
@@ -49,13 +49,23 @@ func TestParseFlags(t *testing.T) {
 func TestProcessFile(t *testing.T) {
 	t.Parallel()
 	mockEngine := new(MockLintEngine)
-	expectedIssues := []types.Issue{
+	expectedIssues := []tt.Issue{
 		{
 			Rule:     "test-rule",
 			Filename: "test.go",
-			Start:    token.Position{Filename: "test.go", Offset: 0, Line: 1, Column: 1},
-			End:      token.Position{Filename: "test.go", Offset: 10, Line: 1, Column: 11},
-			Message:  "Test issue",
+			Start: tt.UniversalPosition{
+				Filename: "test.go",
+				Line:     1,
+				Column:   1,
+				Offset:   0,
+			},
+			End: tt.UniversalPosition{
+				Filename: "test.go",
+				Line:     1,
+				Column:   11,
+				Offset:   10,
+			},
+			Message: "Test issue",
 		},
 	}
 	mockEngine.On("Run", "test.go").Return(expectedIssues, nil)
@@ -84,22 +94,42 @@ func TestProcessPath(t *testing.T) {
 	_, err = os.Create(testFile2)
 	assert.NoError(t, err)
 
-	expectedIssues1 := []types.Issue{
+	expectedIssues1 := []tt.Issue{
 		{
 			Rule:     "rule1",
 			Filename: testFile1,
-			Start:    token.Position{Filename: testFile1, Offset: 0, Line: 1, Column: 1},
-			End:      token.Position{Filename: testFile1, Offset: 10, Line: 1, Column: 11},
-			Message:  "Test issue 1",
+			Start: tt.UniversalPosition{
+				Filename: testFile1,
+				Line:     1,
+				Column:   1,
+				Offset:   0,
+			},
+			End: tt.UniversalPosition{
+				Filename: testFile1,
+				Line:     1,
+				Column:   11,
+				Offset:   10,
+			},
+			Message: "Test issue 1",
 		},
 	}
-	expectedIssues2 := []types.Issue{
+	expectedIssues2 := []tt.Issue{
 		{
 			Rule:     "rule2",
 			Filename: testFile2,
-			Start:    token.Position{Filename: testFile2, Offset: 0, Line: 1, Column: 1},
-			End:      token.Position{Filename: testFile2, Offset: 10, Line: 1, Column: 11},
-			Message:  "Test issue 2",
+			Start: tt.UniversalPosition{
+				Filename: testFile2,
+				Line:     1,
+				Column:   1,
+				Offset:   0,
+			},
+			End: tt.UniversalPosition{
+				Filename: testFile2,
+				Line:     1,
+				Column:   11,
+				Offset:   10,
+			},
+			Message: "Test issue 2",
 		},
 	}
 
@@ -131,22 +161,42 @@ func TestProcessFiles(t *testing.T) {
 
 	paths := []string{tempFile1.Name(), tempFile2.Name()}
 
-	expectedIssues1 := []types.Issue{
+	expectedIssues1 := []tt.Issue{
 		{
 			Rule:     "rule1",
 			Filename: tempFile1.Name(),
-			Start:    token.Position{Filename: tempFile1.Name(), Offset: 0, Line: 1, Column: 1},
-			End:      token.Position{Filename: tempFile1.Name(), Offset: 10, Line: 1, Column: 11},
-			Message:  "Test issue 1",
+			Start: tt.UniversalPosition{
+				Filename: tempFile1.Name(),
+				Line:     1,
+				Column:   1,
+				Offset:   0,
+			},
+			End: tt.UniversalPosition{
+				Filename: tempFile1.Name(),
+				Line:     1,
+				Column:   11,
+				Offset:   10,
+			},
+			Message: "Test issue 1",
 		},
 	}
-	expectedIssues2 := []types.Issue{
+	expectedIssues2 := []tt.Issue{
 		{
 			Rule:     "rule2",
 			Filename: tempFile2.Name(),
-			Start:    token.Position{Filename: tempFile2.Name(), Offset: 0, Line: 1, Column: 1},
-			End:      token.Position{Filename: tempFile2.Name(), Offset: 10, Line: 1, Column: 11},
-			Message:  "Test issue 2",
+			Start: tt.UniversalPosition{
+				Filename: tempFile2.Name(),
+				Line:     1,
+				Column:   1,
+				Offset:   0,
+			},
+			End: tt.UniversalPosition{
+				Filename: tempFile2.Name(),
+				Line:     1,
+				Column:   11,
+				Offset:   10,
+			},
+			Message: "Test issue 2",
 		},
 	}
 
