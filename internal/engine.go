@@ -56,6 +56,10 @@ func (e *Engine) AddRule(rule LintRule) {
 
 // Run applies all lint rules to the given file and returns a slice of Issues.
 func (e *Engine) Run(filename string) ([]tt.Issue, error) {
+	if strings.HasSuffix(filename, ".mod") {
+		return e.runModCheck(filename)
+	}
+
 	tempFile, err := e.prepareFile(filename)
 	if err != nil {
 		return nil, err
@@ -110,10 +114,27 @@ func (e *Engine) IgnoreRule(rule string) {
 }
 
 func (e *Engine) prepareFile(filename string) (string, error) {
-	if strings.HasSuffix(filename, "gno") {
+	if strings.HasSuffix(filename, ".gno") {
 		return createTempGoFile(filename)
 	}
 	return filename, nil
+}
+
+func (e *Engine) runModCheck(filename string) ([]tt.Issue, error) {
+	var allIssues []tt.Issue
+	for _, rule := range e.rules {
+		if e.ignoredRules[rule.Name()] {
+			continue
+		}
+		if modRule, ok := rule.(ModRule); ok {
+			issues, err := modRule.CheckMod(filename)
+			if err != nil {
+				return nil, fmt.Errorf("error checking .mod file: %w", err)
+			}
+			allIssues = append(allIssues, issues...)
+		}
+	}
+	return allIssues, nil
 }
 
 func (e *Engine) cleanupTemp(temp string) {
@@ -177,4 +198,9 @@ func ReadSourceCode(filename string) (*SourceCode, error) {
 	}
 	lines := strings.Split(string(content), "\n")
 	return &SourceCode{Lines: lines}, nil
+}
+
+type ModRule interface {
+	LintRule
+	CheckMod(filename string) ([]tt.Issue, error)
 }
