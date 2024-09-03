@@ -17,6 +17,7 @@ const (
 	CycloComplexity     = "high-cyclomatic-complexity"
 	EmitFormat          = "emit-format"
 	SliceBound          = "slice-bounds-check"
+	Defers              = "defer-issues"
 )
 
 const tabWidth = 8
@@ -66,6 +67,8 @@ func getFormatter(rule string) IssueFormatter {
 		return &EmitFormatFormatter{}
 	case SliceBound:
 		return &SliceBoundsCheckFormatter{}
+	case Defers:
+		return &DefersFormatter{}
 	default:
 		return &GeneralIssueFormatter{}
 	}

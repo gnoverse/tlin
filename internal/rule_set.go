@@ -101,7 +101,6 @@ func (r *UselessBreakRule) Name() string {
 	return "useless-break"
 }
 
-// TODO: should be replace unnecessary-else rule.
 type EarlyReturnOpportunityRule struct{}
 
 func (r *EarlyReturnOpportunityRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
@@ -110,6 +109,16 @@ func (r *EarlyReturnOpportunityRule) Check(filename string, node *ast.File, fset
 
 func (r *EarlyReturnOpportunityRule) Name() string {
 	return "early-return-opportunity"
+}
+
+type DeferRule struct{}
+
+func (r *DeferRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectDeferIssues(filename, node, fset)
+}
+
+func (r *DeferRule) Name() string {
+	return "defer-issues"
 }
 
 // -----------------------------------------------------------------------------
