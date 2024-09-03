@@ -26,6 +26,7 @@ func (dc *DeferChecker) Check(node *ast.File) []tt.Issue {
 		case *ast.DeferStmt:
 			dc.checkDeferPanic(stmt)
 			dc.checkDeferNilFunc(stmt)
+			dc.checkReturnInDefer(stmt)
 		case *ast.ForStmt, *ast.RangeStmt:
 			dc.checkDeferInLoop(stmt)
 		}
@@ -57,6 +58,25 @@ func (dc *DeferChecker) checkDeferNilFunc(stmt *ast.DeferStmt) {
 				"Deferring a nil function will cause a panic at runtime. Ensure the function is not nil before deferring.")
 		}
 	}
+}
+
+func (dc *DeferChecker) checkReturnInDefer(stmt *ast.DeferStmt) {
+	ast.Inspect(stmt, func(n ast.Node) bool {
+		if funcLit, ok := n.(*ast.FuncLit); ok {
+			ast.Inspect(funcLit.Body, func(n ast.Node) bool {
+				if _, ok := n.(*ast.ReturnStmt); ok {
+					dc.addIssue("return-in-defer", n.Pos(), n.End(),
+						"Avoid using return statement inside a defer function",
+						"The return statement in a deferred function doesn't affect the returned value of the surrounding function. Consider removing it or refactoring your code.")
+					return false
+				}
+				return true
+			})
+			// stop inspecting once we've checked the function literal
+			return false
+		}
+		return true
+	})
 }
 
 func (dc *DeferChecker) checkDeferInLoop(n ast.Node) {

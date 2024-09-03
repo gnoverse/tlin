@@ -98,3 +98,88 @@ func main() {
 		})
 	}
 }
+
+func TestDeferChecker_ReturnInDefer(t *testing.T) {
+	tests := []struct {
+		name     string
+		code     string
+		expected bool // true -> lint issue
+	}{
+		{
+			name: "return in defer",
+			code: `
+package main
+
+func foo() {
+	defer func() {
+		return // This return is useless
+	}()
+}
+`,
+			expected: true,
+		},
+		{
+			name: "return in defer with named return value",
+			code: `
+package main
+
+func foo() (result int) {
+	defer func() {
+		result = 42 // This is fine
+		return // This return is unnecessary but not incorrect
+	}()
+	return 0
+}
+`,
+			expected: true,
+		},
+		{
+			name: "no return in defer",
+			code: `
+package main
+
+func foo() {
+	defer func() {
+		println("cleanup")
+	}()
+}
+`,
+			expected: false,
+		},
+		{
+			name: "return in regular function literal",
+			code: `
+package main
+
+func foo() {
+	f := func() {
+		return // This is fine
+	}
+	f()
+}
+`,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, "test.go", tt.code, 0)
+			require.NoError(t, err)
+
+			checker := NewDeferChecker("test.go", fset)
+			issues := checker.Check(f)
+
+			hasReturnInDeferIssue := false
+			for _, issue := range issues {
+				if issue.Rule == "return-in-defer" {
+					hasReturnInDeferIssue = true
+					break
+				}
+			}
+
+			assert.Equal(t, tt.expected, hasReturnInDeferIssue, "Unexpected result for return in defer check")
+		})
+	}
+}
