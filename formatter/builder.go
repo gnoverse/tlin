@@ -18,6 +18,7 @@ const (
 	EmitFormat          = "emit-format"
 	SliceBound          = "slice-bounds-check"
 	Defers              = "defer-issues"
+	MissingModPackage   = "missing-package"
 )
 
 const tabWidth = 8
@@ -69,6 +70,8 @@ func getFormatter(rule string) IssueFormatter {
 		return &SliceBoundsCheckFormatter{}
 	case Defers:
 		return &DefersFormatter{}
+	case MissingModPackage:
+		return &MissingModPackageFormatter{}
 	default:
 		return &GeneralIssueFormatter{}
 	}

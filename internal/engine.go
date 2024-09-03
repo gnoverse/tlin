@@ -44,6 +44,7 @@ func (e *Engine) registerDefaultRules() {
 		&RepeatedRegexCompilationRule{},
 		&UselessBreakRule{},
 		&DeferRule{},
+		&MissingModPackageRule{},
 	)
 }
 

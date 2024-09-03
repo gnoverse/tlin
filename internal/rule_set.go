@@ -121,6 +121,16 @@ func (r *DeferRule) Name() string {
 	return "defer-issues"
 }
 
+type MissingModPackageRule struct{}
+
+func (r *MissingModPackageRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectMissingModPackage(filename, node, fset)
+}
+
+func (r *MissingModPackageRule) Name() string {
+	return "missing-package"
+}
+
 // -----------------------------------------------------------------------------
 // Regex related rules
 
