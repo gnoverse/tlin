@@ -107,7 +107,7 @@ func TestDetectMissingPackageInMod(t *testing.T) {
 
 			// Check that all issues are of the correct type
 			for _, issue := range issues {
-				assert.Equal(t, "missing-package", issue.Rule)
+				assert.Equal(t, "gno-mod-tidy", issue.Rule)
 				assert.Equal(t, modFile, issue.Filename)
 				println(issue.String())
 			}
