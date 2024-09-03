@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/gnoswap-labs/tlin/internal/lints"
 	tt "github.com/gnoswap-labs/tlin/internal/types"
@@ -65,17 +66,28 @@ func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 		return nil, fmt.Errorf("error parsing file: %w", err)
 	}
 
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
 	var allIssues []tt.Issue
 	for _, rule := range e.rules {
-		if e.ignoredRules[rule.Name()] {
-			continue
-		}
-		issues, err := rule.Check(tempFile, node, fset)
-		if err != nil {
-			return nil, fmt.Errorf("error running lint rule: %w", err)
-		}
-		allIssues = append(allIssues, issues...)
+		wg.Add(1)
+		go func(r LintRule) {
+			defer wg.Done()
+			if e.ignoredRules[rule.Name()] {
+				return
+			}
+			issues, err := rule.Check(tempFile, node, fset)
+			if err != nil {
+				return
+			}
+
+			mu.Lock()
+			allIssues = append(allIssues, issues...)
+			mu.Unlock()
+		}(rule)
 	}
+	wg.Wait()
 
 	filtered := e.filterUndefinedIssues(allIssues)
 
