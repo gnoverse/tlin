@@ -1,8 +1,9 @@
-package main
+package foo
 
 import (
-	"gno.land/p/demo/avl"
-	"gno.land/r/demo/users"
+	"gno.land/p/demo/ufmt"
 )
 
-func main() {}
+func main() {
+	ufmt.Println("Hello, World!")
+}

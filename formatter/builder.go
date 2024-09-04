@@ -157,7 +157,7 @@ func (b *IssueFormatterBuilder) AddUnderlineAndMessage() *IssueFormatterBuilder 
 	b.result.WriteString(lineStyle.Sprintf("%s| ", padding))
 
 	if startLine <= 0 || startLine > len(b.snippet.Lines) || endLine <= 0 || endLine > len(b.snippet.Lines) {
-		b.result.WriteString(messageStyle.Sprintf("Error: Invalid line numbers\n"))
+		b.result.WriteString(messageStyle.Sprintf("%s\n\n", b.issue.Message))
 		return b
 	}
 
