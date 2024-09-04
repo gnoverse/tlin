@@ -31,9 +31,6 @@ func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token
 			return true
 		}
 
-		startPos := fset.Position(ifStmt.Pos())
-		endPos := fset.Position(ifStmt.End())
-
 		chain := analyzeIfElseChain(ifStmt)
 		if canUseEarlyReturn(chain) {
 			snippet := extractSnippet(ifStmt, fset, content)
@@ -44,22 +41,10 @@ func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token
 			}
 
 			issue := tt.Issue{
-				Rule:     "early-return",
-				Filename: filename,
-				Start: tt.UniversalPosition{
-					Filename: filename,
-					Line:     startPos.Line,
-					Column:   startPos.Column,
-					Offset:   startPos.Offset,
-					Length:   endPos.Offset - startPos.Offset,
-				},
-				End: tt.UniversalPosition{
-					Filename: filename,
-					Line:     endPos.Line,
-					Column:   endPos.Column,
-					Offset:   endPos.Offset,
-					Length:   0,
-				},
+				Rule:       "early-return",
+				Filename:   filename,
+				Start:      fset.Position(ifStmt.Pos()),
+				End:        fset.Position(ifStmt.End()),
 				Message:    "This if-else chain can be simplified using early returns",
 				Suggestion: suggestion,
 				Confidence: 0.8,

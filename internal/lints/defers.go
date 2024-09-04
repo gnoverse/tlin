@@ -94,26 +94,11 @@ func (dc *DeferChecker) checkDeferInLoop(n ast.Node) {
 }
 
 func (dc *DeferChecker) addIssue(rule string, start, end token.Pos, message, suggestion string) {
-	startPos := dc.fset.Position(start)
-	endPos := dc.fset.Position(end)
-
 	dc.issues = append(dc.issues, tt.Issue{
-		Rule:     rule,
-		Filename: dc.filename,
-		Start: tt.UniversalPosition{
-			Filename: dc.filename,
-			Line:     startPos.Line,
-			Column:   startPos.Column,
-			Offset:   startPos.Offset,
-			Length:   endPos.Offset - startPos.Offset,
-		},
-		End: tt.UniversalPosition{
-			Filename: dc.filename,
-			Line:     endPos.Line,
-			Column:   endPos.Column,
-			Offset:   endPos.Offset,
-			Length:   0,
-		},
+		Rule:       rule,
+		Filename:   dc.filename,
+		Start:      dc.fset.Position(start),
+		End:        dc.fset.Position(end),
 		Message:    message,
 		Suggestion: suggestion,
 	})

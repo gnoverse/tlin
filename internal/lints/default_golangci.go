@@ -45,15 +45,12 @@ func RunGolangciLint(filename string) ([]tt.Issue, error) {
 
 	var issues []tt.Issue
 	for _, gi := range golangciResult.Issues {
-		filename := gi.Pos.Filename
 		issues = append(issues, tt.Issue{
 			Rule:     gi.FromLinter,
 			Filename: gi.Pos.Filename, // Use the filename from golangci-lint output
-			// Start:    token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
-			// End:      token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1},
-			Start:   tt.UniversalPosition{Filename: filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
-			End:     tt.UniversalPosition{Filename: filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1},
-			Message: gi.Text,
+			Start:    token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
+			End:      token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1},
+			Message:  gi.Text,
 		})
 	}
 

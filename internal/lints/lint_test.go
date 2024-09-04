@@ -207,6 +207,123 @@ func example() {
 	}
 }
 
+func TestDetectLoopAllocation(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		code     string
+		expected int
+	}{
+		{
+			name: "Allocation in for loop",
+			code: `
+package main
+
+func main() {
+	for i := 0; i < 10; i++ {
+		_ = make([]int, 10)
+	}
+}`,
+			expected: 1,
+		},
+		{
+			name: "Allocation in range loop",
+			code: `
+package main
+
+func main() {
+	slice := []int{1, 2, 3}
+	for _, v := range slice {
+		_ = new(int)
+		_ = v
+	}
+}`,
+			expected: 1,
+		},
+		{
+			name: "Multiple allocations in loop",
+			code: `
+package main
+
+func main() {
+	for i := 0; i < 10; i++ {
+		_ = make([]int, 10)
+		_ = new(string)
+	}
+}`,
+			expected: 2,
+		},
+		// 		{
+		// 			name: "Variable allocation in loop",
+		// 			// ref: https://stackoverflow.com/questions/77180437/understanding-short-variable-declaration-in-loop-resulting-unnecessary-memory-a
+		// 			code: `
+		// 			package main
+
+		// import "fmt"
+
+		// func main() {
+		//     for i:=0; i<10; i++ {
+		//         a:=i+1 // BAD!: allocates memory in every iteration
+		//         fmt.Printf("i-val: %d, i-addr: %p, a-val: %d, a-addr: %p\n", i, &i, a, &a)
+		//     }
+		// }`,
+		// 			expected: 1,
+		// 		},
+		{
+			name: "No allocation in loop",
+			code: `
+package main
+
+func main() {
+	slice := make([]int, 10)
+	for i := 0; i < 10; i++ {
+		slice[i] = i
+	}
+}`,
+			expected: 0,
+		},
+		{
+			name: "Allocation outside loop",
+			code: `
+package main
+
+func main() {
+	_ = make([]int, 10)
+	for i := 0; i < 10; i++ {
+		// Do something
+	}
+}`,
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tmpDir, err := os.MkdirTemp("", "test")
+			require.NoError(t, err)
+			defer os.RemoveAll(tmpDir)
+
+			tmpfile := filepath.Join(tmpDir, "test.go")
+			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
+			require.NoError(t, err)
+
+			node, fset, err := ParseFile(tmpfile)
+			require.NoError(t, err)
+
+			issues, err := DetectLoopAllocation(tmpfile, node, fset)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expected, len(issues), "Number of issues does not match expected")
+
+			for _, issue := range issues {
+				assert.Contains(t, issue.Message, "Potential unnecessary allocation inside loop")
+			}
+		})
+	}
+}
+
 func TestDetectEmitFormat(t *testing.T) {
 	t.Parallel()
 	_, current, _, _ := runtime.Caller(0)

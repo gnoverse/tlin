@@ -41,26 +41,11 @@ func DetectUnnecessarySliceLength(filename string, node *ast.File, fset *token.F
 								baseMessage, arg.Name, lowIdent.Name, arg.Name, arg.Name, lowIdent.Name)
 						}
 
-						startPos := fset.Position(sliceExpr.Pos())
-						endPos := fset.Position(sliceExpr.End())
-
 						issue := tt.Issue{
-							Rule:     "simplify-slice-range",
-							Filename: filename,
-							Start: tt.UniversalPosition{
-								Filename: filename,
-								Line:     startPos.Line,
-								Column:   startPos.Column,
-								Offset:   startPos.Offset,
-								Length:   endPos.Offset - startPos.Offset,
-							},
-							End: tt.UniversalPosition{
-								Filename: filename,
-								Line:     endPos.Line,
-								Column:   endPos.Column,
-								Offset:   endPos.Offset,
-								Length:   0,
-							},
+							Rule:       "simplify-slice-range",
+							Filename:   filename,
+							Start:      fset.Position(sliceExpr.Pos()),
+							End:        fset.Position(sliceExpr.End()),
 							Message:    baseMessage,
 							Suggestion: suggestion,
 							Note:       detailedMessage,

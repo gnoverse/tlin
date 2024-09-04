@@ -51,6 +51,16 @@ func (r *UnnecessaryConversionRule) Name() string {
 	return "unnecessary-type-conversion"
 }
 
+type LoopAllocationRule struct{}
+
+func (r *LoopAllocationRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectLoopAllocation(filename, node, fset)
+}
+
+func (r *LoopAllocationRule) Name() string {
+	return "loop-allocation"
+}
+
 type DetectCycleRule struct{}
 
 func (r *DetectCycleRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
