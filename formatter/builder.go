@@ -18,6 +18,7 @@ const (
 	EmitFormat          = "emit-format"
 	SliceBound          = "slice-bounds-check"
 	Defers              = "defer-issues"
+	MissingModPackage   = "gno-mod-tidy"
 )
 
 const tabWidth = 8
@@ -69,6 +70,8 @@ func getFormatter(rule string) IssueFormatter {
 		return &SliceBoundsCheckFormatter{}
 	case Defers:
 		return &DefersFormatter{}
+	case MissingModPackage:
+		return &MissingModPackageFormatter{}
 	default:
 		return &GeneralIssueFormatter{}
 	}
@@ -154,7 +157,7 @@ func (b *IssueFormatterBuilder) AddUnderlineAndMessage() *IssueFormatterBuilder 
 	b.result.WriteString(lineStyle.Sprintf("%s| ", padding))
 
 	if startLine <= 0 || startLine > len(b.snippet.Lines) || endLine <= 0 || endLine > len(b.snippet.Lines) {
-		b.result.WriteString(messageStyle.Sprintf("Error: Invalid line numbers\n"))
+		b.result.WriteString(messageStyle.Sprintf("%s\n\n", b.issue.Message))
 		return b
 	}
 
@@ -168,6 +171,13 @@ func (b *IssueFormatterBuilder) AddUnderlineAndMessage() *IssueFormatterBuilder 
 
 	b.result.WriteString(lineStyle.Sprintf("%s| ", padding))
 	b.result.WriteString(messageStyle.Sprintf("%s\n\n", b.issue.Message))
+
+	return b
+}
+
+func (b *IssueFormatterBuilder) AddMessage() *IssueFormatterBuilder {
+	b.result.WriteString(messageStyle.Sprint(b.issue.Message))
+	b.result.WriteString("\n\n")
 
 	return b
 }
