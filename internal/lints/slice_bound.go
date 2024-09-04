@@ -65,12 +65,27 @@ func createIssue(node ast.Node, ident *ast.Ident, filename string, fset *token.F
 		note = "Consider using append() for slices to automatically handle capacity and prevent out of bounds errors."
 	}
 
+	startPos := fset.Position(node.Pos())
+	endPos := fset.Position(node.End())
+
 	return tt.Issue{
-		Rule:       "slice-bounds-check",
-		Category:   category,
-		Filename:   filename,
-		Start:      fset.Position(node.Pos()),
-		End:        fset.Position(node.End()),
+		Rule:     "slice-bounds-check",
+		Category: category,
+		Filename: filename,
+		Start: tt.UniversalPosition{
+			Filename: filename,
+			Line:     startPos.Line,
+			Column:   startPos.Column,
+			Offset:   startPos.Offset,
+			Length:   endPos.Offset - startPos.Offset,
+		},
+		End: tt.UniversalPosition{
+			Filename: filename,
+			Line:     endPos.Line,
+			Column:   endPos.Column,
+			Offset:   endPos.Offset,
+			Length:   0,
+		},
 		Message:    message,
 		Suggestion: suggestion,
 		Note:       note,

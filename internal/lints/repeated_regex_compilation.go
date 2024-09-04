@@ -54,12 +54,27 @@ func runAnalyzer(filename string, a *analysis.Analyzer) ([]tt.Issue, error) {
 
 	var issues []tt.Issue
 	for _, diag := range diagnostics {
+		startPos := pass.Fset.Position(diag.Pos)
+		endPos := pass.Fset.Position(diag.End)
+
 		issues = append(issues, tt.Issue{
 			Rule:     a.Name,
 			Filename: filename,
-			Start:    pass.Fset.Position(diag.Pos),
-			End:      pass.Fset.Position(diag.End),
-			Message:  diag.Message,
+			Start: tt.UniversalPosition{
+				Filename: filename,
+				Line:     startPos.Line,
+				Column:   startPos.Column,
+				Offset:   startPos.Offset,
+				Length:   endPos.Offset - startPos.Offset,
+			},
+			End: tt.UniversalPosition{
+				Filename: filename,
+				Line:     endPos.Line,
+				Column:   endPos.Column,
+				Offset:   endPos.Offset,
+				Length:   0,
+			},
+			Message: diag.Message,
 		})
 	}
 
