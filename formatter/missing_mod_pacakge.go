@@ -11,5 +11,6 @@ func (f *MissingModPackageFormatter) Format(issue tt.Issue, snippet *internal.So
 	builder := NewIssueFormatterBuilder(issue, snippet)
 	return builder.
 		AddHeader(errorHeader).
+		AddMessage().
 		Build()
 }

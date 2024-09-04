@@ -175,6 +175,13 @@ func (b *IssueFormatterBuilder) AddUnderlineAndMessage() *IssueFormatterBuilder 
 	return b
 }
 
+func (b *IssueFormatterBuilder) AddMessage() *IssueFormatterBuilder {
+	b.result.WriteString(messageStyle.Sprint(b.issue.Message))
+	b.result.WriteString("\n\n")
+
+	return b
+}
+
 func (b *IssueFormatterBuilder) AddSuggestion() *IssueFormatterBuilder {
 	if b.issue.Suggestion == "" {
 		return b

@@ -13,10 +13,6 @@ import (
 )
 
 func DetectMissingModPackage(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	if !strings.HasSuffix(filename, ".gno") {
-		return nil, nil
-	}
-
 	dir := filepath.Dir(filename)
 	modFile := filepath.Join(dir, "gno.mod")
 
@@ -36,8 +32,8 @@ func DetectMissingModPackage(filename string, node *ast.File, fset *token.FileSe
 			issue := tt.Issue{
 				Rule:     "gno-mod-tidy",
 				Filename: modFile,
-				Start:    token.Position{Filename: modFile},
-				End:      token.Position{Filename: modFile},
+				Start:    token.Position{Filename: modFile, Line: 1},
+				End:      token.Position{Filename: modFile, Line: 1},
 				Message:  fmt.Sprintf("Package %s is imported but not declared in gno.mod file.\nRun `gno mod tidy`", pkg),
 			}
 			issues = append(issues, issue)
