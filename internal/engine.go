@@ -144,13 +144,14 @@ func (e *Engine) cleanupTemp(temp string) {
 	}
 }
 
+// filterUndefinedIssue filters out golangci-lint's undefined symbol issues.
+// TODO: This is a temporary fix. need to find a better way to handle this.
 func (e *Engine) filterUndefinedIssues(issues []tt.Issue) []tt.Issue {
-	var filtered []tt.Issue
+	filtered := make([]tt.Issue, 0, len(issues))
 	for _, issue := range issues {
-		if issue.Rule == "typecheck" && strings.Contains(issue.Message, "undefined:") {
-			symbol := strings.TrimSpace(strings.TrimPrefix(issue.Message, "undefined:"))
+		if issue.Rule == "typecheck" && strings.HasPrefix(issue.Message, "undefined:") {
+			symbol := strings.TrimSpace(issue.Message[10:])
 			if e.SymbolTable.IsDefined(symbol) {
-				// ignore issues if the symbol is defined in the symbol table
 				continue
 			}
 		}
@@ -159,6 +160,9 @@ func (e *Engine) filterUndefinedIssues(issues []tt.Issue) []tt.Issue {
 	return filtered
 }
 
+// createTempGoFile converts a .gno file to a .go file.
+// Since golangci-lint does not support .gno file, we need to convert it to .go file.
+// gno has a identical syntax to go, so it is possible to convert it to go file.
 func createTempGoFile(gnoFile string) (string, error) {
 	content, err := os.ReadFile(gnoFile)
 	if err != nil {
