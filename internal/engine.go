@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/gnoswap-labs/tlin/internal/lints"
 	tt "github.com/gnoswap-labs/tlin/internal/types"
 )
@@ -17,6 +18,11 @@ type Engine struct {
 	rules        []LintRule
 	ignoredRules map[string]bool
 	defaultRules []LintRule
+
+	// watch mode
+	watcher    *fsnotify.Watcher
+	watchDirs  []string
+	isWatching bool
 }
 
 // NewEngine creates a new lint engine.
@@ -26,7 +32,16 @@ func NewEngine(rootDir string) (*Engine, error) {
 		return nil, fmt.Errorf("error building symbol table: %w", err)
 	}
 
-	engine := &Engine{SymbolTable: st}
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return nil, fmt.Errorf("error creating watcher: %w", err)
+	}
+
+	engine := &Engine{
+		SymbolTable: st,
+		watcher:     watcher,
+		watchDirs:   []string{rootDir},
+	}
 	engine.initDefaultRules()
 
 	return engine, nil

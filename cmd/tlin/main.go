@@ -8,6 +8,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -38,6 +39,7 @@ type Config struct {
 	AutoFix              bool
 	DryRun               bool
 	ConfidenceThreshold  float64
+	Watch                bool
 }
 
 type LintEngine interface {
@@ -66,19 +68,24 @@ func main() {
 		}
 	}
 
-	if config.CFGAnalysis {
+	switch {
+	case config.Watch:
+		runWithTimeout(ctx, func() {
+			runWatchMode(ctx, logger, engine, config.Paths)
+		})
+	case config.CFGAnalysis:
 		runWithTimeout(ctx, func() {
 			runCFGAnalysis(ctx, logger, config.Paths, config.FuncName)
 		})
-	} else if config.CyclomaticComplexity {
+	case config.CyclomaticComplexity:
 		runWithTimeout(ctx, func() {
 			runCyclomaticComplexityAnalysis(ctx, logger, config.Paths, config.CyclomaticThreshold)
 		})
-	} else if config.AutoFix {
+	case config.AutoFix:
 		runWithTimeout(ctx, func() {
 			runAutoFix(ctx, logger, engine, config.Paths, config.DryRun, config.ConfidenceThreshold)
 		})
-	} else {
+	default:
 		runWithTimeout(ctx, func() {
 			runNormalLintProcess(ctx, logger, engine, config.Paths)
 		})
@@ -98,7 +105,7 @@ func parseFlags(args []string) Config {
 	flagSet.BoolVar(&config.AutoFix, "fix", false, "Automatically fix issues")
 	flagSet.BoolVar(&config.DryRun, "dry-run", false, "Run in dry-run mode (show fixes without applying them)")
 	flagSet.Float64Var(&config.ConfidenceThreshold, "confidence", defaultConfidenceThreshold, "Confidence threshold for auto-fixing (0.0 to 1.0)")
-
+	flagSet.BoolVar(&config.Watch, "watch", false, "Watch mode")
 	err := flagSet.Parse(args)
 	if err != nil {
 		fmt.Println("Error parsing flags:", err)
@@ -202,6 +209,33 @@ func runAutoFix(ctx context.Context, logger *zap.Logger, engine LintEngine, path
 		err = fix.Fix(path, issues)
 		if err != nil {
 			logger.Error("error fixing issues", zap.String("path", path), zap.Error(err))
+		}
+	}
+}
+
+func runWatchMode(ctx context.Context, logger *zap.Logger, engine *internal.Engine, paths []string) {
+	err := engine.StartWatching()
+	if err != nil {
+		logger.Fatal("failed to start watching", zap.Error(err))
+	}
+	defer engine.StopWatching()
+
+	logger.Info("watch mode started. press ctrl+c (or, cmd+c on mac) to stop.")
+
+	// start initial lint process
+	runNormalLintProcess(ctx, logger, engine, paths)
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt)
+
+	for {
+		select {
+		case <-sigChan:
+			logger.Info("watch mode stopped")
+			return
+		case <-ctx.Done():
+			logger.Info("watch mode stopped by timeout")
+			return
 		}
 	}
 }
