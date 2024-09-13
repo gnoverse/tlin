@@ -16,6 +16,7 @@ type Engine struct {
 	SymbolTable  *SymbolTable
 	rules        []LintRule
 	ignoredRules map[string]bool
+	defaultRules []LintRule
 }
 
 // NewEngine creates a new lint engine.
@@ -26,14 +27,18 @@ func NewEngine(rootDir string) (*Engine, error) {
 	}
 
 	engine := &Engine{SymbolTable: st}
-	engine.registerDefaultRules()
+	engine.initDefaultRules()
 
 	return engine, nil
 }
 
 // registerDefaultRules adds the default set of lint rules to the engine.
 func (e *Engine) registerDefaultRules() {
-	e.rules = append(e.rules,
+	e.rules = append(e.rules, e.defaultRules...)
+}
+
+func (e *Engine) initDefaultRules() {
+	e.defaultRules = []LintRule{
 		&GolangciLintRule{},
 		&EarlyReturnOpportunityRule{},
 		&SimplifySliceExprRule{},
@@ -46,12 +51,8 @@ func (e *Engine) registerDefaultRules() {
 		&UselessBreakRule{},
 		&DeferRule{},
 		&MissingModPackageRule{},
-	)
-}
-
-// AddRule allows adding custom lint rules to the engine.
-func (e *Engine) AddRule(rule LintRule) {
-	e.rules = append(e.rules, rule)
+	}
+	e.registerDefaultRules()
 }
 
 // Run applies all lint rules to the given file and returns a slice of Issues.
