@@ -87,12 +87,14 @@ func DetectUnnecessaryConversions(filename string, node *ast.File, fset *token.F
 				if len(assignStmt.Lhs) > 0 {
 					lhs := types.ExprString(assignStmt.Lhs[0])
 					rhs := types.ExprString(call.Args[0])
-					suggestion = fmt.Sprintf("%s := %s", lhs, rhs)
+					if len(assignStmt.Lhs) == len(assignStmt.Rhs) {
+						// normal assignment
+						suggestion = fmt.Sprintf("%s = %s", lhs, rhs)
+					} else {
+						// short variable declaration
+						suggestion = fmt.Sprintf("%s := %s", lhs, rhs)
+					}
 				}
-			} else {
-				// not an assignment statement
-				// keep maintaining the original code
-				suggestion = types.ExprString(call.Args[0])
 			}
 
 			if id, ok := call.Args[0].(*ast.Ident); ok {
