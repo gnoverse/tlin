@@ -16,7 +16,7 @@ Inspired by Rust's [clippy](https://github.com/rust-lang/rust-clippy), tlin aims
 - Support for Go (.go) and Gno (.gno) files
 - Ability to add custom lint rules
 - Additional code improvement suggestion, such as detecting unnecessary code
-- Auto-fixing for some lint rules (🚧 WIP)
+- Auto-fixing for some lint rules
 - Cyclomatic complexity analysis
 
 ## Installation
@@ -124,69 +124,19 @@ func (e *Engine) registerDefaultRules() {
 
 By following these steps, you can add new lint rules and ensure they are properly formatted when displayed in the CLI.
 
-## Cyclomatic Complexity Analysis
+## Available Flags
 
-tlin includes a feature to analyze the [cyclomatic complexity](https://en.wikipedia.org/wiki/Cyclomatic_complexity) of your code. This feature is a quantitative measure of the number of linearly independent paths through a program's source code. It's often used to indicate the complexity of a program and can be used to estimate the effort required to test or maintain a function or method.
+tlin supports several flags to customize its behavior:
 
-High cyclomatic complexity can make code harder to understand and maintain. Generally, lower cyclomatic complexity is better.
-
-### Running Cyclomatic Complexity Analysis
-
-To run this analysis, use the `-cyclo` flag along with an optional `-threshold` flag to set the [complexity threshold](https://learn.microsoft.com/en-us/visualstudio/code-quality/code-metrics-cyclomatic-complexity?view=vs-2022). The default threshold is 10.
-
-|Cyclomatic Complexity | Risk Evaluation |
-|----------------------|-----------------|
-|1-10                  | Low             |
-|11-20                 | Moderate        |
-|21-50                 | High            |
-|>50                   | Very High       |
-
-```bash
-tlin -cyclo -threshold <threshold> <path>
-```
-
-For example:
-
-```bash
-tlin -cyclo -threshold 15 .
-```
-
-This command will analyze all `.go` and `.gno` files in the current directory and its subdirectories, reporting functions with a complexity higher than 15.
-
-The output will show:
-
-- The function name and its location
-- The cyclomatic complexity score
-
-Use this feature to identify complex parts of your codebase that might benefit from refactoring.
-
-## Control Flow Graph (CFG) [Experimental]
-
-tlin supports generating control flow graphs (CFG) for functions, A CFG is a representation of all paths that might be traversed through a program during its execution.
-
-### What is CFG?
-
-A Control Flow Graph (CFG) is a graphical representation of the flow of control in a program. It shows:
-
-- All possible execution paths in a function
-- Basic blocks of code (sequences of instructions with no branches except at the end)
-- Branching points (if statements, loops, etc.)
-- Function entry and exit points
-
-### How to Generate CFG?
-
-To generate a CFG for a specific function, use the follow command:
-
-```bash
-tlin -cfg -func <function_name> <path>
-```
-
-Where:
-
-- `<function_name>` is the name of the function you want to analyze
-- `<file_or_directory_path>` is the path to the file or directory containing the function
-
-When you run this command, it outputs a string in DOT format. However, exporting to a file after rendering is not yet supported.
+- `-timeout <duration>`: Set a timeout for the linter (default: 5m). Example: `-timeout 1m30s`
+- `-cyclo`: Run cyclomatic complexity analysis
+- `-threshold <int>`: Set cyclomatic complexity threshold (default: 10)
+- `-ignore <rules>`: Comma-separated list of lint rules to ignore
+- `-cfg`: Run control flow graph analysis
+- `-func <name>`: Specify function name for CFG analysis
+- `-fix`: Automatically fix issues
+- `-dry-run`: Run in dry-run mode (show fixes without applying them)
+- `-confidence <float>`: Set confidence threshold for auto-fixing (0.0 to 1.0, default: 0.75)
 
 ## Contributing
 
