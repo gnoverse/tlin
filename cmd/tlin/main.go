@@ -49,7 +49,7 @@ func main() {
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 
-	config := parseFlags()
+	config := parseFlags(os.Args[1:])
 
 	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 	defer cancel()
@@ -74,18 +74,10 @@ func main() {
 		runWithTimeout(ctx, func() {
 			runCyclomaticComplexityAnalysis(ctx, logger, config.Paths, config.CyclomaticThreshold)
 		})
-	} else {
+	} else if config.AutoFix {
 		runWithTimeout(ctx, func() {
-			runNormalLintProcess(ctx, logger, engine, config.Paths)
+			runAutoFix(ctx, logger, engine, config.Paths, config.DryRun, config.ConfidenceThreshold)
 		})
-	}
-
-	if config.AutoFix {
-		if config.ConfidenceThreshold < 0 || config.ConfidenceThreshold > 1 {
-			fmt.Println("error: confidence threshold must be between 0 and 1")
-			os.Exit(1)
-		}
-		runAutoFix(ctx, logger, engine, config.Paths, config.DryRun, config.ConfidenceThreshold)
 	} else {
 		runWithTimeout(ctx, func() {
 			runNormalLintProcess(ctx, logger, engine, config.Paths)
@@ -93,22 +85,27 @@ func main() {
 	}
 }
 
-func parseFlags() Config {
+func parseFlags(args []string) Config {
+	flagSet := flag.NewFlagSet("tlin", flag.ExitOnError)
 	config := Config{}
-	flag.DurationVar(&config.Timeout, "timeout", defaultTimeout, "Set a timeout for the linter. example: 1s, 1m, 1h")
-	flag.BoolVar(&config.CyclomaticComplexity, "cyclo", false, "Run cyclomatic complexity analysis")
-	flag.IntVar(&config.CyclomaticThreshold, "threshold", 10, "Cyclomatic complexity threshold")
-	flag.StringVar(&config.IgnoreRules, "ignore", "", "Comma-separated list of lint rules to ignore")
-	flag.BoolVar(&config.CFGAnalysis, "cfg", false, "Run control flow graph analysis")
-	flag.StringVar(&config.FuncName, "func", "", "Function name for CFG analysis")
 
-	flag.BoolVar(&config.AutoFix, "fix", false, "Automatically fix issues")
-	flag.BoolVar(&config.DryRun, "dry-run", false, "Show what would be fixed without actually fixing")
-	flag.Float64Var(&config.ConfidenceThreshold, "confidence", defaultConfidenceThreshold, "Minimum confidence threshold for fixing issues")
+	flagSet.DurationVar(&config.Timeout, "timeout", defaultTimeout, "Set a timeout for the linter. example: 1s, 1m, 1h")
+	flagSet.BoolVar(&config.CyclomaticComplexity, "cyclo", false, "Run cyclomatic complexity analysis")
+	flagSet.IntVar(&config.CyclomaticThreshold, "threshold", 10, "Cyclomatic complexity threshold")
+	flagSet.StringVar(&config.IgnoreRules, "ignore", "", "Comma-separated list of lint rules to ignore")
+	flagSet.BoolVar(&config.CFGAnalysis, "cfg", false, "Run control flow graph analysis")
+	flagSet.StringVar(&config.FuncName, "func", "", "Function name for CFG analysis")
+	flagSet.BoolVar(&config.AutoFix, "fix", false, "Automatically fix issues")
+	flagSet.BoolVar(&config.DryRun, "dry-run", false, "Run in dry-run mode (show fixes without applying them)")
+	flagSet.Float64Var(&config.ConfidenceThreshold, "confidence", defaultConfidenceThreshold, "Confidence threshold for auto-fixing (0.0 to 1.0)")
 
-	flag.Parse()
+	err := flagSet.Parse(args)
+	if err != nil {
+		fmt.Println("Error parsing flags:", err)
+		os.Exit(1)
+	}
 
-	config.Paths = flag.Args()
+	config.Paths = flagSet.Args()
 	if len(config.Paths) == 0 {
 		fmt.Println("error: Please provide file or directory paths")
 		os.Exit(1)
@@ -144,31 +141,6 @@ func runNormalLintProcess(ctx context.Context, logger *zap.Logger, engine LintEn
 
 	if len(issues) > 0 {
 		os.Exit(1)
-	}
-}
-
-func runAutoFix(ctx context.Context, logger *zap.Logger, engine LintEngine, paths []string, dryRun bool, confidenceThreshold float64) {
-	fix := fixer.New(dryRun, confidenceThreshold)
-
-	for _, path := range paths {
-		issues, err := processPath(ctx, logger, engine, path, processFile)
-		if err != nil {
-			logger.Error(
-				"error processing path",
-				zap.String("path", path),
-				zap.Error(err),
-			)
-			continue
-		}
-
-		err = fix.Fix(path, issues)
-		if err != nil {
-			logger.Error(
-				"error fixing issues",
-				zap.String("path", path),
-				zap.Error(err),
-			)
-		}
 	}
 }
 
@@ -214,6 +186,23 @@ func runCFGAnalysis(_ context.Context, logger *zap.Logger, paths []string, funcN
 
 	if !functionFound {
 		fmt.Printf("Function not found: %s\n", funcName)
+	}
+}
+
+func runAutoFix(ctx context.Context, logger *zap.Logger, engine LintEngine, paths []string, dryRun bool, confidenceThreshold float64) {
+	fix := fixer.New(dryRun, confidenceThreshold)
+
+	for _, path := range paths {
+		issues, err := processPath(ctx, logger, engine, path, processFile)
+		if err != nil {
+			logger.Error("error processing path", zap.String("path", path), zap.Error(err))
+			continue
+		}
+
+		err = fix.Fix(path, issues)
+		if err != nil {
+			logger.Error("error fixing issues", zap.String("path", path), zap.Error(err))
+		}
 	}
 }
 

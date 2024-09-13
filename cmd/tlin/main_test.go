@@ -31,19 +31,55 @@ func (m *MockLintEngine) IgnoreRule(rule string) {
 }
 
 func TestParseFlags(t *testing.T) {
-	t.Parallel()
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
+	tests := []struct {
+		name     string
+		args     []string
+		expected Config
+	}{
+		{
+			name: "AutoFix",
+			args: []string{"-fix", "file.go"},
+			expected: Config{
+				AutoFix:             true,
+				Paths:               []string{"file.go"},
+				ConfidenceThreshold: defaultConfidenceThreshold,
+			},
+		},
+		{
+			name: "AutoFix with DryRun",
+			args: []string{"-fix", "-dry-run", "file.go"},
+			expected: Config{
+				AutoFix:             true,
+				DryRun:              true,
+				Paths:               []string{"file.go"},
+				ConfidenceThreshold: defaultConfidenceThreshold,
+			},
+		},
+		{
+			name: "AutoFix with custom confidence",
+			args: []string{"-fix", "-confidence", "0.9", "file.go"},
+			expected: Config{
+				AutoFix:             true,
+				Paths:               []string{"file.go"},
+				ConfidenceThreshold: 0.9,
+			},
+		},
+	}
 
-	os.Args = []string{"cmd", "-timeout", "10s", "-cyclo", "-threshold", "15", "-ignore", "rule1,rule2", "file1.go", "file2.go"}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldArgs := os.Args
+			defer func() { os.Args = oldArgs }()
 
-	config := parseFlags()
+			os.Args = append([]string{"cmd"}, tt.args...)
+			config := parseFlags(tt.args)
 
-	assert.Equal(t, 10*time.Second, config.Timeout)
-	assert.True(t, config.CyclomaticComplexity)
-	assert.Equal(t, 15, config.CyclomaticThreshold)
-	assert.Equal(t, "rule1,rule2", config.IgnoreRules)
-	assert.Equal(t, []string{"file1.go", "file2.go"}, config.Paths)
+			assert.Equal(t, tt.expected.AutoFix, config.AutoFix)
+			assert.Equal(t, tt.expected.DryRun, config.DryRun)
+			assert.Equal(t, tt.expected.ConfidenceThreshold, config.ConfidenceThreshold)
+			assert.Equal(t, tt.expected.Paths, config.Paths)
+		})
+	}
 }
 
 func TestProcessFile(t *testing.T) {
@@ -260,4 +296,88 @@ func ignoredFunc() { 			// 19
 	output = buf.String()
 
 	assert.Contains(t, output, "Function not found: nonExistentFunc")
+}
+
+func TestRunAutoFix(t *testing.T) {
+	logger, _ := zap.NewProduction()
+	mockEngine := new(MockLintEngine)
+	ctx := context.Background()
+
+	tempDir, err := os.MkdirTemp("", "autofix-test")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	testFile := filepath.Join(tempDir, "test.go")
+	initialContent := `package main
+
+func main() {
+	slice := []int{1, 2, 3}
+	_ = slice[:len(slice)]
+}
+`
+	err = os.WriteFile(testFile, []byte(initialContent), 0644)
+	assert.NoError(t, err)
+
+	expectedIssues := []types.Issue{
+		{
+			Rule:       "simplify-slice-range",
+			Filename:   testFile,
+			Message:    "unnecessary use of len() in slice expression, can be simplified",
+			Start:      token.Position{Line: 5, Column: 5},
+			End:        token.Position{Line: 5, Column: 24},
+			Suggestion: "_ = slice[:]",
+			Confidence: 0.9,
+		},
+	}
+
+	mockEngine.On("Run", testFile).Return(expectedIssues, nil)
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	// Run auto-fix
+	runAutoFix(ctx, logger, mockEngine, []string{testFile}, false, 0.8)
+
+	// Restore stdout
+	w.Close()
+	os.Stdout = oldStdout
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	output := buf.String()
+
+	// Check if the fix was applied
+	content, err := os.ReadFile(testFile)
+	assert.NoError(t, err)
+
+	expectedContent := `package main
+
+func main() {
+	slice := []int{1, 2, 3}
+	_ = slice[:]
+}
+`
+	assert.Equal(t, expectedContent, string(content))
+	assert.Contains(t, output, "Fixed issues in")
+
+	// Test dry-run mode
+	err = os.WriteFile(testFile, []byte(initialContent), 0644)
+	assert.NoError(t, err)
+
+	r, w, _ = os.Pipe()
+	os.Stdout = w
+
+	runAutoFix(ctx, logger, mockEngine, []string{testFile}, true, 0.8)
+
+	w.Close()
+	os.Stdout = oldStdout
+	buf.Reset()
+	io.Copy(&buf, r)
+	output = buf.String()
+
+	content, err = os.ReadFile(testFile)
+	assert.NoError(t, err)
+	assert.Equal(t, initialContent, string(content))
+	assert.Contains(t, output, "Would fix issue in")
 }

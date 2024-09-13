@@ -36,7 +36,6 @@ func main() {
 		}
 
 		fixer := New(false, confidenceThreshold)
-		fixer.autoConfirm = true
 		err := fixer.Fix(testFile, issues)
 		require.NoError(t, err)
 
@@ -75,7 +74,6 @@ func main() {
 		}
 
 		fixer := New(false, confidenceThreshold)
-		fixer.autoConfirm = true
 		err := fixer.Fix(testFile, issues)
 		require.NoError(t, err)
 
@@ -126,7 +124,6 @@ func main() {
 		}
 
 		fixer := New(false, confidenceThreshold)
-		fixer.autoConfirm = true
 		err := fixer.Fix(testFile, issues)
 		require.NoError(t, err)
 
@@ -170,7 +167,6 @@ func main() {
 		}
 
 		fixer := New(false, confidenceThreshold)
-		fixer.autoConfirm = true
 		err := fixer.Fix(testFile, issues)
 		require.NoError(t, err)
 
@@ -211,7 +207,6 @@ func main() {
 		}
 
 		fixer := New(true, confidenceThreshold) // dry-run mode
-		fixer.autoConfirm = true
 		err := fixer.Fix(testFile, issues)
 		require.NoError(t, err)
 
@@ -257,7 +252,6 @@ func main() {
 		}
 
 		fixer := New(false, 0.8)
-		fixer.autoConfirm = true
 		err := fixer.Fix(testFile, issues)
 		require.NoError(t, err)
 

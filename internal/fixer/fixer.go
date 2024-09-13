@@ -1,7 +1,6 @@
 package fixer
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"go/format"
@@ -16,14 +15,12 @@ import (
 
 type Fixer struct {
 	DryRun        bool
-	autoConfirm   bool    // testing purposes
 	MinConfidence float64 // threshold for fixing issues
 }
 
 func New(dryRun bool, threshold float64) *Fixer {
 	return &Fixer{
 		DryRun:        dryRun,
-		autoConfirm:   false,
 		MinConfidence: threshold,
 	}
 }
@@ -48,10 +45,6 @@ func (f *Fixer) Fix(filename string, issues []tt.Issue) error {
 		if f.DryRun {
 			fmt.Printf("Would fix issue in %s at line %d: %s\n", filename, issue.Start.Line, issue.Message)
 			fmt.Printf("Suggestion:\n%s\n", issue.Suggestion)
-			continue
-		}
-
-		if !f.confirmFix(issue) && !f.autoConfirm {
 			continue
 		}
 
@@ -87,24 +80,6 @@ func (f *Fixer) Fix(filename string, issues []tt.Issue) error {
 	}
 
 	return nil
-}
-
-func (f *Fixer) confirmFix(issue tt.Issue) bool {
-	if f.autoConfirm {
-		return true
-	}
-
-	fmt.Printf(
-		"Fix issue in %s at line %d? (confidence: %.2f)\n",
-		issue.Filename, issue.Start.Line, issue.Confidence,
-	)
-	fmt.Printf("Message: %s\n", issue.Message)
-	fmt.Printf("Suggestion:\n%s\n", issue.Suggestion)
-	fmt.Print("Apply this fix? (y/N): ")
-
-	reader := bufio.NewReader(os.Stdin)
-	resp, _ := reader.ReadString('\n')
-	return strings.ToLower(strings.TrimSpace(resp)) == "y"
 }
 
 func (c *Fixer) extractIndent(line string) string {
