@@ -87,7 +87,7 @@ func main() {
 		})
 	default:
 		runWithTimeout(ctx, func() {
-			runNormalLintProcess(ctx, logger, engine, config.Paths)
+			runNormalLintProcess(ctx, logger, engine, config.Paths, false)
 		})
 	}
 }
@@ -137,17 +137,32 @@ func runWithTimeout(ctx context.Context, f func()) {
 	}
 }
 
-func runNormalLintProcess(ctx context.Context, logger *zap.Logger, engine LintEngine, paths []string) {
-	issues, err := processFiles(ctx, logger, engine, paths, processFile)
-	if err != nil {
-		logger.Error("Error processing files", zap.Error(err))
-		os.Exit(1)
-	}
+func runNormalLintProcess(ctx context.Context, logger *zap.Logger, engine LintEngine, paths []string, isWatching bool) {
+	for {
+		issues, err := processFiles(ctx, logger, engine, paths, processFile)
+		if err != nil {
+			logger.Error("error processing files", zap.Error(err))
+			if !isWatching {
+				os.Exit(1)
+			}
+		}
 
-	printIssues(logger, issues)
+		printIssues(logger, issues)
 
-	if len(issues) > 0 {
-		os.Exit(1)
+		if !isWatching {
+			if len(issues) > 0 {
+				os.Exit(1)
+			}
+			return
+		}
+
+		select {
+		case <-ctx.Done():
+			logger.Info("watch mode stopped")
+			return
+		case <-time.After(5 * time.Second):
+			// wait 5 seconds and check again
+		}
 	}
 }
 
@@ -214,6 +229,7 @@ func runAutoFix(ctx context.Context, logger *zap.Logger, engine LintEngine, path
 }
 
 func runWatchMode(ctx context.Context, logger *zap.Logger, engine *internal.Engine, paths []string) {
+	isWatching := true
 	err := engine.StartWatching()
 	if err != nil {
 		logger.Fatal("failed to start watching", zap.Error(err))
@@ -223,7 +239,7 @@ func runWatchMode(ctx context.Context, logger *zap.Logger, engine *internal.Engi
 	logger.Info("watch mode started. press ctrl+c (or, cmd+c on mac) to stop.")
 
 	// start initial lint process
-	runNormalLintProcess(ctx, logger, engine, paths)
+	runNormalLintProcess(ctx, logger, engine, paths, isWatching)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
