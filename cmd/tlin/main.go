@@ -320,7 +320,11 @@ func printIssues(logger *zap.Logger, issues []tt.Issue, jsonOutput string) {
 			logger.Error("Error marshalling issues to JSON", zap.Error(err))
 			return
 		}
-		f, _ := os.Create(jsonOutput)
+		f, err := os.Create(jsonOutput)
+		if err != nil {
+			logger.Error("Error creating JSON output file", zap.Error(err))
+			return
+		}
 		defer f.Close()
 		f.Write(d)
 	}
