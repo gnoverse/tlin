@@ -64,6 +64,15 @@ func TestParseFlags(t *testing.T) {
 				ConfidenceThreshold: 0.9,
 			},
 		},
+		{
+			name: "JsonOutput",
+			args: []string{"-json-output", "output.json", "file.go"},
+			expected: Config{
+				Paths:               []string{"file.go"},
+				JsonOutput:          "output.json",
+				ConfidenceThreshold: defaultConfidenceThreshold,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -78,6 +87,7 @@ func TestParseFlags(t *testing.T) {
 			assert.Equal(t, tt.expected.DryRun, config.DryRun)
 			assert.Equal(t, tt.expected.ConfidenceThreshold, config.ConfidenceThreshold)
 			assert.Equal(t, tt.expected.Paths, config.Paths)
+			assert.Equal(t, tt.expected.JsonOutput, config.JsonOutput)
 		})
 	}
 }
