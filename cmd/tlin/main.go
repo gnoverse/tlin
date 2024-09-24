@@ -291,31 +291,7 @@ func printIssues(logger *zap.Logger, issues []tt.Issue, jsonOutput string) {
 			fmt.Println(output)
 		}
 	} else {
-		issuesEssentialsByFile := make(map[string][]tt.IssueEssential)
-		for _, filename := range sortedFiles {
-			fileIssues := issuesByFile[filename]
-			sourceCode, err := internal.ReadSourceCode(filename)
-			if err != nil {
-				logger.Error("Error reading source file", zap.String("file", filename), zap.Error(err))
-				continue
-			}
-
-			for _, issue := range fileIssues {
-				codeSnippet := formatter.GetCodeSnippet(issue, sourceCode)
-				issueEssential := tt.IssueEssential{
-					Rule:       issue.Rule,
-					Category:   issue.Category,
-					Message:    issue.Message,
-					Suggestion: issue.Suggestion,
-					Note:       issue.Note,
-					Snippet:    codeSnippet,
-					Confidence: issue.Confidence,
-				}
-				issuesEssentialsByFile[filename] = append(issuesEssentialsByFile[filename], issueEssential)
-			}
-		}
-
-		d, err := json.Marshal(issuesEssentialsByFile)
+		d, err := json.Marshal(issuesByFile)
 		if err != nil {
 			logger.Error("Error marshalling issues to JSON", zap.Error(err))
 			return
@@ -326,7 +302,11 @@ func printIssues(logger *zap.Logger, issues []tt.Issue, jsonOutput string) {
 			return
 		}
 		defer f.Close()
-		f.Write(d)
+		_, err = f.Write(d)
+		if err != nil {
+			logger.Error("Error writing JSON output file", zap.Error(err))
+			return
+		}
 	}
 }
 
