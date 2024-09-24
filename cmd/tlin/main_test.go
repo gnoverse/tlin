@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"go/token"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -390,4 +392,66 @@ func main() {
 	assert.NoError(t, err)
 	assert.Equal(t, initialContent, string(content))
 	assert.Contains(t, output, "Would fix issue in")
+}
+
+func TestRunJsonOutput(t *testing.T) {
+	if os.Getenv("BE_CRASHER") != "1" {
+		cmd := exec.Command(os.Args[0], "-test.run=TestRunJsonOutput")
+		cmd.Env = append(os.Environ(), "BE_CRASHER=1")
+		output, err := cmd.CombinedOutput() // Capture both stdout and stderr
+		if e, ok := err.(*exec.ExitError); ok && !e.Success() {
+			tempDir := string(bytes.TrimRight(output, "\n"))
+			defer os.RemoveAll(tempDir)
+
+			// Check if the issue has been written
+			jsonOutput := filepath.Join(tempDir, "output.json")
+			content, err := os.ReadFile(jsonOutput)
+			assert.NoError(t, err)
+
+			expectedContent := fmt.Sprintf(`{"%s/test.go":[{"rule":"simplify-slice-range","category":"","message":"unnecessary use of len() in slice expression, can be simplified","suggestion":"_ = slice[:]","note":"","start":{"offset":0,"line":5,"column":5},"end":{"offset":0,"line":5,"column":24},"confidence":0.9}]}`, tempDir)
+			assert.Equal(t, expectedContent, string(content))
+
+			return
+		}
+		t.Fatalf("process ran with err %v, want exit status 1", err)
+	}
+
+	logger, _ := zap.NewProduction()
+	mockEngine := new(MockLintEngine)
+	ctx := context.Background()
+
+	tempDir, err := os.MkdirTemp("", "json-test")
+	assert.NoError(t, err)
+	fmt.Println(tempDir)
+
+	testFile := filepath.Join(tempDir, "test.go")
+	initialContent := `package main
+	
+		func main() {
+			slice := []int{1, 2, 3}
+			_ = slice[:len(slice)]
+		}
+	
+	 `
+
+	err = os.WriteFile(testFile, []byte(initialContent), 0644)
+	assert.NoError(t, err)
+
+	expectedIssues := []types.Issue{
+		{
+			Rule:       "simplify-slice-range",
+			Filename:   testFile,
+			Message:    "unnecessary use of len() in slice expression, can be simplified",
+			Start:      token.Position{Line: 5, Column: 5},
+			End:        token.Position{Line: 5, Column: 24},
+			Suggestion: "_ = slice[:]",
+			Confidence: 0.9,
+		},
+	}
+
+	mockEngine.On("Run", testFile).Return(expectedIssues, nil)
+
+	// Run
+	jsonOutput := filepath.Join(tempDir, "output.json")
+	runNormalLintProcess(ctx, logger, mockEngine, []string{testFile}, jsonOutput)
 }
