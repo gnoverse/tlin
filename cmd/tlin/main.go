@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -37,6 +38,7 @@ type Config struct {
 	FuncName             string
 	AutoFix              bool
 	DryRun               bool
+	JsonOutput           string
 	ConfidenceThreshold  float64
 }
 
@@ -72,7 +74,7 @@ func main() {
 		})
 	} else if config.CyclomaticComplexity {
 		runWithTimeout(ctx, func() {
-			runCyclomaticComplexityAnalysis(ctx, logger, config.Paths, config.CyclomaticThreshold)
+			runCyclomaticComplexityAnalysis(ctx, logger, config.Paths, config.CyclomaticThreshold, config.JsonOutput)
 		})
 	} else if config.AutoFix {
 		runWithTimeout(ctx, func() {
@@ -80,7 +82,7 @@ func main() {
 		})
 	} else {
 		runWithTimeout(ctx, func() {
-			runNormalLintProcess(ctx, logger, engine, config.Paths)
+			runNormalLintProcess(ctx, logger, engine, config.Paths, config.JsonOutput)
 		})
 	}
 }
@@ -97,6 +99,7 @@ func parseFlags(args []string) Config {
 	flagSet.StringVar(&config.FuncName, "func", "", "Function name for CFG analysis")
 	flagSet.BoolVar(&config.AutoFix, "fix", false, "Automatically fix issues")
 	flagSet.BoolVar(&config.DryRun, "dry-run", false, "Run in dry-run mode (show fixes without applying them)")
+	flagSet.StringVar(&config.JsonOutput, "json-output", "", "Output issues in JSON format to the specified file")
 	flagSet.Float64Var(&config.ConfidenceThreshold, "confidence", defaultConfidenceThreshold, "Confidence threshold for auto-fixing (0.0 to 1.0)")
 
 	err := flagSet.Parse(args)
@@ -130,21 +133,21 @@ func runWithTimeout(ctx context.Context, f func()) {
 	}
 }
 
-func runNormalLintProcess(ctx context.Context, logger *zap.Logger, engine LintEngine, paths []string) {
+func runNormalLintProcess(ctx context.Context, logger *zap.Logger, engine LintEngine, paths []string, jsonOutput string) {
 	issues, err := processFiles(ctx, logger, engine, paths, processFile)
 	if err != nil {
 		logger.Error("Error processing files", zap.Error(err))
 		os.Exit(1)
 	}
 
-	printIssues(logger, issues)
+	printIssues(logger, issues, jsonOutput)
 
 	if len(issues) > 0 {
 		os.Exit(1)
 	}
 }
 
-func runCyclomaticComplexityAnalysis(ctx context.Context, logger *zap.Logger, paths []string, threshold int) {
+func runCyclomaticComplexityAnalysis(ctx context.Context, logger *zap.Logger, paths []string, threshold int, jsonOutput string) {
 	issues, err := processFiles(ctx, logger, nil, paths, func(_ LintEngine, path string) ([]tt.Issue, error) {
 		return processCyclomaticComplexity(path, threshold)
 	})
@@ -153,7 +156,7 @@ func runCyclomaticComplexityAnalysis(ctx context.Context, logger *zap.Logger, pa
 		os.Exit(1)
 	}
 
-	printIssues(logger, issues)
+	printIssues(logger, issues, jsonOutput)
 
 	if len(issues) > 0 {
 		os.Exit(1)
@@ -264,7 +267,7 @@ func processCyclomaticComplexity(path string, threshold int) ([]tt.Issue, error)
 	return lints.DetectHighCyclomaticComplexity(path, threshold)
 }
 
-func printIssues(logger *zap.Logger, issues []tt.Issue) {
+func printIssues(logger *zap.Logger, issues []tt.Issue, jsonOutput string) {
 	issuesByFile := make(map[string][]tt.Issue)
 	for _, issue := range issues {
 		issuesByFile[issue.Filename] = append(issuesByFile[issue.Filename], issue)
@@ -276,15 +279,34 @@ func printIssues(logger *zap.Logger, issues []tt.Issue) {
 	}
 	sort.Strings(sortedFiles)
 
-	for _, filename := range sortedFiles {
-		fileIssues := issuesByFile[filename]
-		sourceCode, err := internal.ReadSourceCode(filename)
-		if err != nil {
-			logger.Error("Error reading source file", zap.String("file", filename), zap.Error(err))
-			continue
+	if jsonOutput == "" {
+		for _, filename := range sortedFiles {
+			fileIssues := issuesByFile[filename]
+			sourceCode, err := internal.ReadSourceCode(filename)
+			if err != nil {
+				logger.Error("Error reading source file", zap.String("file", filename), zap.Error(err))
+				continue
+			}
+			output := formatter.GenetateFormattedIssue(fileIssues, sourceCode)
+			fmt.Println(output)
 		}
-		output := formatter.GenetateFormattedIssue(fileIssues, sourceCode)
-		fmt.Println(output)
+	} else {
+		d, err := json.Marshal(issuesByFile)
+		if err != nil {
+			logger.Error("Error marshalling issues to JSON", zap.Error(err))
+			return
+		}
+		f, err := os.Create(jsonOutput)
+		if err != nil {
+			logger.Error("Error creating JSON output file", zap.Error(err))
+			return
+		}
+		defer f.Close()
+		_, err = f.Write(d)
+		if err != nil {
+			logger.Error("Error writing JSON output file", zap.Error(err))
+			return
+		}
 	}
 }
 
