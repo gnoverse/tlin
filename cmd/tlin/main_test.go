@@ -89,10 +89,6 @@ func TestParseFlags(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			oldArgs := os.Args
-			defer func() { os.Args = oldArgs }()
-
-			os.Args = append([]string{"cmd"}, tt.args...)
 			config := parseFlags(tt.args)
 
 			assert.Equal(t, tt.expected.AutoFix, config.AutoFix)
