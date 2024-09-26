@@ -39,9 +39,9 @@ type IssueFormatter interface {
 	Format(issue tt.Issue, snippet *internal.SourceCode) string
 }
 
-// GenetateFormattedIssue formats a slice of issues into a human-readable string.
+// GenerateFormattedIssue formats a slice of issues into a human-readable string.
 // It uses the appropriate formatter for each issue based on its rule.
-func GenetateFormattedIssue(issues []tt.Issue, snippet *internal.SourceCode) string {
+func GenerateFormattedIssue(issues []tt.Issue, snippet *internal.SourceCode) string {
 	var builder strings.Builder
 	for _, issue := range issues {
 		// builder.WriteString(formatIssueHeader(issue))

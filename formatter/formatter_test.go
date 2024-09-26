@@ -55,7 +55,7 @@ error: empty-if
 
 `
 
-	result := GenetateFormattedIssue(issues, code)
+	result := GenerateFormattedIssue(issues, code)
 
 	assert.Equal(t, expected, result, "Formatted output does not match expected")
 
@@ -87,7 +87,7 @@ error: empty-if
 
 `
 
-	resultWithTabs := GenetateFormattedIssue(issues, sourceCodeWithTabs)
+	resultWithTabs := GenerateFormattedIssue(issues, sourceCodeWithTabs)
 
 	assert.Equal(t, expectedWithTabs, resultWithTabs, "Formatted output with tabs does not match expected")
 }
@@ -156,7 +156,7 @@ error: example
 
 `
 
-	result := GenetateFormattedIssue(issues, code)
+	result := GenerateFormattedIssue(issues, code)
 
 	assert.Equal(t, expected, result, "Formatted output with multiple digit line numbers does not match expected")
 }
@@ -211,7 +211,7 @@ The code inside the 'else' block has been moved outside, as it will only be exec
 
 `
 
-	result := GenetateFormattedIssue(issues, code)
+	result := GenerateFormattedIssue(issues, code)
 	t.Logf("result: %s", result)
 	assert.Equal(t, expected, result, "Formatted output does not match expected for unnecessary else")
 }
