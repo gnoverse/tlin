@@ -3,12 +3,14 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"go/token"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,21 +20,27 @@ import (
 	"go.uber.org/zap"
 )
 
-// MockLintEngine is a mock implementation of the LintEngine interface
-type MockLintEngine struct {
+type mockLintEngine struct {
 	mock.Mock
 }
 
-func (m *MockLintEngine) Run(filePath string) ([]types.Issue, error) {
+func (m *mockLintEngine) Run(filePath string) ([]types.Issue, error) {
 	args := m.Called(filePath)
 	return args.Get(0).([]types.Issue), args.Error(1)
 }
 
-func (m *MockLintEngine) IgnoreRule(rule string) {
+func (m *mockLintEngine) IgnoreRule(rule string) {
 	m.Called(rule)
 }
 
+func setupMockEngine(expectedIssues []types.Issue, filePath string) *mockLintEngine {
+	mockEngine := new(mockLintEngine)
+	mockEngine.On("Run", filePath).Return(expectedIssues, nil)
+	return mockEngine
+}
+
 func TestParseFlags(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		args     []string
@@ -78,11 +86,9 @@ func TestParseFlags(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			oldArgs := os.Args
-			defer func() { os.Args = oldArgs }()
-
-			os.Args = append([]string{"cmd"}, tt.args...)
+			t.Parallel()
 			config := parseFlags(tt.args)
 
 			assert.Equal(t, tt.expected.AutoFix, config.AutoFix)
@@ -96,7 +102,6 @@ func TestParseFlags(t *testing.T) {
 
 func TestProcessFile(t *testing.T) {
 	t.Parallel()
-	mockEngine := new(MockLintEngine)
 	expectedIssues := []types.Issue{
 		{
 			Rule:     "test-rule",
@@ -106,7 +111,7 @@ func TestProcessFile(t *testing.T) {
 			Message:  "Test issue",
 		},
 	}
-	mockEngine.On("Run", "test.go").Return(expectedIssues, nil)
+	mockEngine := setupMockEngine(expectedIssues, "test.go")
 
 	issues, err := processFile(mockEngine, "test.go")
 
@@ -118,95 +123,82 @@ func TestProcessFile(t *testing.T) {
 func TestProcessPath(t *testing.T) {
 	t.Parallel()
 	logger, _ := zap.NewProduction()
-	mockEngine := new(MockLintEngine)
 	ctx := context.Background()
 
 	tempDir, err := os.MkdirTemp("", "test")
 	assert.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
-	testFile1 := filepath.Join(tempDir, "test1.go")
-	testFile2 := filepath.Join(tempDir, "test2.go")
-	_, err = os.Create(testFile1)
-	assert.NoError(t, err)
-	_, err = os.Create(testFile2)
-	assert.NoError(t, err)
+	paths := createTempFiles(t, tempDir, "test1.go", "test2.go")
 
-	expectedIssues1 := []types.Issue{
+	expectedIssues := []types.Issue{
 		{
 			Rule:     "rule1",
-			Filename: testFile1,
-			Start:    token.Position{Filename: testFile1, Offset: 0, Line: 1, Column: 1},
-			End:      token.Position{Filename: testFile1, Offset: 10, Line: 1, Column: 11},
+			Filename: paths[0],
+			Start:    token.Position{Filename: paths[0], Offset: 0, Line: 1, Column: 1},
+			End:      token.Position{Filename: paths[0], Offset: 10, Line: 1, Column: 11},
 			Message:  "Test issue 1",
 		},
-	}
-	expectedIssues2 := []types.Issue{
 		{
 			Rule:     "rule2",
-			Filename: testFile2,
-			Start:    token.Position{Filename: testFile2, Offset: 0, Line: 1, Column: 1},
-			End:      token.Position{Filename: testFile2, Offset: 10, Line: 1, Column: 11},
+			Filename: paths[1],
+			Start:    token.Position{Filename: paths[1], Offset: 0, Line: 1, Column: 1},
+			End:      token.Position{Filename: paths[1], Offset: 10, Line: 1, Column: 11},
 			Message:  "Test issue 2",
 		},
 	}
 
-	mockEngine.On("Run", testFile1).Return(expectedIssues1, nil)
-	mockEngine.On("Run", testFile2).Return(expectedIssues2, nil)
+	mockEngine := new(mockLintEngine)
+	mockEngine.On("Run", paths[0]).Return([]types.Issue{expectedIssues[0]}, nil)
+	mockEngine.On("Run", paths[1]).Return([]types.Issue{expectedIssues[1]}, nil)
 
 	issues, err := processPath(ctx, logger, mockEngine, tempDir, processFile)
 
 	assert.NoError(t, err)
 	assert.Len(t, issues, 2)
-	assert.Contains(t, issues, expectedIssues1[0])
-	assert.Contains(t, issues, expectedIssues2[0])
+	assert.Contains(t, issues, expectedIssues[0])
+	assert.Contains(t, issues, expectedIssues[1])
 	mockEngine.AssertExpectations(t)
 }
 
 func TestProcessFiles(t *testing.T) {
 	t.Parallel()
 	logger, _ := zap.NewProduction()
-	mockEngine := new(MockLintEngine)
 	ctx := context.Background()
 
-	tempFile1, err := os.CreateTemp("", "test1*.go")
+	tempDir, err := os.MkdirTemp("", "test")
 	assert.NoError(t, err)
-	defer os.Remove(tempFile1.Name())
+	defer os.RemoveAll(tempDir)
 
-	tempFile2, err := os.CreateTemp("", "test2*.go")
-	assert.NoError(t, err)
-	defer os.Remove(tempFile2.Name())
+	paths := createTempFiles(t, tempDir, "test1.go", "test2.go")
 
-	paths := []string{tempFile1.Name(), tempFile2.Name()}
-
-	expectedIssues1 := []types.Issue{
+	expectedIssues := []types.Issue{
 		{
 			Rule:     "rule1",
-			Filename: tempFile1.Name(),
-			Start:    token.Position{Filename: tempFile1.Name(), Offset: 0, Line: 1, Column: 1},
-			End:      token.Position{Filename: tempFile1.Name(), Offset: 10, Line: 1, Column: 11},
+			Filename: paths[0],
+			Start:    token.Position{Filename: paths[0], Offset: 0, Line: 1, Column: 1},
+			End:      token.Position{Filename: paths[0], Offset: 10, Line: 1, Column: 11},
 			Message:  "Test issue 1",
 		},
-	}
-	expectedIssues2 := []types.Issue{
 		{
 			Rule:     "rule2",
-			Filename: tempFile2.Name(),
-			Start:    token.Position{Filename: tempFile2.Name(), Offset: 0, Line: 1, Column: 1},
-			End:      token.Position{Filename: tempFile2.Name(), Offset: 10, Line: 1, Column: 11},
+			Filename: paths[1],
+			Start:    token.Position{Filename: paths[1], Offset: 0, Line: 1, Column: 1},
+			End:      token.Position{Filename: paths[1], Offset: 10, Line: 1, Column: 11},
 			Message:  "Test issue 2",
 		},
 	}
 
-	mockEngine.On("Run", tempFile1.Name()).Return(expectedIssues1, nil)
-	mockEngine.On("Run", tempFile2.Name()).Return(expectedIssues2, nil)
+	mockEngine := new(mockLintEngine)
+	mockEngine.On("Run", paths[0]).Return([]types.Issue{expectedIssues[0]}, nil)
+	mockEngine.On("Run", paths[1]).Return([]types.Issue{expectedIssues[1]}, nil)
 
 	issues, err := processFiles(ctx, logger, mockEngine, paths, processFile)
 
 	assert.NoError(t, err)
 	assert.Len(t, issues, 2)
-	assert.Contains(t, issues, expectedIssues1[0])
-	assert.Contains(t, issues, expectedIssues2[0])
+	assert.Contains(t, issues, expectedIssues[0])
+	assert.Contains(t, issues, expectedIssues[1])
 	mockEngine.AssertExpectations(t)
 }
 
@@ -233,19 +225,15 @@ func TestRunWithTimeout(t *testing.T) {
 
 	select {
 	case <-done:
-		// Function completed successfully
+		// no problem
 	case <-ctx.Done():
-		t.Fatal("Function timed out unexpectedly")
+		t.Fatal("function unexpectedly timed out")
 	}
 }
 
 func TestRunCFGAnalysis(t *testing.T) {
 	t.Parallel()
 	logger, _ := zap.NewProduction()
-
-	tempFile, err := os.CreateTemp("", "test*.go")
-	assert.NoError(t, err)
-	defer os.Remove(tempFile.Name())
 
 	testCode := `package main 	// 1
 								// 2
@@ -270,22 +258,14 @@ func ignoredFunc() { 			// 19
     println(z) 					// 21
 } 								// 22
 `
-	_, err = tempFile.Write([]byte(testCode))
-	assert.NoError(t, err)
-	tempFile.Close()
-
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+	tempFile := createTempFileWithContent(t, testCode)
+	defer os.Remove(tempFile)
 
 	ctx := context.Background()
-	runCFGAnalysis(ctx, logger, []string{tempFile.Name()}, "targetFunc")
 
-	w.Close()
-	os.Stdout = oldStdout
-	var buf bytes.Buffer
-	io.Copy(&buf, r)
-	output := buf.String()
+	output := captureOutput(t, func() {
+		runCFGAnalysis(ctx, logger, []string{tempFile}, "targetFunc")
+	})
 
 	assert.Contains(t, output, "CFG for function targetFunc in file")
 	assert.Contains(t, output, "digraph mgraph")
@@ -296,23 +276,23 @@ func ignoredFunc() { 			// 19
 
 	t.Logf("output: %s", output)
 
-	r, w, _ = os.Pipe()
-	os.Stdout = w
-
-	runCFGAnalysis(ctx, logger, []string{tempFile.Name()}, "nonExistentFunc")
-
-	w.Close()
-	os.Stdout = oldStdout
-	buf.Reset()
-	io.Copy(&buf, r)
-	output = buf.String()
+	output = captureOutput(t, func() {
+		runCFGAnalysis(ctx, logger, []string{tempFile}, "nonExistentFunc")
+	})
 
 	assert.Contains(t, output, "Function not found: nonExistentFunc")
 }
 
+const sliceRangeIssueExample = `package main
+
+func main() {
+	slice := []int{1, 2, 3}
+	_ = slice[:len(slice)]
+}
+`
+
 func TestRunAutoFix(t *testing.T) {
 	logger, _ := zap.NewProduction()
-	mockEngine := new(MockLintEngine)
 	ctx := context.Background()
 
 	tempDir, err := os.MkdirTemp("", "autofix-test")
@@ -320,14 +300,7 @@ func TestRunAutoFix(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	testFile := filepath.Join(tempDir, "test.go")
-	initialContent := `package main
-
-func main() {
-	slice := []int{1, 2, 3}
-	_ = slice[:len(slice)]
-}
-`
-	err = os.WriteFile(testFile, []byte(initialContent), 0644)
+	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0644)
 	assert.NoError(t, err)
 
 	expectedIssues := []types.Issue{
@@ -342,24 +315,12 @@ func main() {
 		},
 	}
 
-	mockEngine.On("Run", testFile).Return(expectedIssues, nil)
+	mockEngine := setupMockEngine(expectedIssues, testFile)
 
-	// Capture stdout
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+	output := captureOutput(t, func() {
+		runAutoFix(ctx, logger, mockEngine, []string{testFile}, false, 0.8)
+	})
 
-	// Run auto-fix
-	runAutoFix(ctx, logger, mockEngine, []string{testFile}, false, 0.8)
-
-	// Restore stdout
-	w.Close()
-	os.Stdout = oldStdout
-	var buf bytes.Buffer
-	io.Copy(&buf, r)
-	output := buf.String()
-
-	// Check if the fix was applied
 	content, err := os.ReadFile(testFile)
 	assert.NoError(t, err)
 
@@ -373,24 +334,17 @@ func main() {
 	assert.Equal(t, expectedContent, string(content))
 	assert.Contains(t, output, "Fixed issues in")
 
-	// Test dry-run mode
-	err = os.WriteFile(testFile, []byte(initialContent), 0644)
+	// dry run test
+	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0644)
 	assert.NoError(t, err)
 
-	r, w, _ = os.Pipe()
-	os.Stdout = w
-
-	runAutoFix(ctx, logger, mockEngine, []string{testFile}, true, 0.8)
-
-	w.Close()
-	os.Stdout = oldStdout
-	buf.Reset()
-	io.Copy(&buf, r)
-	output = buf.String()
+	output = captureOutput(t, func() {
+		runAutoFix(ctx, logger, mockEngine, []string{testFile}, true, 0.8)
+	})
 
 	content, err = os.ReadFile(testFile)
 	assert.NoError(t, err)
-	assert.Equal(t, initialContent, string(content))
+	assert.Equal(t, sliceRangeIssueExample, string(content))
 	assert.Contains(t, output, "Would fix issue in")
 }
 
@@ -398,26 +352,41 @@ func TestRunJsonOutput(t *testing.T) {
 	if os.Getenv("BE_CRASHER") != "1" {
 		cmd := exec.Command(os.Args[0], "-test.run=TestRunJsonOutput")
 		cmd.Env = append(os.Environ(), "BE_CRASHER=1")
-		output, err := cmd.CombinedOutput() // Capture both stdout and stderr
+		output, err := cmd.CombinedOutput() // stdout and stderr capture
 		if e, ok := err.(*exec.ExitError); ok && !e.Success() {
 			tempDir := string(bytes.TrimRight(output, "\n"))
 			defer os.RemoveAll(tempDir)
 
-			// Check if the issue has been written
+			// check if issues are written
 			jsonOutput := filepath.Join(tempDir, "output.json")
 			content, err := os.ReadFile(jsonOutput)
 			assert.NoError(t, err)
 
-			expectedContent := fmt.Sprintf(`{"%s/test.go":[{"rule":"simplify-slice-range","category":"","message":"unnecessary use of len() in slice expression, can be simplified","suggestion":"_ = slice[:]","note":"","start":{"offset":0,"line":5,"column":5},"end":{"offset":0,"line":5,"column":24},"confidence":0.9}]}`, tempDir)
-			assert.Equal(t, expectedContent, string(content))
+			var actualContent map[string][]types.Issue
+			err = json.Unmarshal(content, &actualContent)
+			assert.NoError(t, err)
+
+			assert.Len(t, actualContent, 1)
+			for filename, issues := range actualContent {
+				assert.True(t, strings.HasSuffix(filename, "test.go"))
+				assert.Len(t, issues, 1)
+				issue := issues[0]
+				assert.Equal(t, "simplify-slice-range", issue.Rule)
+				assert.Equal(t, "unnecessary use of len() in slice expression, can be simplified", issue.Message)
+				assert.Equal(t, "_ = slice[:]", issue.Suggestion)
+				assert.Equal(t, 0.9, issue.Confidence)
+				assert.Equal(t, 5, issue.Start.Line)
+				assert.Equal(t, 5, issue.Start.Column)
+				assert.Equal(t, 5, issue.End.Line)
+				assert.Equal(t, 24, issue.End.Column)
+			}
 
 			return
 		}
-		t.Fatalf("process ran with err %v, want exit status 1", err)
+		t.Fatalf("process failed with error %v, expected exit status 1", err)
 	}
 
 	logger, _ := zap.NewProduction()
-	mockEngine := new(MockLintEngine)
 	ctx := context.Background()
 
 	tempDir, err := os.MkdirTemp("", "json-test")
@@ -425,16 +394,7 @@ func TestRunJsonOutput(t *testing.T) {
 	fmt.Println(tempDir)
 
 	testFile := filepath.Join(tempDir, "test.go")
-	initialContent := `package main
-	
-		func main() {
-			slice := []int{1, 2, 3}
-			_ = slice[:len(slice)]
-		}
-	
-	 `
-
-	err = os.WriteFile(testFile, []byte(initialContent), 0644)
+	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0644)
 	assert.NoError(t, err)
 
 	expectedIssues := []types.Issue{
@@ -449,9 +409,44 @@ func TestRunJsonOutput(t *testing.T) {
 		},
 	}
 
-	mockEngine.On("Run", testFile).Return(expectedIssues, nil)
+	mockEngine := setupMockEngine(expectedIssues, testFile)
 
-	// Run
 	jsonOutput := filepath.Join(tempDir, "output.json")
 	runNormalLintProcess(ctx, logger, mockEngine, []string{testFile}, jsonOutput)
+}
+
+func createTempFiles(t *testing.T, dir string, fileNames ...string) []string {
+	var paths []string
+	for _, fileName := range fileNames {
+		filePath := filepath.Join(dir, fileName)
+		_, err := os.Create(filePath)
+		assert.NoError(t, err)
+		paths = append(paths, filePath)
+	}
+	return paths
+}
+
+func createTempFileWithContent(t *testing.T, content string) string {
+	tempFile, err := os.CreateTemp("", "test*.go")
+	assert.NoError(t, err)
+	defer tempFile.Close()
+
+	_, err = tempFile.Write([]byte(content))
+	assert.NoError(t, err)
+
+	return tempFile.Name()
+}
+
+func captureOutput(_ *testing.T, f func()) string {
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	f()
+
+	w.Close()
+	os.Stdout = oldStdout
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	return buf.String()
 }

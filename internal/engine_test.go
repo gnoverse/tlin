@@ -12,12 +12,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// createTempDir creates a temporary directory and returns its path.
+// It also registers a cleanup function to remove the directory after the test.
+func createTempDir(t testing.TB, prefix string) string {
+	tempDir, err := os.MkdirTemp("", prefix)
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
+	return tempDir
+}
+
+// assertFileExists checks if a file exists and has the expected content.
+func assertFileExists(t *testing.T, path string, expectedContent string) {
+	content, err := os.ReadFile(path)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedContent, string(content))
+}
+
 func TestNewEngine(t *testing.T) {
 	t.Parallel()
 
-	tempDir, err := os.MkdirTemp("", "engine_test")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	tempDir := createTempDir(t, "engine_test")
 
 	engine, err := NewEngine(tempDir)
 	assert.NoError(t, err)
@@ -46,12 +60,10 @@ func TestEngine_PrepareFile(t *testing.T) {
 	})
 
 	t.Run("Gno file", func(t *testing.T) {
-		tempDir, err := os.MkdirTemp("", "gno_test")
-		require.NoError(t, err)
-		defer os.RemoveAll(tempDir)
+		tempDir := createTempDir(t, "gno_test")
 
 		gnoFile := filepath.Join(tempDir, "test.gno")
-		err = os.WriteFile(gnoFile, []byte("package main"), 0644)
+		err := os.WriteFile(gnoFile, []byte("package main"), 0644)
 		require.NoError(t, err)
 
 		result, err := engine.prepareFile(gnoFile)
@@ -65,12 +77,10 @@ func TestEngine_CleanupTemp(t *testing.T) {
 	t.Parallel()
 	engine := &Engine{}
 
-	tempDir, err := os.MkdirTemp("", "cleanup_test")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	tempDir := createTempDir(t, "cleanup_test")
 
 	tempFile := filepath.Join(tempDir, "temp_test.go")
-	_, err = os.Create(tempFile)
+	_, err := os.Create(tempFile)
 	require.NoError(t, err)
 
 	engine.cleanupTemp(tempFile)
@@ -80,13 +90,11 @@ func TestEngine_CleanupTemp(t *testing.T) {
 
 func TestReadSourceCode(t *testing.T) {
 	t.Parallel()
-	tempDir, err := os.MkdirTemp("", "source_code_test")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	tempDir := createTempDir(t, "source_code_test")
 
 	testFile := filepath.Join(tempDir, "test.go")
 	content := "package main\n\nfunc main() {\n\tprintln(\"Hello, World!\")\n}"
-	err = os.WriteFile(testFile, []byte(content), 0644)
+	err := os.WriteFile(testFile, []byte(content), 0644)
 	require.NoError(t, err)
 
 	sourceCode, err := ReadSourceCode(testFile)
@@ -119,11 +127,7 @@ func BenchmarkFilterUndefinedIssues(b *testing.B) {
 var testSrc = strings.Repeat("hello world", 5000)
 
 func BenchmarkCreateTempGoFile(b *testing.B) {
-	tempDir, err := os.MkdirTemp("", "benchmark")
-	if err != nil {
-		b.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := createTempDir(b, "benchmark")
 
 	// create temp go file for benchmark
 	gnoContent := []byte(testSrc)
