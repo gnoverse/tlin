@@ -11,9 +11,9 @@ import (
 	tt "github.com/gnoswap-labs/tlin/internal/types"
 )
 
-func ParseFile(filename string) (*ast.File, *token.FileSet, error) {
+func ParseFile(filename string, content []byte) (*ast.File, *token.FileSet, error) {
 	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
+	node, err := parser.ParseFile(fset, filename, content, parser.ParseComments)
 	if err != nil {
 		return nil, nil, err
 	}

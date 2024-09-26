@@ -85,7 +85,7 @@ func main() {
 			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
 			require.NoError(t, err)
 
-			node, fset, err := ParseFile(tmpfile)
+			node, fset, err := ParseFile(tmpfile, nil)
 			require.NoError(t, err)
 
 			issues, err := DetectUnnecessarySliceLength(tmpfile, node, fset)
@@ -189,7 +189,7 @@ func example() {
 			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
 			require.NoError(t, err)
 
-			node, fset, err := ParseFile(tmpfile)
+			node, fset, err := ParseFile(tmpfile, nil)
 			require.NoError(t, err)
 
 			issues, err := DetectUnnecessaryConversions(tmpfile, node, fset)
@@ -309,7 +309,7 @@ func main() {
 			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
 			require.NoError(t, err)
 
-			node, fset, err := ParseFile(tmpfile)
+			node, fset, err := ParseFile(tmpfile, nil)
 			require.NoError(t, err)
 
 			issues, err := DetectLoopAllocation(tmpfile, node, fset)
@@ -372,7 +372,7 @@ func TestDetectEmitFormat(t *testing.T) {
 			err = os.WriteFile(tmpfile, content, 0o644)
 			require.NoError(t, err)
 
-			node, fset, err := ParseFile(tmpfile)
+			node, fset, err := ParseFile(tmpfile, nil)
 			require.NoError(t, err)
 
 			issues, err := DetectEmitFormat(tmpfile, node, fset)
