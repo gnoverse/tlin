@@ -66,7 +66,13 @@ func BuildSymbolTable(rootDir string, source []byte) (*SymbolTable, error) {
 
 func (st *SymbolTable) parseFile(path string, source []byte) error {
 	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, path, source, parser.ParseComments)
+	var node *ast.File
+	var err error
+	if source == nil {
+		node, err = parser.ParseFile(fset, path, nil, parser.ParseComments)
+	} else {
+		node, err = parser.ParseFile(fset, path, source, parser.ParseComments)
+	}
 	if err != nil {
 		return err
 	}
