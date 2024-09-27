@@ -20,8 +20,8 @@ type Engine struct {
 }
 
 // NewEngine creates a new lint engine.
-func NewEngine(rootDir string) (*Engine, error) {
-	st, err := BuildSymbolTable(rootDir)
+func NewEngine(rootDir string, source []byte) (*Engine, error) {
+	st, err := BuildSymbolTable(rootDir, source)
 	if err != nil {
 		return nil, fmt.Errorf("error building symbol table: %w", err)
 	}
@@ -67,7 +67,7 @@ func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 	}
 	defer e.cleanupTemp(tempFile)
 
-	node, fset, err := lints.ParseFile(tempFile)
+	node, fset, err := lints.ParseFile(tempFile, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing file: %w", err)
 	}
@@ -103,6 +103,41 @@ func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 			filtered[i].Filename = filename
 		}
 	}
+
+	return filtered, nil
+}
+
+// Run applies all lint rules to the given source and returns a slice of Issues.
+func (e *Engine) RunSource(source []byte) ([]tt.Issue, error) {
+	node, fset, err := lints.ParseFile("", source)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing content: %w", err)
+	}
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	var allIssues []tt.Issue
+	for _, rule := range e.rules {
+		wg.Add(1)
+		go func(r LintRule) {
+			defer wg.Done()
+			if e.ignoredRules[rule.Name()] {
+				return
+			}
+			issues, err := rule.Check("", node, fset)
+			if err != nil {
+				return
+			}
+
+			mu.Lock()
+			allIssues = append(allIssues, issues...)
+			mu.Unlock()
+		}(rule)
+	}
+	wg.Wait()
+
+	filtered := e.filterUndefinedIssues(allIssues)
 
 	return filtered, nil
 }

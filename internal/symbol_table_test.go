@@ -36,7 +36,7 @@ func AnotherFunc() {}
 	err = os.WriteFile(file2Path, []byte(file2Content), 0o644)
 	require.NoError(t, err)
 
-	st, err := BuildSymbolTable(tmpDir)
+	st, err := BuildSymbolTable(tmpDir, nil)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -95,7 +95,7 @@ var Var%d int
 		require.NoError(t, err)
 	}
 
-	st, err := BuildSymbolTable(tmpDir)
+	st, err := BuildSymbolTable(tmpDir, nil)
 	require.NoError(t, err)
 
 	var wg sync.WaitGroup
@@ -108,6 +108,23 @@ var Var%d int
 		}(i)
 	}
 	wg.Wait()
+}
+
+func TestSingleFileSymbolTable(t *testing.T) {
+	fileContent := `package test
+type TestStruct struct {}
+func TestFunc() {}
+var TestVar int
+func (ts TestStruct) TestMethod() {}
+`
+
+	st, err := BuildSymbolTable("", []byte(fileContent))
+	require.NoError(t, err)
+
+	assert.True(t, st.IsDefined("test.TestStruct"))
+	assert.True(t, st.IsDefined("test.TestFunc"))
+	assert.True(t, st.IsDefined("test.TestVar"))
+	assert.True(t, st.IsDefined("test.TestMethod"))
 }
 
 func BenchmarkBuildSymbolTable(b *testing.B) {
@@ -128,7 +145,7 @@ type Struct%d struct{}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := BuildSymbolTable(tmpDir)
+		_, err := BuildSymbolTable(tmpDir, nil)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -151,7 +168,7 @@ type Struct%d struct{}
 		require.NoError(b, err)
 	}
 
-	st, err := BuildSymbolTable(tmpDir)
+	st, err := BuildSymbolTable(tmpDir, nil)
 	require.NoError(b, err)
 
 	b.ResetTimer()

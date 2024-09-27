@@ -33,7 +33,24 @@ func TestNewEngine(t *testing.T) {
 
 	tempDir := createTempDir(t, "engine_test")
 
-	engine, err := NewEngine(tempDir)
+	engine, err := NewEngine(tempDir, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, engine)
+	assert.NotNil(t, engine.SymbolTable)
+	assert.NotEmpty(t, engine.rules)
+}
+
+func TestNewEngineContent(t *testing.T) {
+	t.Parallel()
+
+	fileContent := `package test
+type TestStruct struct {}
+func TestFunc() {}
+var TestVar int
+func (ts TestStruct) TestMethod() {}
+`
+
+	engine, err := NewEngine("", []byte(fileContent))
 	assert.NoError(t, err)
 	assert.NotNil(t, engine)
 	assert.NotNil(t, engine.SymbolTable)
@@ -151,7 +168,7 @@ func BenchmarkRun(b *testing.B) {
 	_, currentFile, _, _ := runtime.Caller(0)
 	testDataDir := filepath.Join(filepath.Dir(currentFile), "../testdata")
 
-	engine, err := NewEngine(testDataDir)
+	engine, err := NewEngine(testDataDir, nil)
 	if err != nil {
 		b.Fatalf("failed to create engine: %v", err)
 	}

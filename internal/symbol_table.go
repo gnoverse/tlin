@@ -39,30 +39,40 @@ type SymbolTable struct {
 	symbols map[string]SymbolInfo
 }
 
-func BuildSymbolTable(rootDir string) (*SymbolTable, error) {
+func BuildSymbolTable(rootDir string, source []byte) (*SymbolTable, error) {
 	st := &SymbolTable{symbols: make(map[string]SymbolInfo)}
 
-	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() && (strings.HasSuffix(path, ".go") || strings.HasSuffix(path, ".gno")) {
-			if err := st.parseFile(path); err != nil {
+	if source != nil {
+		st.parseFile("", source)
+	} else {
+		err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
 				return err
 			}
+			if !d.IsDir() && (strings.HasSuffix(path, ".go") || strings.HasSuffix(path, ".gno")) {
+				if err := st.parseFile(path, nil); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
 
 	return st, nil
 }
 
-func (st *SymbolTable) parseFile(path string) error {
+func (st *SymbolTable) parseFile(path string, source []byte) error {
 	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+	var node *ast.File
+	var err error
+	if source == nil {
+		node, err = parser.ParseFile(fset, path, nil, parser.ParseComments)
+	} else {
+		node, err = parser.ParseFile(fset, path, source, parser.ParseComments)
+	}
 	if err != nil {
 		return err
 	}
