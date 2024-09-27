@@ -42,15 +42,15 @@ func TestFormatIssuesWithArrows(t *testing.T) {
 	expected := `error: unused-variable
  --> test.go
   |
-4 |     x := 1
-  |     ~~
+4 | x := 1
+  | ~~
   | x declared but not used
 
 error: empty-if
  --> test.go
   |
-5 |     if true {}
-  |     ~~~~~~~~~
+5 | if true {}
+  | ~~~~~~~~~
   | empty branch
 
 `
@@ -74,15 +74,15 @@ error: empty-if
 	expectedWithTabs := `error: unused-variable
  --> test.go
   |
-4 |     x := 1
-  |     ~~
+4 | x := 1
+  | ~~
   | x declared but not used
 
 error: empty-if
  --> test.go
   |
-5 |     if true {}
-  |     ~~~~~~~~~
+5 | if true {}
+  | ~~~~~~~~~
   | empty branch
 
 `
@@ -136,22 +136,22 @@ func TestFormatIssuesWithArrows_MultipleDigitsLineNumbers(t *testing.T) {
 	expected := `error: unused-variable
  --> test.go
   |
-4 |     x := 1  // unused variable
-  |     ~~
+4 | x := 1  // unused variable
+  | ~~
   | x declared but not used
 
 error: empty-if
  --> test.go
   |
-5 |     if true {}  // empty if statement
-  |     ~~~~~~~~~
+5 | if true {}  // empty if statement
+  | ~~~~~~~~~
   | empty branch
 
 error: example
   --> test.go
    |
-10 |     println("end")
-   |     ~~~~~~~~
+10 | println("end")
+   | ~~~~~~~~
    | example issue
 
 `
@@ -244,8 +244,8 @@ func TestUnnecessaryTypeConversionFormatter(t *testing.T) {
 	expected := `error: unnecessary-type-conversion
  --> test.go
   |
-5 |     result := int(myInt)
-  |          ~~~~~~~~~~~
+5 | result := int(myInt)
+  |      ~~~~~~~~~~~
   | unnecessary type conversion
 
 Suggestion:
@@ -260,4 +260,83 @@ Note: Unnecessary type conversions can make the code less readable and may sligh
 	result := formatter.Format(issue, snippet)
 
 	assert.Equal(t, expected, result, "Formatted output should match expected output")
+}
+
+func TestFindCommonIndent(t *testing.T) {
+	tests := []struct {
+		name     string
+		lines    []string
+		expected string
+	}{
+		{
+			name: "whitespace indent",
+			lines: []string{
+				"    if foo {",
+				"        println()",
+				"    }",
+			},
+			expected: "    ",
+		},
+		{
+			name: "tab indent",
+			lines: []string{
+				"\tif foo {",
+				"\t\tprintln()",
+				"\t}",
+			},
+			expected: "\t",
+		},
+		{
+			name: "mixed indent (space and tab)",
+			lines: []string{
+				"\t    if foo {",
+				"\t    \tprintln()",
+				"\t    }",
+			},
+			expected: "\t    ",
+		},
+		{
+			name: "no indent",
+			lines: []string{
+				"if foo {",
+				"println()",
+				"}",
+			},
+			expected: "",
+		},
+		{
+			name: "empty line",
+			lines: []string{
+				"    if foo {",
+				"",
+				"        println()",
+				"    }",
+			},
+			expected: "    ",
+		},
+		{
+			name: "various indent levels",
+			lines: []string{
+				"    if foo {",
+				"      bar()",
+				"        baz()",
+				"    }",
+			},
+			expected: "    ",
+		},
+		{
+			name:     "empty input",
+			lines:    []string{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := findCommonIndent(tt.lines)
+			if result != tt.expected {
+				t.Errorf("findCommonIndent() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
 }

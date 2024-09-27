@@ -183,10 +183,10 @@ func main() {
 }`,
 			issues: []tt.Issue{
 				{
-					Rule:     "emit-format",
-					Message:  "Consider formatting std.Emit call for better readability",
-					Start:    token.Position{Line: 8, Column: 5},
-					End:      token.Position{Line: 9, Column: 44},
+					Rule:    "emit-format",
+					Message: "Consider formatting std.Emit call for better readability",
+					Start:   token.Position{Line: 8, Column: 5},
+					End:     token.Position{Line: 9, Column: 44},
 					Suggestion: `std.Emit(
     "OwnershipChange",
     "newOwner", newOwner,

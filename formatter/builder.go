@@ -35,6 +35,8 @@ var (
 
 // IssueFormatter is the interface that wraps the Format method.
 // Implementations of this interface are responsible for formatting specific types of lint issues.
+//
+// ! TODO: Use template to format issue
 type IssueFormatter interface {
 	Format(issue tt.Issue, snippet *internal.SourceCode) string
 }
@@ -128,17 +130,24 @@ func (b *IssueFormatterBuilder) AddCodeSnippet() *IssueFormatterBuilder {
 	endLine := b.issue.End.Line
 	maxLineNumWidth := calculateMaxLineNumWidth(endLine)
 
+	var commonIndent string
+	if startLine-1 < 0 || endLine > len(b.snippet.Lines) || startLine > endLine {
+		commonIndent = ""
+	} else {
+		commonIndent = findCommonIndent(b.snippet.Lines[startLine-1 : endLine])
+	}
+
 	// add separator
 	padding := strings.Repeat(" ", maxLineNumWidth+1)
 	b.result.WriteString(lineStyle.Sprintf("%s|\n", padding))
 
 	for i := startLine; i <= endLine; i++ {
-		// check that the line number does not go out of range of snippet.Lines
 		if i-1 < 0 || i-1 >= len(b.snippet.Lines) {
 			continue
 		}
 
 		line := expandTabs(b.snippet.Lines[i-1])
+		line = strings.TrimPrefix(line, commonIndent)
 		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, i)
 
 		b.result.WriteString(lineStyle.Sprintf("%s | ", lineNum))
@@ -156,14 +165,22 @@ func (b *IssueFormatterBuilder) AddUnderlineAndMessage() *IssueFormatterBuilder 
 
 	b.result.WriteString(lineStyle.Sprintf("%s| ", padding))
 
-	if startLine <= 0 || startLine > len(b.snippet.Lines) || endLine <= 0 || endLine > len(b.snippet.Lines) {
+	if startLine <= 0 || startLine > len(b.snippet.Lines) || endLine <= 0 || endLine > len(b.snippet.Lines) || startLine > endLine {
 		b.result.WriteString(messageStyle.Sprintf("%s\n\n", b.issue.Message))
 		return b
 	}
 
-	// draw underline from start column to end column
-	underlineStart := calculateVisualColumn(b.snippet.Lines[startLine-1], b.issue.Start.Column)
-	underlineEnd := calculateVisualColumn(b.snippet.Lines[endLine-1], b.issue.End.Column)
+	commonIndent := findCommonIndent(b.snippet.Lines[startLine-1 : endLine])
+	commonIndentWidth := calculateVisualColumn(commonIndent, len(commonIndent)+1)
+
+	// calculate underline start position
+	underlineStart := calculateVisualColumn(b.snippet.Lines[startLine-1], b.issue.Start.Column) - commonIndentWidth
+	if underlineStart < 0 {
+		underlineStart = 0
+	}
+
+	// calculate underline end position
+	underlineEnd := calculateVisualColumn(b.snippet.Lines[endLine-1], b.issue.End.Column) - commonIndentWidth
 	underlineLength := underlineEnd - underlineStart + 1
 
 	b.result.WriteString(strings.Repeat(" ", underlineStart))
@@ -219,17 +236,6 @@ func (b *IssueFormatterBuilder) AddNote() *IssueFormatterBuilder {
 
 type BaseFormatter struct{}
 
-func (f *BaseFormatter) Format(issue tt.Issue, snippet *internal.SourceCode) string {
-	builder := NewIssueFormatterBuilder(issue, snippet)
-	return builder.
-		AddHeader(warningHeader).
-		AddCodeSnippet().
-		AddUnderlineAndMessage().
-		AddSuggestion().
-		AddNote().
-		Build()
-}
-
 func (b *IssueFormatterBuilder) Build() string {
 	return b.result.String()
 }
@@ -271,4 +277,28 @@ func calculateVisualColumn(line string, column int) int {
 		}
 	}
 	return visualColumn
+}
+
+func findCommonIndent(lines []string) string {
+	if len(lines) == 0 {
+		return ""
+	}
+
+	commonIndentPrefix := strings.TrimLeft(lines[0], " \t")
+	commonIndentPrefix = lines[0][:len(lines[0])-len(commonIndentPrefix)]
+
+	for _, line := range lines[1:] {
+		if strings.TrimSpace(line) == "" {
+			continue // ignore empty lines
+		}
+
+		for !strings.HasPrefix(line, commonIndentPrefix) {
+			commonIndentPrefix = commonIndentPrefix[:len(commonIndentPrefix)-1]
+			if len(commonIndentPrefix) == 0 {
+				return ""
+			}
+		}
+	}
+
+	return commonIndentPrefix
 }
