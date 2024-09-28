@@ -38,6 +38,7 @@ type Config struct {
 	AutoFix              bool
 	DryRun               bool
 	JsonOutput           string
+	Output               string
 	ConfidenceThreshold  float64
 }
 
@@ -64,7 +65,7 @@ func main() {
 
 	if config.CFGAnalysis {
 		runWithTimeout(ctx, func() {
-			runCFGAnalysis(ctx, logger, config.Paths, config.FuncName)
+			runCFGAnalysis(ctx, logger, config.Paths, config.FuncName, config.Output)
 		})
 	} else if config.CyclomaticComplexity {
 		runWithTimeout(ctx, func() {
@@ -92,6 +93,7 @@ func parseFlags(args []string) Config {
 	flagSet.BoolVar(&config.CFGAnalysis, "cfg", false, "Run control flow graph analysis")
 	flagSet.StringVar(&config.FuncName, "func", "", "Function name for CFG analysis")
 	flagSet.BoolVar(&config.AutoFix, "fix", false, "Automatically fix issues")
+	flagSet.StringVar(&config.Output, "o", "", "Output path of GraphViz file in a SVG format")
 	flagSet.BoolVar(&config.DryRun, "dry-run", false, "Run in dry-run mode (show fixes without applying them)")
 	flagSet.StringVar(&config.JsonOutput, "json-output", "", "Output issues in JSON format to the specified file")
 	flagSet.Float64Var(&config.ConfidenceThreshold, "confidence", defaultConfidenceThreshold, "Confidence threshold for auto-fixing (0.0 to 1.0)")
@@ -157,7 +159,7 @@ func runCyclomaticComplexityAnalysis(ctx context.Context, logger *zap.Logger, pa
 	}
 }
 
-func runCFGAnalysis(_ context.Context, logger *zap.Logger, paths []string, funcName string) {
+func runCFGAnalysis(_ context.Context, logger *zap.Logger, paths []string, funcName string, output string) {
 	functionFound := false
 	for _, path := range paths {
 		fset := token.NewFileSet()
@@ -173,7 +175,14 @@ func runCFGAnalysis(_ context.Context, logger *zap.Logger, paths []string, funcN
 					cfgGraph := cfg.FromFunc(fn)
 					var buf strings.Builder
 					cfgGraph.PrintDot(&buf, fset, func(n ast.Stmt) string { return "" })
-					fmt.Printf("CFG for function %s in file %s:\n%s\n", funcName, path, buf.String())
+					if output != "" {
+						err := cfg.RenderToGraphVizFile([]byte(buf.String()), output)
+						if err != nil {
+							logger.Error("Failed to render CFG to GraphViz file", zap.Error(err))
+						}
+					} else {
+						fmt.Printf("CFG for function %s in file %s:\n%s\n", funcName, path, buf.String())
+					}
 					functionFound = true
 					return
 				}
