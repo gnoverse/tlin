@@ -9,8 +9,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gnoswap-labs/tlin/internal/branch"
-	tt "github.com/gnoswap-labs/tlin/internal/types"
+	"github.com/gnolang/tlin/internal/branch"
+	tt "github.com/gnolang/tlin/internal/types"
 )
 
 // DetectEarlyReturnOpportunities detects if-else chains that can be simplified using early returns.

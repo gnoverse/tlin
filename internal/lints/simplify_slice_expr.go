@@ -5,7 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	tt "github.com/gnoswap-labs/tlin/internal/types"
+	tt "github.com/gnolang/tlin/internal/types"
 )
 
 func DetectUnnecessarySliceLength(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {

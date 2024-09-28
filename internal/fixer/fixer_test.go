@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	tt "github.com/gnoswap-labs/tlin/internal/types"
+	tt "github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
