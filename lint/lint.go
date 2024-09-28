@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gnoswap-labs/tlin/internal"
 	"github.com/gnoswap-labs/tlin/internal/lints"
 	tt "github.com/gnoswap-labs/tlin/internal/types"
 	"go.uber.org/zap"
@@ -15,6 +16,11 @@ type LintEngine interface {
 	Run(filePath string) ([]tt.Issue, error)
 	RunSource(source []byte) ([]tt.Issue, error)
 	IgnoreRule(rule string)
+}
+
+// export the function NewEngine to be used in other packages
+func NewEngine(rootDir string, source []byte) (*internal.Engine, error) {
+	return internal.NewEngine(rootDir, source)
 }
 
 func ProcessSources(ctx context.Context, logger *zap.Logger, engine LintEngine, sources [][]byte, processor func(LintEngine, []byte) ([]tt.Issue, error)) ([]tt.Issue, error) {
