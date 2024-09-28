@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"go/token"
 	"io"
 	"os"
@@ -88,6 +87,15 @@ func TestParseFlags(t *testing.T) {
 				ConfidenceThreshold: defaultConfidenceThreshold,
 			},
 		},
+		{
+			name: "Output",
+			args: []string{"-o", "output.svg", "file.go"},
+			expected: Config{
+				Paths:               []string{"file.go"},
+				Output:              "output.svg",
+				ConfidenceThreshold: defaultConfidenceThreshold,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -101,6 +109,7 @@ func TestParseFlags(t *testing.T) {
 			assert.Equal(t, tt.expected.ConfidenceThreshold, config.ConfidenceThreshold)
 			assert.Equal(t, tt.expected.Paths, config.Paths)
 			assert.Equal(t, tt.expected.JsonOutput, config.JsonOutput)
+			assert.Equal(t, tt.expected.Output, config.Output)
 		})
 	}
 }
@@ -159,7 +168,7 @@ func ignoredFunc() { 			// 19
 	ctx := context.Background()
 
 	output := captureOutput(t, func() {
-		runCFGAnalysis(ctx, logger, []string{tempFile}, "targetFunc")
+		runCFGAnalysis(ctx, logger, []string{tempFile}, "targetFunc", "")
 	})
 
 	assert.Contains(t, output, "CFG for function targetFunc in file")
@@ -172,7 +181,7 @@ func ignoredFunc() { 			// 19
 	t.Logf("output: %s", output)
 
 	output = captureOutput(t, func() {
-		runCFGAnalysis(ctx, logger, []string{tempFile}, "nonExistentFunc")
+		runCFGAnalysis(ctx, logger, []string{tempFile}, "nonExistentFunc", "")
 	})
 
 	assert.Contains(t, output, "Function not found: nonExistentFunc")
@@ -286,7 +295,6 @@ func TestRunJsonOutput(t *testing.T) {
 
 	tempDir, err := os.MkdirTemp("", "json-test")
 	assert.NoError(t, err)
-	fmt.Println(tempDir)
 
 	testFile := filepath.Join(tempDir, "test.go")
 	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0644)
