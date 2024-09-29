@@ -1,8 +1,8 @@
 package formatter
 
 import (
-	"github.com/gnoswap-labs/tlin/internal"
-	tt "github.com/gnoswap-labs/tlin/internal/types"
+	"github.com/gnolang/tlin/internal"
+	tt "github.com/gnolang/tlin/internal/types"
 )
 
 type MissingModPackageFormatter struct{}

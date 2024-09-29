@@ -2,7 +2,7 @@
 
 Advance Linter for go-like grammar languages.
 
-![GitHub Workflow Status](https://img.shields.io/github/workflow/status/gnoswap-labs/tlin/CI?label=build)
+![GitHub Workflow Status](https://img.shields.io/github/workflow/status/gnolang/tlin/CI?label=build)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 
 ## Introduction
@@ -31,7 +31,7 @@ To install tlin CLI, follow these steps:
 1. Clone the repository
 
 ```bash
-git clone https://github.com/gnoswap-labs/tlin
+git clone https://github.com/gnolang/tlin
 ```
 
 2. Move to the cloned directory

@@ -4,7 +4,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	tt "github.com/gnoswap-labs/tlin/internal/types"
+	tt "github.com/gnolang/tlin/internal/types"
 )
 
 // DetectUselessBreak detects useless break statements in switch or select statements.

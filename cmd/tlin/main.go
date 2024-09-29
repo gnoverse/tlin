@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gnoswap-labs/tlin/formatter"
-	"github.com/gnoswap-labs/tlin/internal"
-	"github.com/gnoswap-labs/tlin/internal/analysis/cfg"
-	"github.com/gnoswap-labs/tlin/internal/fixer"
-	tt "github.com/gnoswap-labs/tlin/internal/types"
-	"github.com/gnoswap-labs/tlin/lint"
+	"github.com/gnolang/tlin/formatter"
+	"github.com/gnolang/tlin/internal"
+	"github.com/gnolang/tlin/internal/analysis/cfg"
+	"github.com/gnolang/tlin/internal/fixer"
+	tt "github.com/gnolang/tlin/internal/types"
+	"github.com/gnolang/tlin/lint"
 	"go.uber.org/zap"
 )
 
@@ -50,7 +50,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 	defer cancel()
 
-	engine, err := internal.NewEngine(".", nil)
+	engine, err := lint.New(".", nil)
 	if err != nil {
 		logger.Fatal("Failed to initialize lint engine", zap.Error(err))
 	}

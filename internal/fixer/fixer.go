@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	tt "github.com/gnoswap-labs/tlin/internal/types"
+	tt "github.com/gnolang/tlin/internal/types"
 )
 
 type Fixer struct {

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gnoswap-labs/tlin/internal/lints"
-	tt "github.com/gnoswap-labs/tlin/internal/types"
+	"github.com/gnolang/tlin/internal/lints"
+	tt "github.com/gnolang/tlin/internal/types"
 )
 
 // Engine manages the linting process.

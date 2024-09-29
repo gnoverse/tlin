@@ -4,8 +4,8 @@ import (
 	"go/ast"
 	"go/token"
 
-	"github.com/gnoswap-labs/tlin/internal/lints"
-	tt "github.com/gnoswap-labs/tlin/internal/types"
+	"github.com/gnolang/tlin/internal/lints"
+	tt "github.com/gnolang/tlin/internal/types"
 )
 
 /*

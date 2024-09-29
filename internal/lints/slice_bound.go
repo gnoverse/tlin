@@ -5,7 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	tt "github.com/gnoswap-labs/tlin/internal/types"
+	tt "github.com/gnolang/tlin/internal/types"
 )
 
 // TODO: Make more precisely.
