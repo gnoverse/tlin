@@ -19,7 +19,7 @@ type LintEngine interface {
 }
 
 // export the function NewEngine to be used in other packages
-func NewEngine(rootDir string, source []byte) (*internal.Engine, error) {
+func New(rootDir string, source []byte) (*internal.Engine, error) {
 	return internal.NewEngine(rootDir, source)
 }
 

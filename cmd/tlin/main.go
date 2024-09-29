@@ -50,7 +50,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 	defer cancel()
 
-	engine, err := internal.NewEngine(".", nil)
+	engine, err := lint.New(".", nil)
 	if err != nil {
 		logger.Fatal("Failed to initialize lint engine", zap.Error(err))
 	}
