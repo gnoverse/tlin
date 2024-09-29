@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"go/token"
 	"io"
 	"os"
@@ -80,10 +81,10 @@ func TestParseFlags(t *testing.T) {
 		},
 		{
 			name: "JsonOutput",
-			args: []string{"-json-output", "output.json", "file.go"},
+			args: []string{"-json", "file.go"},
 			expected: Config{
 				Paths:               []string{"file.go"},
-				JsonOutput:          "output.json",
+				JsonOutput:          true,
 				ConfidenceThreshold: defaultConfidenceThreshold,
 			},
 		},
@@ -295,6 +296,7 @@ func TestRunJsonOutput(t *testing.T) {
 
 	tempDir, err := os.MkdirTemp("", "json-test")
 	assert.NoError(t, err)
+	fmt.Println(tempDir)
 
 	testFile := filepath.Join(tempDir, "test.go")
 	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0644)
@@ -315,7 +317,7 @@ func TestRunJsonOutput(t *testing.T) {
 	mockEngine := setupMockEngine(expectedIssues, testFile)
 
 	jsonOutput := filepath.Join(tempDir, "output.json")
-	runNormalLintProcess(ctx, logger, mockEngine, []string{testFile}, jsonOutput)
+	runNormalLintProcess(ctx, logger, mockEngine, []string{testFile}, true, jsonOutput)
 }
 
 func createTempFiles(t *testing.T, dir string, fileNames ...string) []string {
