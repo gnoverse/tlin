@@ -137,7 +137,8 @@ tlin supports several flags to customize its behavior:
 - `-fix`: Automatically fix issues
 - `-dry-run`: Run in dry-run mode (show fixes without applying them)
 - `-confidence <float>`: Set confidence threshold for auto-fixing (0.0 to 1.0, default: 0.75)
-- `-output-json <path>`: Write output in JSON format to the specified file
+- `-o <path>`: Write output to a file instead of stdout
+- `-json-output`: Output results in JSON format
 
 ## Contributing
 
