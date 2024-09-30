@@ -62,36 +62,48 @@ To check the current directory, run:
 tlin .
 ```
 
-## Adding Custom Lint Rules
+## Adding Gno-Specific Lint Rules
 
-tlin allows addition of custom lint rules beyond the default golangci-lint rules. To add a new lint rule, follow these steps:
+Our linter allows addition of custom lint rules beyond the default golangci-lint rules. To add a new lint rule, follow these steps:
 
 > ⚠️ Must update relevant tests if you have added a new rule or formatter.
 
-1. Implement the `LintRule` interface for your new rule:
+1. Create an RFC (Request for Comments) document for your proposed lint rule:
+   - Describe the purpose and motivation for the new rule. You can find template in [RFC](./docs/rfc/template.md)
+   - Provide examples of code that the rule will flag.
+   - Explain any potential edge cases or considerations.
+   - Outline the proposed implementation approach.
 
-```go
-type NewRule struct{}
+2. Open a new issue in the tlin repository and attach your RFC document.
 
-func (r *NewRule) Check(filename string, node *ast.File) ([]types.Issue, error) {
-    // Implement your lint rule logic here
-    // return a slice of Issues and any error encountered
-}
-```
+3. Wait for community feedback and maintainer approval. Be prepared to iterate on your RFC based on feedback.
 
-2. Register your new rule in the `registerDefaultRules` method of the `Engine` struct in `internal/engine.go`:
+4. Once the RFC is approved, proceed with the implementation:
 
-```go
-func (e *Engine) registerDefaultRules() {
-    e.rules = append(e.rules,
-        &GolangciLintRule{},
-        // ...
-        &NewRule{}, // Add your new rule here
-    )
-}
-```
+   a. Implement the `LintRule` interface for your new rule:
 
-3. (Optional) if your rule requires special formatting, create a new formatter in the `formatter` package:
+   ```go
+   type NewRule struct{}
+
+   func (r *NewRule) Check(filename string, node *ast.File) ([]types.Issue, error) {
+       // Implement your lint rule logic here
+       // return a slice of Issues and any error encountered
+   }
+   ```
+
+   b. Register your new rule in the `registerDefaultRules` method of the `Engine` struct in `internal/engine.go`:
+
+   ```go
+   func (e *Engine) registerDefaultRules() {
+       e.rules = append(e.rules,
+           &GolangciLintRule{},
+           // ...
+           &NewRule{}, // Add your new rule here
+       )
+   }
+   ```
+
+5. (Optional) If your rule requires special formatting, create a new formatter in the `formatter` package:
 
    a. Create a new file (e.g., `formatter/new_rule.go`).
 
@@ -122,7 +134,13 @@ func (e *Engine) registerDefaultRules() {
    }
    ```
 
-By following these steps, you can add new lint rules and ensure they are properly formatted when displayed in the CLI.
+6. Add comprehensive tests for your new rule and formatter.
+
+7. Update the documentation to include information about the new rule.
+
+8. Submit a pull request with your implementation, tests, and documentation updates.
+
+By following these steps, you can propose, discuss, and add new lint rules in a structured manner, ensuring they are properly integrated into the tlin project.
 
 ## Available Flags
 
