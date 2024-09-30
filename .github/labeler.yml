@@ -14,14 +14,13 @@ jobs:
         repo-token: "${{ secrets.GITHUB_TOKEN }}"
         configuration-path: .github/labeler.yml
 
----
-
 A-Action:
   - '**/*.yml'
 
 A-documentation:
   - '**/*.md'
   - 'internal/lints/README.md'
+  - '!docs/rfc/**/*'
 
 A-lint:
   - 'internal/lints/**/*'
@@ -41,3 +40,6 @@ T-CLI:
 L-test:
   - '**/*_test.go'
   - 'testdata/**/*'
+
+RFC:
+  - 'docs/rfc/**/*'
