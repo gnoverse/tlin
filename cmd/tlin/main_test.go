@@ -320,17 +320,6 @@ func TestRunJsonOutput(t *testing.T) {
 	runNormalLintProcess(ctx, logger, mockEngine, []string{testFile}, true, jsonOutput)
 }
 
-func createTempFiles(t *testing.T, dir string, fileNames ...string) []string {
-	var paths []string
-	for _, fileName := range fileNames {
-		filePath := filepath.Join(dir, fileName)
-		_, err := os.Create(filePath)
-		assert.NoError(t, err)
-		paths = append(paths, filePath)
-	}
-	return paths
-}
-
 func createTempFileWithContent(t *testing.T, content string) string {
 	tempFile, err := os.CreateTemp("", "test*.go")
 	assert.NoError(t, err)
@@ -342,7 +331,8 @@ func createTempFileWithContent(t *testing.T, content string) string {
 	return tempFile.Name()
 }
 
-func captureOutput(_ *testing.T, f func()) string {
+func captureOutput(t *testing.T, f func()) string {
+	t.Helper()
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w

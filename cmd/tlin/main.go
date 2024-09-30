@@ -218,7 +218,7 @@ func printIssues(logger *zap.Logger, issues []tt.Issue, isJson bool, jsonOutput 
 		issuesByFile[issue.Filename] = append(issuesByFile[issue.Filename], issue)
 	}
 
-	var sortedFiles []string
+	sortedFiles := make([]string, 0, len(issuesByFile))
 	for filename := range issuesByFile {
 		sortedFiles = append(sortedFiles, filename)
 	}

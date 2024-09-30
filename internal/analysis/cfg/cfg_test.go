@@ -828,6 +828,7 @@ type CFGWrapper struct {
 // w/ some other convenient fields for printing in test
 // cases when need be...
 func getWrapper(t *testing.T, str string) *CFGWrapper {
+	t.Helper()
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "", str, 0)
 	if err != nil {
@@ -891,6 +892,7 @@ func expectFromMaps(actual, exp map[ast.Stmt]struct{}) (dnf, found map[ast.Stmt]
 }
 
 func (c *CFGWrapper) expectDefers(t *testing.T, exp ...int) {
+	t.Helper()
 	actualDefers := make(map[ast.Stmt]struct{})
 	for _, d := range c.cfg.Defers {
 		actualDefers[d] = struct{}{}
@@ -909,6 +911,7 @@ func (c *CFGWrapper) expectDefers(t *testing.T, exp ...int) {
 }
 
 func (c *CFGWrapper) expectSuccs(t *testing.T, s int, exp ...int) {
+	t.Helper()
 	if _, ok := c.cfg.blocks[c.exp[s]]; !ok {
 		t.Error("did not find parent", s)
 		return
@@ -933,6 +936,7 @@ func (c *CFGWrapper) expectSuccs(t *testing.T, s int, exp ...int) {
 }
 
 func (c *CFGWrapper) expectPreds(t *testing.T, s int, exp ...int) {
+	t.Helper()
 	if _, ok := c.cfg.blocks[c.exp[s]]; !ok {
 		t.Error("did not find parent", s)
 	}
@@ -969,9 +973,8 @@ func TestPrintDot(t *testing.T) {
 	c.cfg.PrintDot(&buf, c.fset, func(s ast.Stmt) string {
 		if _, ok := s.(*ast.AssignStmt); ok {
 			return "!"
-		} else {
-			return ""
 		}
+		return ""
 	})
 	dot := buf.String()
 
@@ -987,10 +990,18 @@ splines="ortho";
 	}
 	// The order of the three lines may vary (they're from a map), so
 	// just make sure all three lines appear somewhere
-	for _, re := range expected {
-		ok, _ := regexp.MatchString(re, dot)
-		if !ok {
-			t.Fatalf("[%s]", dot)
+	regexps := make([]*regexp.Regexp, len(expected))
+	for i, re := range expected {
+		var err error
+		regexps[i], err = regexp.Compile(re)
+		if err != nil {
+			t.Fatalf("Failed to compile regex: %v", err)
+		}
+	}
+
+	for i, re := range regexps {
+		if !re.MatchString(dot) {
+			t.Fatalf("Expected pattern not found: [%s] in [%s]", expected[i], dot)
 		}
 	}
 }

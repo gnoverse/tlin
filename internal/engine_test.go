@@ -14,18 +14,12 @@ import (
 
 // createTempDir creates a temporary directory and returns its path.
 // It also registers a cleanup function to remove the directory after the test.
-func createTempDir(t testing.TB, prefix string) string {
+func createTempDir(tb testing.TB, prefix string) string {
+	tb.Helper()
 	tempDir, err := os.MkdirTemp("", prefix)
-	require.NoError(t, err)
-	t.Cleanup(func() { os.RemoveAll(tempDir) })
+	require.NoError(tb, err)
+	tb.Cleanup(func() { os.RemoveAll(tempDir) })
 	return tempDir
-}
-
-// assertFileExists checks if a file exists and has the expected content.
-func assertFileExists(t *testing.T, path string, expectedContent string) {
-	content, err := os.ReadFile(path)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedContent, string(content))
 }
 
 func TestNewEngine(t *testing.T) {
@@ -70,6 +64,7 @@ func TestEngine_PrepareFile(t *testing.T) {
 	engine := &Engine{}
 
 	t.Run("Go file", func(t *testing.T) {
+		t.Parallel()
 		goFile := "test.go"
 		result, err := engine.prepareFile(goFile)
 		assert.NoError(t, err)
@@ -77,6 +72,7 @@ func TestEngine_PrepareFile(t *testing.T) {
 	})
 
 	t.Run("Gno file", func(t *testing.T) {
+		t.Parallel()
 		tempDir := createTempDir(t, "gno_test")
 
 		gnoFile := filepath.Join(tempDir, "test.gno")
@@ -165,7 +161,8 @@ func BenchmarkCreateTempGoFile(b *testing.B) {
 }
 
 func BenchmarkRun(b *testing.B) {
-	_, currentFile, _, _ := runtime.Caller(0)
+	_, currentFile, _, ok := runtime.Caller(0)
+	require.True(b, ok)
 	testDataDir := filepath.Join(filepath.Dir(currentFile), "../testdata")
 
 	engine, err := NewEngine(testDataDir, nil)

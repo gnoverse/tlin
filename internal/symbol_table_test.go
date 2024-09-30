@@ -15,7 +15,9 @@ func TestSymbolTable(t *testing.T) {
 	t.Parallel()
 	tmpDir, err := os.MkdirTemp("", "symboltable-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	t.Cleanup(func() {
+		os.RemoveAll(tmpDir)
+	})
 
 	// generate test files
 	file1Content := `package test
