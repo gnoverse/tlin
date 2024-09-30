@@ -30,7 +30,6 @@ func DetectHighCyclomaticComplexity(filename string, threshold int) ([]tt.Issue,
 
 	for _, stat := range stats {
 		if stat.Complexity > threshold {
-
 			funcNode, ok := funcNodes[stat.FuncName]
 			if !ok {
 				continue
