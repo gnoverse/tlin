@@ -6,9 +6,13 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFromStmts(t *testing.T) {
@@ -989,6 +993,40 @@ splines="ortho";
 			t.Fatalf("[%s]", dot)
 		}
 	}
+}
+
+func TestRenderToGraphVizFile(t *testing.T) {
+	t.Parallel()
+	tmpDir, err := os.MkdirTemp("", "cfg_test")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	c := getWrapper(t, `
+  package main
+
+  func main() {
+	i := 5              //1
+	i++                 //2
+  }`)
+
+	var buf bytes.Buffer
+	c.cfg.PrintDot(&buf, c.fset, func(s ast.Stmt) string {
+		if _, ok := s.(*ast.AssignStmt); ok {
+			return "!"
+		} else {
+			return ""
+		}
+	})
+	dot := buf.String()
+
+	svgFile := filepath.Join(tmpDir, "test.svg")
+	err = RenderToGraphVizFile([]byte(dot), svgFile)
+	assert.NoError(t, err)
+
+	content, err := os.ReadFile(svgFile)
+	assert.NoError(t, err)
+
+	assert.NotEmpty(t, content)
 }
 
 func normalizeDotOutput(dot string) string {

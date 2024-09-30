@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/goccy/go-graphviz"
 	"golang.org/x/tools/go/ast/astutil"
 )
 
@@ -47,6 +48,21 @@ func FromStmts(s []ast.Stmt) *CFG {
 // FromFunc is a convenience function for creating a CFG from a given function declaration.
 func FromFunc(f *ast.FuncDecl) *CFG {
 	return NewBuilder().BuildFromFunc(f)
+}
+
+// RenderToGraphVizFile renders the given DOT content to a GraphViz file.
+func RenderToGraphVizFile(dotContent []byte, filename string) error {
+	graph, err := graphviz.ParseBytes(dotContent)
+	if err != nil {
+		return err
+	}
+	g := graphviz.New()
+	defer g.Close()
+	err = g.RenderFilename(graph, graphviz.SVG, filename)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func AnalyzeFunction(file *ast.File, fname string) *CFG {
