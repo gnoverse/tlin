@@ -31,8 +31,8 @@ The implementation consists of a function `DetectMissingModPackage` that perform
 #### Incorrect:
 
 ```go
-// main.gno
-package main
+// bar.gno
+package bar
 
 import (
     "gno.land/p/demo/avl"
@@ -48,8 +48,8 @@ gno.land/p/demo/foo v0.0.0-latest  // Unused package
 #### Correct:
 
 ```go
-// main.gno
-package main
+// bar.gno
+package bar
 
 import (
     "gno.land/p/demo/avl"
