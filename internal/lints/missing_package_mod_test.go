@@ -98,11 +98,11 @@ func TestDetectMissingPackageInMod(t *testing.T) {
 			defer os.RemoveAll(tmpDir)
 
 			gnoFile := filepath.Join(tmpDir, "main.gno")
-			err = os.WriteFile(gnoFile, []byte(tt.gnoContent), 0644)
+			err = os.WriteFile(gnoFile, []byte(tt.gnoContent), 0o644)
 			require.NoError(t, err)
 
 			modFile := filepath.Join(tmpDir, "gno.mod")
-			err = os.WriteFile(modFile, []byte(tt.modContent), 0644)
+			err = os.WriteFile(modFile, []byte(tt.modContent), 0o644)
 			require.NoError(t, err)
 
 			fset := token.NewFileSet()

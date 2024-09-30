@@ -12,7 +12,7 @@ func DetectCycle(filename string, node *ast.File, fset *token.FileSet) ([]tt.Iss
 	c := newCycle()
 	cycles := c.detectCycles(node)
 
-	var issues []tt.Issue
+	issues := make([]tt.Issue, 0, len(cycles))
 	for _, cycle := range cycles {
 		issue := tt.Issue{
 			Rule:     "cycle-detection",

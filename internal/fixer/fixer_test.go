@@ -220,6 +220,7 @@ func main() {
 }
 
 func runTestCase(t *testing.T, input string, issues []tt.Issue, expected string, dryRun bool) {
+	t.Helper()
 	_, testFile, cleanup := setupTestFile(t, input)
 	defer cleanup()
 
@@ -238,11 +239,12 @@ func runTestCase(t *testing.T, input string, issues []tt.Issue, expected string,
 }
 
 func setupTestFile(t *testing.T, content string) (string, string, func()) {
+	t.Helper()
 	tmpDir, err := os.MkdirTemp("", "autofixer-test")
 	require.NoError(t, err)
 
 	testFile := filepath.Join(tmpDir, "test.go")
-	err = os.WriteFile(testFile, []byte(content), 0644)
+	err = os.WriteFile(testFile, []byte(content), 0o644)
 	require.NoError(t, err)
 
 	cleanup := func() {

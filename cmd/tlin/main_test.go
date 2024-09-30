@@ -205,7 +205,7 @@ func TestRunAutoFix(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	testFile := filepath.Join(tempDir, "test.go")
-	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0644)
+	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0o644)
 	assert.NoError(t, err)
 
 	expectedIssues := []types.Issue{
@@ -240,7 +240,7 @@ func main() {
 	assert.Contains(t, output, "Fixed issues in")
 
 	// dry run test
-	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0644)
+	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0o644)
 	assert.NoError(t, err)
 
 	output = captureOutput(t, func() {
@@ -299,7 +299,7 @@ func TestRunJsonOutput(t *testing.T) {
 	fmt.Println(tempDir)
 
 	testFile := filepath.Join(tempDir, "test.go")
-	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0644)
+	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0o644)
 	assert.NoError(t, err)
 
 	expectedIssues := []types.Issue{
@@ -320,18 +320,8 @@ func TestRunJsonOutput(t *testing.T) {
 	runNormalLintProcess(ctx, logger, mockEngine, []string{testFile}, true, jsonOutput)
 }
 
-func createTempFiles(t *testing.T, dir string, fileNames ...string) []string {
-	var paths []string
-	for _, fileName := range fileNames {
-		filePath := filepath.Join(dir, fileName)
-		_, err := os.Create(filePath)
-		assert.NoError(t, err)
-		paths = append(paths, filePath)
-	}
-	return paths
-}
-
 func createTempFileWithContent(t *testing.T, content string) string {
+	t.Helper()
 	tempFile, err := os.CreateTemp("", "test*.go")
 	assert.NoError(t, err)
 	defer tempFile.Close()
@@ -342,7 +332,8 @@ func createTempFileWithContent(t *testing.T, content string) string {
 	return tempFile.Name()
 }
 
-func captureOutput(_ *testing.T, f func()) string {
+func captureOutput(t *testing.T, f func()) string {
+	t.Helper()
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w

@@ -326,7 +326,8 @@ func main() {
 
 func TestDetectEmitFormat(t *testing.T) {
 	t.Parallel()
-	_, current, _, _ := runtime.Caller(0)
+	_, current, _, ok := runtime.Caller(0)
+	require.True(t, ok)
 	testDir := filepath.Join(filepath.Dir(current), "..", "..", "testdata", "emit")
 
 	tests := []struct {

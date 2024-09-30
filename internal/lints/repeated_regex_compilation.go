@@ -52,7 +52,7 @@ func runAnalyzer(filename string, a *analysis.Analyzer) ([]tt.Issue, error) {
 		return nil, err
 	}
 
-	var issues []tt.Issue
+	issues := make([]tt.Issue, 0, len(diagnostics))
 	for _, diag := range diagnostics {
 		issues = append(issues, tt.Issue{
 			Rule:     a.Name,

@@ -1,6 +1,6 @@
 // # Description
 //
-// Pacakge cfg provides functionality to generate and analyze Control Frow Graph (CFG) for go-like grammar languages.
+// Package cfg provides functionality to generate and analyze Control Frow Graph (CFG) for go-like grammar languages.
 //
 // ## Control Flow Graph (CFG)
 //

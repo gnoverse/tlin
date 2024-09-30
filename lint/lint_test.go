@@ -209,7 +209,8 @@ func TestHasDesiredExtension(t *testing.T) {
 }
 
 func createTempFiles(t *testing.T, dir string, fileNames ...string) []string {
-	var paths []string
+	t.Helper()
+	paths := make([]string, 0, len(fileNames))
 	for _, fileName := range fileNames {
 		filePath := filepath.Join(dir, fileName)
 		_, err := os.Create(filePath)
