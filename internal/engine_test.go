@@ -76,7 +76,7 @@ func TestEngine_PrepareFile(t *testing.T) {
 		tempDir := createTempDir(t, "gno_test")
 
 		gnoFile := filepath.Join(tempDir, "test.gno")
-		err := os.WriteFile(gnoFile, []byte("package main"), 0644)
+		err := os.WriteFile(gnoFile, []byte("package main"), 0o644)
 		require.NoError(t, err)
 
 		result, err := engine.prepareFile(gnoFile)
@@ -107,7 +107,7 @@ func TestReadSourceCode(t *testing.T) {
 
 	testFile := filepath.Join(tempDir, "test.go")
 	content := "package main\n\nfunc main() {\n\tprintln(\"Hello, World!\")\n}"
-	err := os.WriteFile(testFile, []byte(content), 0644)
+	err := os.WriteFile(testFile, []byte(content), 0o644)
 	require.NoError(t, err)
 
 	sourceCode, err := ReadSourceCode(testFile)

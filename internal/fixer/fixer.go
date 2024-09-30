@@ -71,7 +71,7 @@ func (f *Fixer) Fix(filename string, issues []tt.Issue) error {
 			return fmt.Errorf("failed to format file: %w", err)
 		}
 
-		err = os.WriteFile(filename, buf.Bytes(), 0644)
+		err = os.WriteFile(filename, buf.Bytes(), 0o644)
 		if err != nil {
 			return fmt.Errorf("failed to write file: %w", err)
 		}

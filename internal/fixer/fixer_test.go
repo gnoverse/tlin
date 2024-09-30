@@ -244,7 +244,7 @@ func setupTestFile(t *testing.T, content string) (string, string, func()) {
 	require.NoError(t, err)
 
 	testFile := filepath.Join(tmpDir, "test.go")
-	err = os.WriteFile(testFile, []byte(content), 0644)
+	err = os.WriteFile(testFile, []byte(content), 0o644)
 	require.NoError(t, err)
 
 	cleanup := func() {

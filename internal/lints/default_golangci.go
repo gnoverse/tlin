@@ -49,7 +49,7 @@ func RunGolangciLint(filename string) ([]tt.Issue, error) {
 	// when source code contains gno package imports (i.e. p/demo, r/demo, std). [07/25/24]
 	json.Unmarshal(output, &golangciResult)
 
-	var issues []tt.Issue
+	issues := make([]tt.Issue, 0, len(golangciResult.Issues))
 	for _, gi := range golangciResult.Issues {
 		issues = append(issues, tt.Issue{
 			Rule:     gi.FromLinter,

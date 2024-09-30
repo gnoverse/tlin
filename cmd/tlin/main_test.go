@@ -205,7 +205,7 @@ func TestRunAutoFix(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	testFile := filepath.Join(tempDir, "test.go")
-	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0644)
+	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0o644)
 	assert.NoError(t, err)
 
 	expectedIssues := []types.Issue{
@@ -240,7 +240,7 @@ func main() {
 	assert.Contains(t, output, "Fixed issues in")
 
 	// dry run test
-	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0644)
+	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0o644)
 	assert.NoError(t, err)
 
 	output = captureOutput(t, func() {
@@ -299,7 +299,7 @@ func TestRunJsonOutput(t *testing.T) {
 	fmt.Println(tempDir)
 
 	testFile := filepath.Join(tempDir, "test.go")
-	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0644)
+	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0o644)
 	assert.NoError(t, err)
 
 	expectedIssues := []types.Issue{
@@ -321,6 +321,7 @@ func TestRunJsonOutput(t *testing.T) {
 }
 
 func createTempFileWithContent(t *testing.T, content string) string {
+	t.Helper()
 	tempFile, err := os.CreateTemp("", "test*.go")
 	assert.NoError(t, err)
 	defer tempFile.Close()

@@ -179,7 +179,7 @@ func (b *builder) buildLoop(stmt ast.Stmt) {
 	// flows as such (range same w/o init & post):
 	// previous -> [ init -> ] for -> body -> [ post -> ] for -> next
 
-	var post = stmt // post in for loop, or for stmt itself; body flows to this
+	post := stmt // post in for loop, or for stmt itself; body flows to this
 
 	switch stmt := stmt.(type) {
 	case *ast.ForStmt:
