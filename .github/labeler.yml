@@ -1,0 +1,40 @@
+name: "Pull Request Labeler"
+on:
+  - pull_request_target
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/labeler@v4
+      with:
+        repo-token: "${{ secrets.GITHUB_TOKEN }}"
+        configuration-path: .github/labeler.yml
+
+---
+
+A-Action:
+  - '**/*.yml'
+
+A-documentation:
+  - '**/*.md'
+  - 'internal/lints/README.md'
+
+A-lint:
+  - 'internal/lints/**/*'
+
+T-engine:
+  - 'internal/engine/**/*'
+
+T-fixer:
+  - 'internal/fixer/**/*'
+
+T-format:
+  - 'formatter/**/*'
+
+T-CLI:
+  - 'cmd/**/*'
+
+L-test:
+  - '**/*_test.go'
+  - 'testdata/**/*'
