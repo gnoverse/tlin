@@ -253,3 +253,89 @@ func setupTestFile(t *testing.T, content string) (string, string, func()) {
 
 	return tmpDir, testFile, cleanup
 }
+
+func BenchmarkFix(b *testing.B) {
+	benchmarks := []struct {
+		name   string
+		input  string
+		issues []tt.Issue
+	}{
+		{
+			name: "Simple case",
+			input: `package main
+
+func main() {
+    slice := []int{1, 2, 3}
+    _ = slice[:len(slice)]
+}`,
+			issues: []tt.Issue{
+				{
+					Rule:       "simplify-slice-range",
+					Message:    "unnecessary use of len() in slice expression, can be simplified",
+					Start:      token.Position{Line: 5, Column: 5},
+					End:        token.Position{Line: 5, Column: 24},
+					Suggestion: "_ = slice[:]",
+					Confidence: 0.9,
+				},
+			},
+		},
+		{
+			name: "Multiple issues",
+			input: `package main
+
+func main() {
+	slice1 := []int{1, 2, 3}
+	_ = slice1[:len(slice1)]
+
+	slice2 := []string{"a", "b", "c"}
+	_ = slice2[:len(slice2)]
+}`,
+			issues: []tt.Issue{
+				{
+					Rule:       "simplify-slice-range",
+					Message:    "unnecessary use of len() in slice expression, can be simplified",
+					Start:      token.Position{Line: 5, Column: 5},
+					End:        token.Position{Line: 5, Column: 26},
+					Suggestion: "_ = slice1[:]",
+					Confidence: 0.9,
+				},
+				{
+					Rule:       "simplify-slice-range",
+					Message:    "unnecessary use of len() in slice expression, can be simplified",
+					Start:      token.Position{Line: 8, Column: 5},
+					End:        token.Position{Line: 8, Column: 26},
+					Suggestion: "_ = slice2[:]",
+					Confidence: 0.9,
+				},
+			},
+		},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			tmpDir, err := os.MkdirTemp("", "autofixer-benchmark")
+			require.NoError(b, err)
+			defer os.RemoveAll(tmpDir)
+
+			testFile := filepath.Join(tmpDir, "test.go")
+			err = os.WriteFile(testFile, []byte(bm.input), 0o644)
+			require.NoError(b, err)
+
+			for i := range bm.issues {
+				bm.issues[i].Filename = testFile
+			}
+
+			fixer := New(false, confidenceThreshold)
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				err := fixer.Fix(testFile, bm.issues)
+				require.NoError(b, err)
+
+				// Reset the file content for the next iteration
+				err = os.WriteFile(testFile, []byte(bm.input), 0o644)
+				require.NoError(b, err)
+			}
+		})
+	}
+}

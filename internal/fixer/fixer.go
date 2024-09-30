@@ -52,7 +52,7 @@ func (f *Fixer) Fix(filename string, issues []tt.Issue) error {
 		endLine := issue.End.Line - 1
 
 		indent := f.extractIndent(lines[startLine])
-		suggestion := f.applyIndent(issue.Suggestion, indent)
+		suggestion := applyIndent(issue.Suggestion, indent, issue.Start)
 
 		lines = append(lines[:startLine], append([]string{suggestion}, lines[endLine+1:]...)...)
 	}
@@ -86,11 +86,30 @@ func (f *Fixer) extractIndent(line string) string {
 	return line[:len(line)-len(strings.TrimLeft(line, " \t"))]
 }
 
-// TODO: better indentation handling
-func (f *Fixer) applyIndent(code, indent string) string {
-	lines := strings.Split(code, "\n")
-	for i, line := range lines {
-		lines[i] = indent + line
+func applyIndent(content, suggestion string, start token.Position) string {
+	lines := strings.Split(content, "\n")
+	sugLines := strings.Split(suggestion, "\n")
+	offset := getOffset(lines, start.Line-1)
+
+	// apply the offset to all suggestion lines
+	for i := range sugLines {
+		sugLines[i] = strings.Repeat(" ", offset) + sugLines[i]
 	}
+
+	// replace the lines in the original content
+	for i := 0; i < len(sugLines); i++ {
+		if start.Line-1+i < len(lines) {
+			lines[start.Line-1+i] = sugLines[i]
+		}
+	}
+
 	return strings.Join(lines, "\n")
+}
+
+// get the offset (indentation) of a line
+func getOffset(lines []string, lineIndex int) int {
+	if lineIndex < 0 || lineIndex >= len(lines) {
+		return 0
+	}
+	return len(lines[lineIndex]) - len(strings.TrimLeft(lines[lineIndex], " \t"))
 }
