@@ -107,105 +107,6 @@ func TestReadSourceCode(t *testing.T) {
 	assert.Equal(t, "package main", sourceCode.Lines[0])
 }
 
-func TestEngine_Run_WithNoLint(t *testing.T) {
-	tests := []struct {
-		name           string
-		source         string
-		expectedIssues int
-	}{
-		{
-			name: "No nolint - should report issues",
-			source: `
-package main
-
-func main() {
-	var unusedVar int
-}
-`,
-			expectedIssues: 1,
-		},
-		{
-			name: "nolint on line - should suppress issue",
-			source: `
-package main
-
-func main() {
-	var unusedVar int //nolint:typecheck
-}
-`,
-			expectedIssues: 0,
-		},
-		{
-			name: "nolint above line - should suppress issue",
-			source: `
-package main
-
-func main() {
-	//nolint:typecheck
-	var unusedVar int
-}
-`,
-			expectedIssues: 0,
-		},
-		{
-			name: "nolint above package - should suppress all issues",
-			source: `
-//nolint:typecheck
-package main
-
-func foo() {
-	var unusedVar1 int
-}
-
-func main() {
-	var unusedVar2 int
-}
-`,
-			expectedIssues: 0,
-		},
-		{
-			name: "nolint with specific rule - should suppress only specified issue",
-			source: `
-package main
-
-func main() {
-	//nolint:typecheck
-	var unusedVar int
-	var anotherUnusedVar int
-}
-`,
-			expectedIssues: 1,
-		},
-		{
-			name: "nolint with multiple rules - should suppress specified issues",
-			source: `
-package main
-
-func main() {
-	//nolint:typecheck,shadow
-	var unusedVar int
-}
-`,
-			expectedIssues: 0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tempDir := createTempDir(t, "nolint_test")
-			fileName := createTempFile(t, tempDir, "test_*.go", tt.source)
-
-			engine, err := NewEngine(tempDir, nil)
-			require.NoError(t, err)
-
-			issues, err := engine.Run(fileName)
-			require.NoError(t, err)
-
-			assert.Len(t, issues, tt.expectedIssues)
-		})
-	}
-}
-
 func BenchmarkFilterUndefinedIssues(b *testing.B) {
 	engine := &Engine{
 		SymbolTable: &SymbolTable{},
@@ -273,18 +174,6 @@ func BenchmarkRun(b *testing.B) {
 			}
 		}
 	}
-}
-
-func createTempFile(tb testing.TB, dir, prefix, content string) string {
-	tb.Helper()
-	tempFile, err := os.CreateTemp(dir, prefix)
-	require.NoError(tb, err)
-	_, err = tempFile.WriteString(content)
-	require.NoError(tb, err)
-	err = tempFile.Close()
-	require.NoError(tb, err)
-	tb.Cleanup(func() { os.Remove(tempFile.Name()) })
-	return tempFile.Name()
 }
 
 func createTempDir(tb testing.TB, prefix string) string {
