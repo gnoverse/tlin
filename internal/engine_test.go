@@ -12,16 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// createTempDir creates a temporary directory and returns its path.
-// It also registers a cleanup function to remove the directory after the test.
-func createTempDir(tb testing.TB, prefix string) string {
-	tb.Helper()
-	tempDir, err := os.MkdirTemp("", prefix)
-	require.NoError(tb, err)
-	tb.Cleanup(func() { os.RemoveAll(tempDir) })
-	return tempDir
-}
-
 func TestNewEngine(t *testing.T) {
 	t.Parallel()
 
@@ -142,7 +132,6 @@ var testSrc = strings.Repeat("hello world", 5000)
 func BenchmarkCreateTempGoFile(b *testing.B) {
 	tempDir := createTempDir(b, "benchmark")
 
-	// create temp go file for benchmark
 	gnoContent := []byte(testSrc)
 	gnoFile := filepath.Join(tempDir, "main.gno")
 	if err := os.WriteFile(gnoFile, gnoContent, 0o644); err != nil {
@@ -185,4 +174,12 @@ func BenchmarkRun(b *testing.B) {
 			}
 		}
 	}
+}
+
+func createTempDir(tb testing.TB, prefix string) string {
+	tb.Helper()
+	tempDir, err := os.MkdirTemp("", prefix)
+	require.NoError(tb, err)
+	tb.Cleanup(func() { os.RemoveAll(tempDir) })
+	return tempDir
 }

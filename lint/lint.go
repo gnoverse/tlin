@@ -23,7 +23,13 @@ func New(rootDir string, source []byte) (*internal.Engine, error) {
 	return internal.NewEngine(rootDir, source)
 }
 
-func ProcessSources(ctx context.Context, logger *zap.Logger, engine LintEngine, sources [][]byte, processor func(LintEngine, []byte) ([]tt.Issue, error)) ([]tt.Issue, error) {
+func ProcessSources(
+	ctx context.Context,
+	logger *zap.Logger,
+	engine LintEngine,
+	sources [][]byte,
+	processor func(LintEngine, []byte) ([]tt.Issue, error),
+) ([]tt.Issue, error) {
 	var allIssues []tt.Issue
 	for i, source := range sources {
 		issues, err := processor(engine, source)
@@ -39,7 +45,13 @@ func ProcessSources(ctx context.Context, logger *zap.Logger, engine LintEngine, 
 	return allIssues, nil
 }
 
-func ProcessFiles(ctx context.Context, logger *zap.Logger, engine LintEngine, paths []string, processor func(LintEngine, string) ([]tt.Issue, error)) ([]tt.Issue, error) {
+func ProcessFiles(
+	ctx context.Context,
+	logger *zap.Logger,
+	engine LintEngine,
+	paths []string,
+	processor func(LintEngine, string) ([]tt.Issue, error),
+) ([]tt.Issue, error) {
 	var allIssues []tt.Issue
 	for _, path := range paths {
 		issues, err := ProcessPath(ctx, logger, engine, path, processor)
@@ -55,7 +67,13 @@ func ProcessFiles(ctx context.Context, logger *zap.Logger, engine LintEngine, pa
 	return allIssues, nil
 }
 
-func ProcessPath(_ context.Context, logger *zap.Logger, engine LintEngine, path string, processor func(LintEngine, string) ([]tt.Issue, error)) ([]tt.Issue, error) {
+func ProcessPath(
+	_ context.Context,
+	logger *zap.Logger,
+	engine LintEngine,
+	path string,
+	processor func(LintEngine, string) ([]tt.Issue, error),
+) ([]tt.Issue, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("error accessing %s: %w", path, err)
