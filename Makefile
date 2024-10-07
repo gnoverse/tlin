@@ -34,7 +34,7 @@ build-mac:
 	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GOBUILD) -o $(BINARY_MAC) -v $(MAIN_PACKAGE)
 
 test:
-	$(GOTEST) -race -v ./...
+	$(GOTEST) -race -v -shuffle=on ./...
 
 clean:
 	$(GOCLEAN)

@@ -54,11 +54,11 @@ func parseNolintComment(
 	var scope nolintScope
 	text := comment.Text
 
-	if !strings.HasPrefix(text, "//nolint") {
+	if !strings.HasPrefix(text, nolintPrefix) {
 		return scope, fmt.Errorf("invalid nolint comment")
 	}
 
-	prefixLen := len("//nolint")
+	prefixLen := len(nolintPrefix)
 	rest := text[prefixLen:]
 
 	if len(rest) > 0 && rest[0] != ':' {

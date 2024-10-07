@@ -108,8 +108,6 @@ func TestReadSourceCode(t *testing.T) {
 }
 
 func TestEngine_Run_WithNoLint(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name           string
 		source         string
@@ -193,10 +191,7 @@ func main() {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			tempDir := createTempDir(t, "nolint_test")
 			fileName := createTempFile(t, tempDir, "test_*.go", tt.source)
 
