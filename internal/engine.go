@@ -92,7 +92,7 @@ func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 				return
 			}
 
-			nolinted := e.filterNolintIssues(issues, r.Name())
+			nolinted := e.filterNolintIssues(issues)
 
 			mu.Lock()
 			allIssues = append(allIssues, nolinted...)
@@ -138,7 +138,7 @@ func (e *Engine) RunSource(source []byte) ([]tt.Issue, error) {
 				return
 			}
 
-			nolinted := e.filterNolintIssues(issues, r.Name())
+			nolinted := e.filterNolintIssues(issues)
 
 			mu.Lock()
 			allIssues = append(allIssues, nolinted...)
@@ -206,10 +206,7 @@ func (e *Engine) filterUndefinedIssues(issues []tt.Issue) []tt.Issue {
 }
 
 // filterNolintIssues filters issues based on nolint comments.
-func (e *Engine) filterNolintIssues(
-	issues []tt.Issue,
-	rule string,
-) []tt.Issue {
+func (e *Engine) filterNolintIssues(issues []tt.Issue) []tt.Issue {
 	if e.nolintMgr == nil {
 		return issues
 	}
@@ -220,7 +217,7 @@ func (e *Engine) filterNolintIssues(
 			Line:     issue.Start.Line,
 			Column:   issue.Start.Column,
 		}
-		if !e.nolintMgr.IsNolint(pos, rule) {
+		if !e.nolintMgr.IsNolint(pos, issue.Rule) {
 			filtered = append(filtered, issue)
 		}
 	}

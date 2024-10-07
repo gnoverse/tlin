@@ -65,8 +65,15 @@ func parseNolintComment(
 		return scope, fmt.Errorf("invalid nolint comment format")
 	}
 
-	rest = strings.TrimPrefix(rest, ":")
-	rest = strings.TrimSpace(rest)
+	if len(rest) > 0 && rest[0] == ':' {
+		rest = strings.TrimPrefix(rest, ":")
+		rest = strings.TrimSpace(rest)
+		if rest == "" {
+			return scope, fmt.Errorf("invalid nolint comment: no rules specified after colon")
+		}
+	} else if len(rest) > 0 {
+		return scope, fmt.Errorf("invalid nolint comment: expected colon after 'nolint'")
+	}
 
 	scope.rules = parseNolintRuleNames(rest)
 	pos := fset.Position(comment.Slash)
