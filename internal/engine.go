@@ -215,7 +215,6 @@ func (e *Engine) filterNolintIssues(issues []tt.Issue) []tt.Issue {
 		pos := token.Position{
 			Filename: issue.Filename,
 			Line:     issue.Start.Line,
-			Column:   issue.Start.Column,
 		}
 		if !e.nolintMgr.IsNolint(pos, issue.Rule) {
 			filtered = append(filtered, issue)
