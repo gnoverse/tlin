@@ -7,19 +7,16 @@ import (
 )
 
 func TestParseNolintRules(t *testing.T) {
-	input := "//nolint:rule1,rule2,rule3"
-	expected := map[string]struct{}{
-		"rule1": {},
-		"rule2": {},
-		"rule3": {},
-	}
-	result := parseNolintRules(input)
+	t.Parallel()
+	input := "rule1,rule2,rule3"
+	expected := []string{"rule1", "rule2", "rule3"}
+	result := parseNolintRuleNames(input)
 	if len(result) != len(expected) {
 		t.Errorf("Expected %d rules, got %d", len(expected), len(result))
 	}
-	for k := range expected {
-		if _, exists := result[k]; !exists {
-			t.Errorf("Expected rule %s not found", k)
+	for _, rule := range expected {
+		if _, exists := result[rule]; !exists {
+			t.Errorf("Expected rule %s not found", rule)
 		}
 	}
 }
@@ -102,7 +99,6 @@ func main() {
 	}
 }
 
-// Helper function to get token.Position at a specific line
 func positionAtLine(line int) token.Position {
 	return token.Position{
 		Filename: "test.go",

@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ type Engine struct {
 	rules        []LintRule
 	ignoredRules map[string]bool
 	defaultRules []LintRule
+	nolintMgr    *nolintManager
 }
 
 // NewEngine creates a new lint engine.
@@ -72,6 +74,8 @@ func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 		return nil, fmt.Errorf("error parsing file: %w", err)
 	}
 
+	e.nolintMgr = ParseNolintComments(node, fset)
+
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
@@ -80,16 +84,18 @@ func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 		wg.Add(1)
 		go func(r LintRule) {
 			defer wg.Done()
-			if e.ignoredRules[rule.Name()] {
+			if e.ignoredRules[r.Name()] {
 				return
 			}
-			issues, err := rule.Check(tempFile, node, fset)
+			issues, err := r.Check(tempFile, node, fset)
 			if err != nil {
 				return
 			}
 
+			nolinted := e.filterNolintIssues(issues, r.Name())
+
 			mu.Lock()
-			allIssues = append(allIssues, issues...)
+			allIssues = append(allIssues, nolinted...)
 			mu.Unlock()
 		}(rule)
 	}
@@ -114,6 +120,8 @@ func (e *Engine) RunSource(source []byte) ([]tt.Issue, error) {
 		return nil, fmt.Errorf("error parsing content: %w", err)
 	}
 
+	e.nolintMgr = ParseNolintComments(node, fset)
+
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
@@ -122,16 +130,18 @@ func (e *Engine) RunSource(source []byte) ([]tt.Issue, error) {
 		wg.Add(1)
 		go func(r LintRule) {
 			defer wg.Done()
-			if e.ignoredRules[rule.Name()] {
+			if e.ignoredRules[r.Name()] {
 				return
 			}
-			issues, err := rule.Check("", node, fset)
+			issues, err := r.Check("", node, fset)
 			if err != nil {
 				return
 			}
 
+			nolinted := e.filterNolintIssues(issues, r.Name())
+
 			mu.Lock()
-			allIssues = append(allIssues, issues...)
+			allIssues = append(allIssues, nolinted...)
 			mu.Unlock()
 		}(rule)
 	}
@@ -191,6 +201,28 @@ func (e *Engine) filterUndefinedIssues(issues []tt.Issue) []tt.Issue {
 			}
 		}
 		filtered = append(filtered, issue)
+	}
+	return filtered
+}
+
+// filterNolintIssues filters issues based on nolint comments.
+func (e *Engine) filterNolintIssues(
+	issues []tt.Issue,
+	rule string,
+) []tt.Issue {
+	if e.nolintMgr == nil {
+		return issues
+	}
+	filtered := make([]tt.Issue, 0, len(issues))
+	for _, issue := range issues {
+		pos := token.Position{
+			Filename: issue.Filename,
+			Line:     issue.Start.Line,
+			Column:   issue.Start.Column,
+		}
+		if !e.nolintMgr.IsNolint(pos, rule) {
+			filtered = append(filtered, issue)
+		}
 	}
 	return filtered
 }

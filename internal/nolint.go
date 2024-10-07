@@ -1,9 +1,9 @@
 package internal
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
-	"log"
 	"strings"
 )
 
@@ -31,12 +31,9 @@ func ParseNolintComments(f *ast.File, fset *token.FileSet) *nolintManager {
 
 	for _, cg := range f.Comments {
 		for _, comment := range cg.List {
-			if !strings.HasPrefix(comment.Text, nolintPrefix) {
-				continue
-			}
 			scope, err := parseNolintComment(comment, f, fset, stmtMap, packageLine)
 			if err != nil {
-				log.Printf("Failed to parse nolint comment: %v", err)
+				// ignore invalid nolint comments
 				continue
 			}
 			filename := scope.start.Filename
@@ -55,10 +52,23 @@ func parseNolintComment(
 	packageLine int,
 ) (nolintScope, error) {
 	var scope nolintScope
-	text := strings.TrimSpace(strings.TrimPrefix(comment.Text, nolintPrefix))
+	text := comment.Text
 
-	// parse specific rules
-	scope.rules = parseNolintRules(text)
+	if !strings.HasPrefix(text, "//nolint") {
+		return scope, fmt.Errorf("invalid nolint comment")
+	}
+
+	prefixLen := len("//nolint")
+	rest := text[prefixLen:]
+
+	if len(rest) > 0 && rest[0] != ':' {
+		return scope, fmt.Errorf("invalid nolint comment format")
+	}
+
+	rest = strings.TrimPrefix(rest, ":")
+	rest = strings.TrimSpace(rest)
+
+	scope.rules = parseNolintRuleNames(rest)
 	pos := fset.Position(comment.Slash)
 
 	// check if the comment is before the package declaration
@@ -68,7 +78,25 @@ func parseNolintComment(
 		return scope, nil
 	}
 
-	// skip the whole function if it is directly above the function declaration
+	// check if the comment is at the end of a line (inline comment)
+	if pos.Line == fset.File(comment.Slash).Line(comment.Slash) {
+		// Inline comment, applies to the statement on the same line
+		if stmt, exists := stmtMap[pos.Line]; exists {
+			scope.start = fset.Position(stmt.Pos())
+			scope.end = fset.Position(stmt.End())
+			return scope, nil
+		}
+	}
+
+	// check if the comment is above a statement
+	nextLine := pos.Line + 1
+	if stmt, exists := stmtMap[nextLine]; exists {
+		scope.start = fset.Position(stmt.Pos())
+		scope.end = fset.Position(stmt.End())
+		return scope, nil
+	}
+
+	// check if the comment is above a function declaration
 	if decl := findFunctionAfterLine(fset, f, pos.Line); decl != nil {
 		funcPos := fset.Position(decl.Pos())
 		if funcPos.Line == pos.Line+1 {
@@ -78,51 +106,25 @@ func parseNolintComment(
 		}
 	}
 
-	// find statement at the same line or the next line using the pre-indexed map
-	if stmt, exists := stmtMap[pos.Line]; exists {
-		scope.start = fset.Position(stmt.Pos())
-		scope.end = fset.Position(stmt.End())
-		return scope, nil
-	} else if stmt, exists := stmtMap[pos.Line+1]; exists {
-		scope.start = fset.Position(stmt.Pos())
-		scope.end = fset.Position(stmt.End())
-		return scope, nil
-	}
-
-	// use default comment position
+	// Default case: apply to the line of the comment
 	scope.start = pos
 	scope.end = pos
 	return scope, nil
 }
 
-// parseNolintRules parses the rule list from the nolint comment more efficiently.
-func parseNolintRules(text string) map[string]struct{} {
+// parseNolintRuleNames parses the rule list from the nolint comment more efficiently.
+func parseNolintRuleNames(text string) map[string]struct{} {
 	rulesMap := make(map[string]struct{})
 
-	// Find the index of the first colon
-	colon := strings.IndexByte(text, ':')
-	if colon == -1 || colon == len(text)-1 {
+	if text == "" {
 		return rulesMap
 	}
 
-	start := colon + 1
-	n := len(text)
-	for i := start; i <= n; i++ {
-		// if we reach a comma or the end of the string, process the rule
-		if i == n || text[i] == ',' {
-			// trim leading and trailing spaces
-			end := i
-			for start < end && text[start] == ' ' {
-				start++
-			}
-			for end > start && text[end-1] == ' ' {
-				end--
-			}
-			if start < end {
-				rule := text[start:end]
-				rulesMap[rule] = struct{}{}
-			}
-			start = i + 1
+	rules := strings.Split(text, ",")
+	for _, rule := range rules {
+		rule = strings.TrimSpace(rule)
+		if rule != "" {
+			rulesMap[rule] = struct{}{}
 		}
 	}
 	return rulesMap
