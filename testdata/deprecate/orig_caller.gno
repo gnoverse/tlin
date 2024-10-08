@@ -5,7 +5,7 @@ import (
 )
 
 func main() {
-	origCaller := std.GetOrigCaller()
+    origCaller := std.GetOrigCaller()
 	println(origCaller.String())
 
 	prev := std.PrevRealm()

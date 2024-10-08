@@ -3,6 +3,7 @@ package formatter
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/fatih/color"
 	"github.com/gnolang/tlin/internal"
@@ -149,7 +150,7 @@ func (b *IssueFormatterBuilder) AddCodeSnippet() *IssueFormatterBuilder {
 			continue
 		}
 
-		line := expandTabs(b.snippet.Lines[i-1])
+		line := b.snippet.Lines[i-1]
 		line = strings.TrimPrefix(line, commonIndent)
 		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, i)
 
@@ -248,21 +249,6 @@ func calculateMaxLineNumWidth(endLine int) int {
 	return len(fmt.Sprintf("%d", endLine))
 }
 
-// expandTabs replaces tab characters('\t') with spaces.
-// Assuming a table width of 8.
-func expandTabs(line string) string {
-	var expanded strings.Builder
-	for i, ch := range line {
-		if ch == '\t' {
-			spaceCount := tabWidth - (i % tabWidth)
-			expanded.WriteString(strings.Repeat(" ", spaceCount))
-		} else {
-			expanded.WriteRune(ch)
-		}
-	}
-	return expanded.String()
-}
-
 // calculateVisualColumn calculates the visual column position
 // in a string. taking into account tab characters.
 func calculateVisualColumn(line string, column int) int {
@@ -290,39 +276,40 @@ func findCommonIndent(lines []string) string {
 	}
 
 	// find first non-empty line's indent
-	var firstIndent string
+	var firstIndent []rune
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
+		// trimmed := strings.TrimSpace(line)
+		trimmed := strings.TrimLeftFunc(line, unicode.IsSpace)
 		if trimmed != "" {
-			firstIndent = line[:len(line)-len(trimmed)]
+			firstIndent = []rune(line[:len(line)-len(trimmed)])
 			break
 		}
 	}
 
-	if firstIndent == "" {
+	if len(firstIndent) == 0 {
 		return ""
 	}
 
 	// search common indent for all non-empty lines
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
+		trimmed := strings.TrimLeftFunc(line, unicode.IsSpace)
 		if trimmed == "" {
 			continue
 		}
 
-		currentIndent := line[:len(line)-len(trimmed)]
+		currentIndent := []rune(line[:len(line)-len(trimmed)])
 		firstIndent = commonPrefix(firstIndent, currentIndent)
 
-		if firstIndent == "" {
+		if len(firstIndent) == 0 {
 			break
 		}
 	}
 
-	return firstIndent
+	return string(firstIndent)
 }
 
 // commonPrefix finds the common prefix of two strings.
-func commonPrefix(a, b string) string {
+func commonPrefix(a, b []rune) []rune {
 	minLen := len(a)
 	if len(b) < minLen {
 		minLen = len(b)
