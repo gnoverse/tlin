@@ -3,6 +3,7 @@ package formatter
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/fatih/color"
 	"github.com/gnolang/tlin/internal"
@@ -19,6 +20,7 @@ const (
 	SliceBound          = "slice-bounds-check"
 	Defers              = "defer-issues"
 	MissingModPackage   = "gno-mod-tidy"
+	DeprecatedFunc      = "deprecated"
 )
 
 const tabWidth = 8
@@ -58,6 +60,8 @@ func GenerateFormattedIssue(issues []tt.Issue, snippet *internal.SourceCode) str
 // If no specific formatter is found for the given rule, it returns a GeneralIssueFormatter.
 func getFormatter(rule string) IssueFormatter {
 	switch rule {
+	case DeprecatedFunc:
+		return &DeprecatedFuncFormatter{}
 	case EarlyReturn:
 		return &EarlyReturnOpportunityFormatter{}
 	case SimplifySliceExpr:
@@ -146,7 +150,7 @@ func (b *IssueFormatterBuilder) AddCodeSnippet() *IssueFormatterBuilder {
 			continue
 		}
 
-		line := expandTabs(b.snippet.Lines[i-1])
+		line := b.snippet.Lines[i-1]
 		line = strings.TrimPrefix(line, commonIndent)
 		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, i)
 
@@ -213,7 +217,8 @@ func (b *IssueFormatterBuilder) AddSuggestion() *IssueFormatterBuilder {
 	suggestionLines := strings.Split(b.issue.Suggestion, "\n")
 	for i, line := range suggestionLines {
 		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, b.issue.Start.Line+i)
-		b.result.WriteString(lineStyle.Sprintf("%s | %s\n", lineNum, line))
+		b.result.WriteString(lineStyle.Sprintf("%s | ", lineNum))
+		b.result.WriteString(line + "\n")
 	}
 
 	b.result.WriteString(lineStyle.Sprintf("%s|\n", padding))
@@ -244,21 +249,6 @@ func calculateMaxLineNumWidth(endLine int) int {
 	return len(fmt.Sprintf("%d", endLine))
 }
 
-// expandTabs replaces tab characters('\t') with spaces.
-// Assuming a table width of 8.
-func expandTabs(line string) string {
-	var expanded strings.Builder
-	for i, ch := range line {
-		if ch == '\t' {
-			spaceCount := tabWidth - (i % tabWidth)
-			expanded.WriteString(strings.Repeat(" ", spaceCount))
-		} else {
-			expanded.WriteRune(ch)
-		}
-	}
-	return expanded.String()
-}
-
 // calculateVisualColumn calculates the visual column position
 // in a string. taking into account tab characters.
 func calculateVisualColumn(line string, column int) int {
@@ -279,26 +269,55 @@ func calculateVisualColumn(line string, column int) int {
 	return visualColumn
 }
 
+// findCommonIndent finds the common indent in the code snippet.
 func findCommonIndent(lines []string) string {
 	if len(lines) == 0 {
 		return ""
 	}
 
-	commonIndentPrefix := strings.TrimLeft(lines[0], " \t")
-	commonIndentPrefix = lines[0][:len(lines[0])-len(commonIndentPrefix)]
-
-	for _, line := range lines[1:] {
-		if strings.TrimSpace(line) == "" {
-			continue // ignore empty lines
-		}
-
-		for !strings.HasPrefix(line, commonIndentPrefix) {
-			commonIndentPrefix = commonIndentPrefix[:len(commonIndentPrefix)-1]
-			if len(commonIndentPrefix) == 0 {
-				return ""
-			}
+	// find first non-empty line's indent
+	var firstIndent []rune
+	for _, line := range lines {
+		// trimmed := strings.TrimSpace(line)
+		trimmed := strings.TrimLeftFunc(line, unicode.IsSpace)
+		if trimmed != "" {
+			firstIndent = []rune(line[:len(line)-len(trimmed)])
+			break
 		}
 	}
 
-	return commonIndentPrefix
+	if len(firstIndent) == 0 {
+		return ""
+	}
+
+	// search common indent for all non-empty lines
+	for _, line := range lines {
+		trimmed := strings.TrimLeftFunc(line, unicode.IsSpace)
+		if trimmed == "" {
+			continue
+		}
+
+		currentIndent := []rune(line[:len(line)-len(trimmed)])
+		firstIndent = commonPrefix(firstIndent, currentIndent)
+
+		if len(firstIndent) == 0 {
+			break
+		}
+	}
+
+	return string(firstIndent)
+}
+
+// commonPrefix finds the common prefix of two strings.
+func commonPrefix(a, b []rune) []rune {
+	minLen := len(a)
+	if len(b) < minLen {
+		minLen = len(b)
+	}
+	for i := 0; i < minLen; i++ {
+		if a[i] != b[i] {
+			return a[:i]
+		}
+	}
+	return a[:minLen]
 }

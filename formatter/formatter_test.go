@@ -169,7 +169,7 @@ func TestFormatIssuesWithArrows_UnnecessaryElse(t *testing.T) {
 			"package main",
 			"",
 			"func unnecessaryElse() bool {",
-			"    if condition {",
+			"	if condition {",
 			"        return true",
 			"    } else {",
 			"        return false",
@@ -280,9 +280,9 @@ func TestFindCommonIndent(t *testing.T) {
 		{
 			name: "tab indent",
 			lines: []string{
-				"\tif foo {",
-				"\t\tprintln()",
-				"\t}",
+				"	if foo {",
+				"		println()",
+				"	}",
 			},
 			expected: "\t",
 		},
