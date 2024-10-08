@@ -42,6 +42,7 @@ func (e *Engine) registerDefaultRules() {
 func (e *Engine) initDefaultRules() {
 	e.defaultRules = []LintRule{
 		&GolangciLintRule{},
+		&DeprecateFuncRule{},
 		&EarlyReturnOpportunityRule{},
 		&SimplifySliceExprRule{},
 		&UnnecessaryConversionRule{},

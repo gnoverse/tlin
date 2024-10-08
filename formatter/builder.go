@@ -19,6 +19,7 @@ const (
 	SliceBound          = "slice-bounds-check"
 	Defers              = "defer-issues"
 	MissingModPackage   = "gno-mod-tidy"
+	DeprecatedFunc      = "deprecated"
 )
 
 const tabWidth = 8
@@ -58,6 +59,8 @@ func GenerateFormattedIssue(issues []tt.Issue, snippet *internal.SourceCode) str
 // If no specific formatter is found for the given rule, it returns a GeneralIssueFormatter.
 func getFormatter(rule string) IssueFormatter {
 	switch rule {
+	case DeprecatedFunc:
+		return &DeprecatedFuncFormatter{}
 	case EarlyReturn:
 		return &EarlyReturnOpportunityFormatter{}
 	case SimplifySliceExpr:
@@ -213,7 +216,8 @@ func (b *IssueFormatterBuilder) AddSuggestion() *IssueFormatterBuilder {
 	suggestionLines := strings.Split(b.issue.Suggestion, "\n")
 	for i, line := range suggestionLines {
 		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, b.issue.Start.Line+i)
-		b.result.WriteString(lineStyle.Sprintf("%s | %s\n", lineNum, line))
+		b.result.WriteString(lineStyle.Sprintf("%s | ", lineNum))
+		b.result.WriteString(line + "\n")
 	}
 
 	b.result.WriteString(lineStyle.Sprintf("%s|\n", padding))
@@ -279,26 +283,54 @@ func calculateVisualColumn(line string, column int) int {
 	return visualColumn
 }
 
+// findCommonIndent finds the common indent in the code snippet.
 func findCommonIndent(lines []string) string {
 	if len(lines) == 0 {
 		return ""
 	}
 
-	commonIndentPrefix := strings.TrimLeft(lines[0], " \t")
-	commonIndentPrefix = lines[0][:len(lines[0])-len(commonIndentPrefix)]
-
-	for _, line := range lines[1:] {
-		if strings.TrimSpace(line) == "" {
-			continue // ignore empty lines
-		}
-
-		for !strings.HasPrefix(line, commonIndentPrefix) {
-			commonIndentPrefix = commonIndentPrefix[:len(commonIndentPrefix)-1]
-			if len(commonIndentPrefix) == 0 {
-				return ""
-			}
+	// find first non-empty line's indent
+	var firstIndent string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			firstIndent = line[:len(line)-len(trimmed)]
+			break
 		}
 	}
 
-	return commonIndentPrefix
+	if firstIndent == "" {
+		return ""
+	}
+
+	// search common indent for all non-empty lines
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+
+		currentIndent := line[:len(line)-len(trimmed)]
+		firstIndent = commonPrefix(firstIndent, currentIndent)
+
+		if firstIndent == "" {
+			break
+		}
+	}
+
+	return firstIndent
+}
+
+// commonPrefix finds the common prefix of two strings.
+func commonPrefix(a, b string) string {
+	minLen := len(a)
+	if len(b) < minLen {
+		minLen = len(b)
+	}
+	for i := 0; i < minLen; i++ {
+		if a[i] != b[i] {
+			return a[:i]
+		}
+	}
+	return a[:minLen]
 }

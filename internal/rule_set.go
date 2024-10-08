@@ -31,6 +31,16 @@ func (r *GolangciLintRule) Name() string {
 	return "golangci-lint"
 }
 
+type DeprecateFuncRule struct{}
+
+func (r *DeprecateFuncRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectDeprecatedFunctions(filename, node, fset)
+}
+
+func (r *DeprecateFuncRule) Name() string {
+	return "deprecated-function"
+}
+
 type SimplifySliceExprRule struct{}
 
 func (r *SimplifySliceExprRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
