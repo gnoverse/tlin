@@ -147,7 +147,7 @@ func (r *MissingModPackageRule) Name() string {
 type RepeatedRegexCompilationRule struct{}
 
 func (r *RepeatedRegexCompilationRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectRepeatedRegexCompilation(filename)
+	return lints.DetectRepeatedRegexCompilation(filename, node)
 }
 
 func (r *RepeatedRegexCompilationRule) Name() string {

@@ -253,22 +253,6 @@ func main() {
 }`,
 			expected: 2,
 		},
-		// 		{
-		// 			name: "Variable allocation in loop",
-		// 			// ref: https://stackoverflow.com/questions/77180437/understanding-short-variable-declaration-in-loop-resulting-unnecessary-memory-a
-		// 			code: `
-		// 			package main
-
-		// import "fmt"
-
-		// func main() {
-		//     for i:=0; i<10; i++ {
-		//         a:=i+1 // BAD!: allocates memory in every iteration
-		//         fmt.Printf("i-val: %d, i-addr: %p, a-val: %d, a-addr: %p\n", i, &i, a, &a)
-		//     }
-		// }`,
-		// 			expected: 1,
-		// 		},
 		{
 			name: "No allocation in loop",
 			code: `

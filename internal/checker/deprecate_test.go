@@ -15,7 +15,7 @@ func TestRegisterDeprecatedFunctions(t *testing.T) {
 	checker.Register("fmt", "Println", "fmt.Print")
 	checker.Register("os", "Remove", "os.RemoveAll")
 
-	expected := deprecatedFuncMap{
+	expected := PkgFuncMap{
 		"fmt": {"Println": "fmt.Print"},
 		"os":  {"Remove": "os.RemoveAll"},
 	}
@@ -59,22 +59,34 @@ func main() {
 			Package:     "fmt",
 			Function:    "Println",
 			Alternative: "fmt.Print",
-			Position: token.Position{
+			Start: token.Position{
 				Filename: "example.go",
 				Offset:   55,
 				Line:     10,
 				Column:   2,
+			},
+			End: token.Position{
+				Filename: "example.go",
+				Offset:   83,
+				Line:     10,
+				Column:   30,
 			},
 		},
 		{
 			Package:     "os",
 			Function:    "Remove",
 			Alternative: "os.RemoveAll",
-			Position: token.Position{
+			Start: token.Position{
 				Filename: "example.go",
 				Offset:   85,
 				Line:     11,
 				Column:   2,
+			},
+			End: token.Position{
+				Filename: "example.go",
+				Offset:   111,
+				Line:     11,
+				Column:   28,
 			},
 		},
 	}
@@ -243,8 +255,8 @@ func assertDeprecatedFuncEqual(t *testing.T, expected, actual DeprecatedFunc) {
 	assert.Equal(t, expected.Package, actual.Package)
 	assert.Equal(t, expected.Function, actual.Function)
 	assert.Equal(t, expected.Alternative, actual.Alternative)
-	assert.NotEmpty(t, actual.Position.Filename)
-	assert.Greater(t, actual.Position.Offset, 0)
-	assert.Greater(t, actual.Position.Line, 0)
-	assert.Greater(t, actual.Position.Column, 0)
+	assert.NotEmpty(t, actual.Start.Filename)
+	assert.Greater(t, actual.Start.Offset, 0)
+	assert.Greater(t, actual.Start.Line, 0)
+	assert.Greater(t, actual.Start.Column, 0)
 }

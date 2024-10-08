@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	tt "github.com/gnolang/tlin/internal/types"
@@ -16,9 +17,9 @@ func DetectMissingModPackage(filename string, node *ast.File, fset *token.FileSe
 	dir := filepath.Dir(filename)
 	modFile := filepath.Join(dir, "gno.mod")
 
-	requiredPackages, err := extractImports(node)
+	requiredPackages, err := extractGnoImports(node)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract imports: %w", err)
+		return nil, fmt.Errorf("failed to extract gno imports: %w", err)
 	}
 
 	declaredPackages, err := extractDeclaredPackages(modFile)
@@ -26,7 +27,7 @@ func DetectMissingModPackage(filename string, node *ast.File, fset *token.FileSe
 		return nil, fmt.Errorf("failed to extract declared packages: %w", err)
 	}
 
-	var issues []tt.Issue
+	issues := make([]tt.Issue, 0)
 
 	var unusedPackages []string
 	for pkg := range declaredPackages {
@@ -62,11 +63,14 @@ func DetectMissingModPackage(filename string, node *ast.File, fset *token.FileSe
 	return issues, nil
 }
 
-func extractImports(node *ast.File) (map[string]bool, error) {
+func extractGnoImports(node *ast.File) (map[string]bool, error) {
 	imports := make(map[string]bool)
 	for _, imp := range node.Imports {
 		if imp.Path != nil {
-			path := strings.Trim(imp.Path.Value, "\"")
+			path, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unquote import path: %w", err)
+			}
 			if strings.HasPrefix(path, "gno.land/p/") || strings.HasPrefix(path, "gno.land/r/") {
 				imports[path] = true
 			}

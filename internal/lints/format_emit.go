@@ -9,7 +9,15 @@ import (
 )
 
 func DetectEmitFormat(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	var issues []tt.Issue
+	imports := extractImports(node, func(path string) bool {
+		return path == "std"
+	})
+
+	if !imports["std"] {
+		return nil, nil
+	}
+
+	issues := make([]tt.Issue, 0)
 	ast.Inspect(node, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {

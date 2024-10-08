@@ -15,7 +15,15 @@ var RepeatedRegexCompilationAnalyzer = &analysis.Analyzer{
 	Run:  runRepeatedRegexCompilation,
 }
 
-func DetectRepeatedRegexCompilation(filename string) ([]tt.Issue, error) {
+func DetectRepeatedRegexCompilation(filename string, node *ast.File) ([]tt.Issue, error) {
+	imports := extractImports(node, func(path string) bool {
+		return path == "regexp"
+	})
+
+	if !imports["regexp"] {
+		return nil, nil
+	}
+
 	issues, err := runAnalyzer(filename, RepeatedRegexCompilationAnalyzer)
 	if err != nil {
 		return nil, err
