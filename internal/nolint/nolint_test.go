@@ -1,4 +1,4 @@
-package internal
+package nolint
 
 import (
 	"go/parser"
@@ -10,7 +10,7 @@ func TestParseNolintRules(t *testing.T) {
 	t.Parallel()
 	input := "rule1,rule2,rule3"
 	expected := []string{"rule1", "rule2", "rule3"}
-	result := parseNolintRuleNames(input)
+	result := parseIgnoreRuleNames(input)
 	if len(result) != len(expected) {
 		t.Errorf("Expected %d rules, got %d", len(expected), len(result))
 	}
@@ -40,7 +40,7 @@ var x int
 		t.Fatalf("Failed to parse file: %v", err)
 	}
 
-	manager := ParseNolintComments(f, fset)
+	manager := ParseComments(f, fset)
 	if manager == nil {
 		t.Fatal("Expected nolintManager, got nil")
 	}
@@ -76,7 +76,7 @@ func main() {
 		t.Fatalf("Failed to parse source: %v", err)
 	}
 
-	manager := ParseNolintComments(node, fset)
+	manager := ParseComments(node, fset)
 
 	tests := []struct {
 		line     int

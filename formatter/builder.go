@@ -86,15 +86,37 @@ func getFormatter(rule string) IssueFormatter {
 /***** Issue Formatter Builder *****/
 
 type IssueFormatterBuilder struct {
-	result  strings.Builder
-	issue   tt.Issue
-	snippet *internal.SourceCode
+	result          strings.Builder
+	issue           tt.Issue
+	snippet         *internal.SourceCode
+	startLine       int
+	endLine         int
+	maxLineNumWidth int
+	padding         string
+	commonIndent    string
 }
 
 func NewIssueFormatterBuilder(issue tt.Issue, snippet *internal.SourceCode) *IssueFormatterBuilder {
+	startLine := issue.Start.Line
+	endLine := issue.End.Line
+	maxLineNumWidth := calculateMaxLineNumWidth(endLine)
+	padding := strings.Repeat(" ", maxLineNumWidth+1)
+
+	var commonIndent string
+	if startLine-1 < 0 || endLine > len(snippet.Lines) || startLine > endLine {
+		commonIndent = ""
+	} else {
+		commonIndent = findCommonIndent(snippet.Lines[startLine-1 : endLine])
+	}
+
 	return &IssueFormatterBuilder{
-		issue:   issue,
-		snippet: snippet,
+		issue:           issue,
+		snippet:         snippet,
+		startLine:       startLine,
+		endLine:         endLine,
+		maxLineNumWidth: maxLineNumWidth,
+		padding:         padding,
+		commonIndent:    commonIndent,
 	}
 }
 
@@ -118,11 +140,8 @@ func (b *IssueFormatterBuilder) AddHeader(kind headerType) *IssueFormatterBuilde
 
 	b.result.WriteString(ruleStyle.Sprintln(b.issue.Rule))
 
-	endLine := b.issue.End.Line
-	maxLineNumWidth := calculateMaxLineNumWidth(endLine)
-	padding := strings.Repeat(" ", maxLineNumWidth)
-
 	// add file name
+	padding := strings.Repeat(" ", b.maxLineNumWidth)
 	b.result.WriteString(lineStyle.Sprint(fmt.Sprintf("%s--> ", padding)))
 	b.result.WriteString(fileStyle.Sprintln(b.issue.Filename))
 
@@ -130,29 +149,17 @@ func (b *IssueFormatterBuilder) AddHeader(kind headerType) *IssueFormatterBuilde
 }
 
 func (b *IssueFormatterBuilder) AddCodeSnippet() *IssueFormatterBuilder {
-	startLine := b.issue.Start.Line
-	endLine := b.issue.End.Line
-	maxLineNumWidth := calculateMaxLineNumWidth(endLine)
-
-	var commonIndent string
-	if startLine-1 < 0 || endLine > len(b.snippet.Lines) || startLine > endLine {
-		commonIndent = ""
-	} else {
-		commonIndent = findCommonIndent(b.snippet.Lines[startLine-1 : endLine])
-	}
-
 	// add separator
-	padding := strings.Repeat(" ", maxLineNumWidth+1)
-	b.result.WriteString(lineStyle.Sprintf("%s|\n", padding))
+	b.result.WriteString(lineStyle.Sprintf("%s|\n", b.padding))
 
-	for i := startLine; i <= endLine; i++ {
+	for i := b.startLine; i <= b.endLine; i++ {
 		if i-1 < 0 || i-1 >= len(b.snippet.Lines) {
 			continue
 		}
 
 		line := b.snippet.Lines[i-1]
-		line = strings.TrimPrefix(line, commonIndent)
-		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, i)
+		line = strings.TrimPrefix(line, b.commonIndent)
+		lineNum := fmt.Sprintf("%*d", b.maxLineNumWidth, i)
 
 		b.result.WriteString(lineStyle.Sprintf("%s | ", lineNum))
 		b.result.WriteString(line + "\n")
@@ -162,35 +169,29 @@ func (b *IssueFormatterBuilder) AddCodeSnippet() *IssueFormatterBuilder {
 }
 
 func (b *IssueFormatterBuilder) AddUnderlineAndMessage() *IssueFormatterBuilder {
-	startLine := b.issue.Start.Line
-	endLine := b.issue.End.Line
-	maxLineNumWidth := calculateMaxLineNumWidth(endLine)
-	padding := strings.Repeat(" ", maxLineNumWidth+1)
+	b.result.WriteString(lineStyle.Sprintf("%s| ", b.padding))
 
-	b.result.WriteString(lineStyle.Sprintf("%s| ", padding))
-
-	if startLine <= 0 || startLine > len(b.snippet.Lines) || endLine <= 0 || endLine > len(b.snippet.Lines) || startLine > endLine {
+	if !b.isValidLineRange() {
 		b.result.WriteString(messageStyle.Sprintf("%s\n\n", b.issue.Message))
 		return b
 	}
 
-	commonIndent := findCommonIndent(b.snippet.Lines[startLine-1 : endLine])
-	commonIndentWidth := calculateVisualColumn(commonIndent, len(commonIndent)+1)
+	commonIndentWidth := calculateVisualColumn(b.commonIndent, len(b.commonIndent)+1)
 
 	// calculate underline start position
-	underlineStart := calculateVisualColumn(b.snippet.Lines[startLine-1], b.issue.Start.Column) - commonIndentWidth
+	underlineStart := calculateVisualColumn(b.snippet.Lines[b.startLine-1], b.issue.Start.Column) - commonIndentWidth
 	if underlineStart < 0 {
 		underlineStart = 0
 	}
 
 	// calculate underline end position
-	underlineEnd := calculateVisualColumn(b.snippet.Lines[endLine-1], b.issue.End.Column) - commonIndentWidth
+	underlineEnd := calculateVisualColumn(b.snippet.Lines[b.endLine-1], b.issue.End.Column) - commonIndentWidth
 	underlineLength := underlineEnd - underlineStart + 1
 
 	b.result.WriteString(strings.Repeat(" ", underlineStart))
 	b.result.WriteString(messageStyle.Sprintf("%s\n", strings.Repeat("~", underlineLength)))
 
-	b.result.WriteString(lineStyle.Sprintf("%s| ", padding))
+	b.result.WriteString(lineStyle.Sprintf("%s= ", b.padding))
 	b.result.WriteString(messageStyle.Sprintf("%s\n\n", b.issue.Message))
 
 	return b
@@ -208,20 +209,17 @@ func (b *IssueFormatterBuilder) AddSuggestion() *IssueFormatterBuilder {
 		return b
 	}
 
-	maxLineNumWidth := calculateMaxLineNumWidth(b.issue.End.Line)
-	padding := strings.Repeat(" ", maxLineNumWidth+1)
-
 	b.result.WriteString(suggestionStyle.Sprint("Suggestion:\n"))
-	b.result.WriteString(lineStyle.Sprintf("%s|\n", padding))
+	b.result.WriteString(lineStyle.Sprintf("%s|\n", b.padding))
 
 	suggestionLines := strings.Split(b.issue.Suggestion, "\n")
 	for i, line := range suggestionLines {
-		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, b.issue.Start.Line+i)
+		lineNum := fmt.Sprintf("%*d", b.maxLineNumWidth, b.issue.Start.Line+i)
 		b.result.WriteString(lineStyle.Sprintf("%s | ", lineNum))
 		b.result.WriteString(line + "\n")
 	}
 
-	b.result.WriteString(lineStyle.Sprintf("%s|\n", padding))
+	b.result.WriteString(lineStyle.Sprintf("%s|\n", b.padding))
 	b.result.WriteString("\n")
 
 	return b
@@ -243,6 +241,14 @@ type BaseFormatter struct{}
 
 func (b *IssueFormatterBuilder) Build() string {
 	return b.result.String()
+}
+
+func (b *IssueFormatterBuilder) isValidLineRange() bool {
+	return b.startLine > 0 &&
+		b.endLine > 0 &&
+		b.startLine <= b.endLine &&
+		b.startLine <= len(b.snippet.Lines) &&
+		b.endLine <= len(b.snippet.Lines)
 }
 
 func calculateMaxLineNumWidth(endLine int) int {
@@ -278,7 +284,6 @@ func findCommonIndent(lines []string) string {
 	// find first non-empty line's indent
 	var firstIndent []rune
 	for _, line := range lines {
-		// trimmed := strings.TrimSpace(line)
 		trimmed := strings.TrimLeftFunc(line, unicode.IsSpace)
 		if trimmed != "" {
 			firstIndent = []rune(line[:len(line)-len(trimmed)])

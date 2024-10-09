@@ -1,6 +1,8 @@
 package lints
 
 import (
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"testing"
@@ -79,7 +81,11 @@ func multipleRepeats() {
 			err = os.WriteFile(tempFile, []byte(tt.code), 0o644)
 			require.NoError(t, err)
 
-			issues, err := DetectRepeatedRegexCompilation(tempFile)
+			fset := token.NewFileSet()
+			node, err := parser.ParseFile(fset, tempFile, nil, parser.ParseComments)
+			require.NoError(t, err)
+
+			issues, err := DetectRepeatedRegexCompilation(tempFile, node)
 			require.NoError(t, err)
 
 			assert.Len(t, issues, tt.expected)

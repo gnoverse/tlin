@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/gnolang/tlin/internal/lints"
+	"github.com/gnolang/tlin/internal/nolint"
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
@@ -18,7 +19,7 @@ type Engine struct {
 	rules        []LintRule
 	ignoredRules map[string]bool
 	defaultRules []LintRule
-	nolintMgr    *nolintManager
+	nolintMgr    *nolint.Manager
 }
 
 // NewEngine creates a new lint engine.
@@ -75,7 +76,7 @@ func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 		return nil, fmt.Errorf("error parsing file: %w", err)
 	}
 
-	e.nolintMgr = ParseNolintComments(node, fset)
+	e.nolintMgr = nolint.ParseComments(node, fset)
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -121,7 +122,7 @@ func (e *Engine) RunSource(source []byte) ([]tt.Issue, error) {
 		return nil, fmt.Errorf("error parsing content: %w", err)
 	}
 
-	e.nolintMgr = ParseNolintComments(node, fset)
+	e.nolintMgr = nolint.ParseComments(node, fset)
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex

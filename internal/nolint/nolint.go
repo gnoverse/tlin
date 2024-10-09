@@ -1,4 +1,4 @@
-package internal
+package nolint
 
 import (
 	"fmt"
@@ -9,29 +9,29 @@ import (
 
 const nolintPrefix = "//nolint"
 
-// nolintScope represents a range in the code where nolint applies.
-type nolintScope struct {
+// Manager manages nolint scopes and checks if a position is nolinted.
+type Manager struct {
+	scopes map[string][]scope // filename to scopes
+}
+
+// scope represents a range in the code where nolint applies.
+type scope struct {
 	start token.Position
 	end   token.Position
 	rules map[string]struct{} // empty, null => apply to all lint rules
 }
 
-// nolintManager manages nolint scopes and checks if a position is nolinted.
-type nolintManager struct {
-	scopes map[string][]nolintScope // filename to scopes
-}
-
-// ParseNolintComments parses nolint comments in the given AST file and returns a nolintManager.
-func ParseNolintComments(f *ast.File, fset *token.FileSet) *nolintManager {
-	manager := nolintManager{
-		scopes: make(map[string][]nolintScope, len(f.Comments)),
+// ParseComments parses nolint comments in the given AST file and returns a nolintManager.
+func ParseComments(f *ast.File, fset *token.FileSet) *Manager {
+	manager := Manager{
+		scopes: make(map[string][]scope, len(f.Comments)),
 	}
 	stmtMap := indexStatementsByLine(f, fset)
 	packageLine := fset.Position(f.Package).Line
 
 	for _, cg := range f.Comments {
 		for _, comment := range cg.List {
-			scope, err := parseNolintComment(comment, f, fset, stmtMap, packageLine)
+			scope, err := parseComment(comment, f, fset, stmtMap, packageLine)
 			if err != nil {
 				// ignore invalid nolint comments
 				continue
@@ -43,15 +43,15 @@ func ParseNolintComments(f *ast.File, fset *token.FileSet) *nolintManager {
 	return &manager
 }
 
-// parseNolintComment parses a single nolint comment and determines its scope.
-func parseNolintComment(
+// parseComment parses a single nolint comment and determines its scope.
+func parseComment(
 	comment *ast.Comment,
 	f *ast.File,
 	fset *token.FileSet,
 	stmtMap map[int]ast.Stmt,
 	packageLine int,
-) (nolintScope, error) {
-	var scope nolintScope
+) (scope, error) {
+	var scope scope
 	text := comment.Text
 
 	if !strings.HasPrefix(text, nolintPrefix) {
@@ -75,7 +75,7 @@ func parseNolintComment(
 		return scope, fmt.Errorf("invalid nolint comment: expected colon after 'nolint'")
 	}
 
-	scope.rules = parseNolintRuleNames(rest)
+	scope.rules = parseIgnoreRuleNames(rest)
 	pos := fset.Position(comment.Slash)
 
 	// check if the comment is before the package declaration
@@ -119,8 +119,8 @@ func parseNolintComment(
 	return scope, nil
 }
 
-// parseNolintRuleNames parses the rule list from the nolint comment more efficiently.
-func parseNolintRuleNames(text string) map[string]struct{} {
+// parseIgnoreRuleNames parses the rule list from the nolint comment more efficiently.
+func parseIgnoreRuleNames(text string) map[string]struct{} {
 	rulesMap := make(map[string]struct{})
 
 	if text == "" {
@@ -175,7 +175,7 @@ func findFunctionAfterLine(fset *token.FileSet, f *ast.File, line int) *ast.Func
 }
 
 // IsNolint checks if a given position and rule are nolinted.
-func (m *nolintManager) IsNolint(pos token.Position, ruleName string) bool {
+func (m *Manager) IsNolint(pos token.Position, ruleName string) bool {
 	scopes, exists := m.scopes[pos.Filename]
 	if !exists {
 		return false

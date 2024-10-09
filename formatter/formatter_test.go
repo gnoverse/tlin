@@ -44,14 +44,14 @@ func TestFormatIssuesWithArrows(t *testing.T) {
   |
 4 | x := 1
   | ~~
-  | x declared but not used
+  = x declared but not used
 
 error: empty-if
  --> test.go
   |
 5 | if true {}
   | ~~~~~~~~~
-  | empty branch
+  = empty branch
 
 `
 
@@ -76,14 +76,14 @@ error: empty-if
   |
 4 | x := 1
   | ~~
-  | x declared but not used
+  = x declared but not used
 
 error: empty-if
  --> test.go
   |
 5 | if true {}
   | ~~~~~~~~~
-  | empty branch
+  = empty branch
 
 `
 
@@ -138,21 +138,21 @@ func TestFormatIssuesWithArrows_MultipleDigitsLineNumbers(t *testing.T) {
   |
 4 | x := 1  // unused variable
   | ~~
-  | x declared but not used
+  = x declared but not used
 
 error: empty-if
  --> test.go
   |
 5 | if true {}  // empty if statement
   | ~~~~~~~~~
-  | empty branch
+  = empty branch
 
 error: example
   --> test.go
    |
 10 | println("end")
    | ~~~~~~~~
-   | example issue
+   = example issue
 
 `
 
@@ -246,7 +246,7 @@ func TestUnnecessaryTypeConversionFormatter(t *testing.T) {
   |
 5 | result := int(myInt)
   |      ~~~~~~~~~~~
-  | unnecessary type conversion
+  = unnecessary type conversion
 
 Suggestion:
   |
