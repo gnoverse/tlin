@@ -19,9 +19,9 @@ const (
 
 // Fixer handles the fixing of issues in Gno code files.
 type Fixer struct {
-	DryRun        bool
-	MinConfidence float64
 	buffer        bytes.Buffer
+	MinConfidence float64
+	DryRun        bool
 }
 
 // New creates a new Fixer instance.

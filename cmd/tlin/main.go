@@ -28,18 +28,18 @@ const (
 )
 
 type Config struct {
-	Timeout              time.Duration
-	CyclomaticComplexity bool
-	CyclomaticThreshold  int
 	IgnoreRules          string
-	Paths                []string
-	CFGAnalysis          bool
 	FuncName             string
+	Output               string
+	Paths                []string
+	Timeout              time.Duration
+	CyclomaticThreshold  int
+	ConfidenceThreshold  float64
+	CyclomaticComplexity bool
+	CFGAnalysis          bool
 	AutoFix              bool
 	DryRun               bool
 	JsonOutput           bool
-	Output               string
-	ConfidenceThreshold  float64
 }
 
 func main() {

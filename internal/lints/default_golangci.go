@@ -40,7 +40,7 @@ type golangciOutput struct {
 }
 
 func RunGolangciLint(filename string) ([]tt.Issue, error) {
-	cmd := exec.Command("golangci-lint", "run", "--disable=gosimple,typecheck", "--out-format=json", filename)
+	cmd := exec.Command("golangci-lint", "run", "--config=./.golangci.yml", "--out-format=json", filename)
 	output, _ := cmd.CombinedOutput()
 
 	var golangciResult golangciOutput

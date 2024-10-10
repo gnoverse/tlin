@@ -14,22 +14,17 @@ import (
 )
 
 // Engine manages the linting process.
+// TODO: use symbol table
 type Engine struct {
-	SymbolTable  *SymbolTable
-	rules        []LintRule
 	ignoredRules map[string]bool
-	defaultRules []LintRule
 	nolintMgr    *nolint.Manager
+	rules        []LintRule
+	defaultRules []LintRule
 }
 
 // NewEngine creates a new lint engine.
 func NewEngine(rootDir string, source []byte) (*Engine, error) {
-	st, err := BuildSymbolTable(rootDir, source)
-	if err != nil {
-		return nil, fmt.Errorf("error building symbol table: %w", err)
-	}
-
-	engine := &Engine{SymbolTable: st}
+	engine := &Engine{}
 	engine.initDefaultRules()
 
 	return engine, nil
@@ -103,16 +98,14 @@ func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 	}
 	wg.Wait()
 
-	filtered := e.filterUndefinedIssues(allIssues)
-
 	// map issues back to .gno file if necessary
 	if strings.HasSuffix(filename, ".gno") {
-		for i := range filtered {
-			filtered[i].Filename = filename
+		for i := range allIssues {
+			allIssues[i].Filename = filename
 		}
 	}
 
-	return filtered, nil
+	return allIssues, nil
 }
 
 // Run applies all lint rules to the given source and returns a slice of Issues.
@@ -149,9 +142,7 @@ func (e *Engine) RunSource(source []byte) ([]tt.Issue, error) {
 	}
 	wg.Wait()
 
-	filtered := e.filterUndefinedIssues(allIssues)
-
-	return filtered, nil
+	return allIssues, nil
 }
 
 func (e *Engine) IgnoreRule(rule string) {
@@ -189,22 +180,6 @@ func (e *Engine) cleanupTemp(temp string) {
 	if temp != "" && strings.HasPrefix(filepath.Base(temp), "temp_") {
 		_ = os.Remove(temp)
 	}
-}
-
-// filterUndefinedIssue filters out golangci-lint's undefined symbol issues.
-// TODO: This is a temporary fix. need to find a better way to handle this.
-func (e *Engine) filterUndefinedIssues(issues []tt.Issue) []tt.Issue {
-	filtered := make([]tt.Issue, 0, len(issues))
-	for _, issue := range issues {
-		if issue.Rule == "typecheck" && strings.HasPrefix(issue.Message, "undefined:") {
-			symbol := strings.TrimSpace(issue.Message[10:])
-			if e.SymbolTable.IsDefined(symbol) {
-				continue
-			}
-		}
-		filtered = append(filtered, issue)
-	}
-	return filtered
 }
 
 // filterNolintIssues filters issues based on nolint comments.

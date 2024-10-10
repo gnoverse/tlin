@@ -1,10 +1,29 @@
 package lints
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"testing"
 )
+
+func TestAnalyzeFuncDeclWithBodylessFunction(t *testing.T) {
+	c := newCycle()
+
+	bodylessFunc := &ast.FuncDecl{
+		Name: &ast.Ident{Name: "bodylessFunction"},
+		Body: nil,
+	}
+
+	c.analyzeFuncDecl(bodylessFunc)
+
+	if len(c.dependencies["bodylessFunction"]) != 0 {
+		t.Errorf("there should be no dependency on bodyless function. got: %v", c.dependencies["bodylessFunction"])
+	}
+	if _, exists := c.dependencies["bodylessFunction"]; !exists {
+		t.Error("bodyless function should be added to dependency map")
+	}
+}
 
 func TestDetectCycle(t *testing.T) {
 	t.Parallel()

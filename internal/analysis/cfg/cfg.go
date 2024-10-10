@@ -25,13 +25,11 @@ type CFGBuilder interface {
 type CFG struct {
 	// Sentinel nodes for single-entry CFG. Not in original AST.
 	Entry *ast.BadStmt
-
 	// Sentinel nodes for single-exit CFG. Not in original AST.
-	Exit *ast.BadStmt
-
+	Exit   *ast.BadStmt
+	blocks map[ast.Stmt]*block
 	// All defers found in CFG, disjoint from blocks. May be flowed to after Exit.
 	Defers []*ast.DeferStmt
-	blocks map[ast.Stmt]*block
 }
 
 type block struct {

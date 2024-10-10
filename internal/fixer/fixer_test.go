@@ -17,8 +17,8 @@ func TestAutoFixer(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		issues   []tt.Issue
 		expected string
+		issues   []tt.Issue
 		dryRun   bool
 	}{
 		{

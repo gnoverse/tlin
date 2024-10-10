@@ -44,19 +44,22 @@ func (c *cycle) analyzeFuncDecl(fn *ast.FuncDecl) {
 	name := fn.Name.Name
 	c.dependencies[name] = []string{}
 
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
-		switch x := n.(type) {
-		case *ast.CallExpr:
-			if ident, ok := x.Fun.(*ast.Ident); ok {
-				if ident.Name == name {
-					c.dependencies[name] = append(c.dependencies[name], ident.Name)
+	// ignore bodyless function
+	if fn.Body != nil {
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			switch x := n.(type) {
+			case *ast.CallExpr:
+				if ident, ok := x.Fun.(*ast.Ident); ok {
+					if ident.Name == name {
+						c.dependencies[name] = append(c.dependencies[name], ident.Name)
+					}
 				}
+			case *ast.FuncLit:
+				c.analyzeFuncLit(x, name)
 			}
-		case *ast.FuncLit:
-			c.analyzeFuncLit(x, name)
-		}
-		return true
-	})
+			return true
+		})
+	}
 }
 
 func (c *cycle) analyzeFuncLit(fn *ast.FuncLit, parentName string) {

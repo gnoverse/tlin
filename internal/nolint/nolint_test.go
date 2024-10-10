@@ -79,15 +79,15 @@ func main() {
 	manager := ParseComments(node, fset)
 
 	tests := []struct {
-		line     int
 		rule     string
+		line     int
 		expected bool
 	}{
-		{5, "anyrule", true},  // Line 5 is covered by nolint without rules
-		{6, "anyrule", false}, // Line 6 is not covered
-		{7, "rule1", true},    // Line 7 is covered by nolint:rule1
-		{9, "rule2", true},    // Line 9 is covered by nolint:rule2
-		{9, "rule3", false},   // Line 9 is not covered for rule3
+		{"anyrule", 5, true},  // Line 5 is covered by nolint without rules
+		{"anyrule", 6, false}, // Line 6 is not covered
+		{"rule1", 7, true},    // Line 7 is covered by nolint:rule1
+		{"rule2", 9, true},    // Line 9 is covered by nolint:rule2
+		{"rule3", 9, false},   // Line 9 is not covered for rule3
 	}
 
 	for _, test := range tests {

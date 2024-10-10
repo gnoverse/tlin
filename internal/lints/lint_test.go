@@ -20,8 +20,8 @@ func TestDetectUnnecessarySliceLength(t *testing.T) {
 	tests := []struct {
 		name     string
 		code     string
-		expected int
 		message  string
+		expected int
 	}{
 		{
 			name: "suggests to use slice[:]",

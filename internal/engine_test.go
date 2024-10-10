@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +19,7 @@ func TestNewEngine(t *testing.T) {
 	engine, err := NewEngine(tempDir, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, engine)
-	assert.NotNil(t, engine.SymbolTable)
+	// assert.NotNil(t, engine.SymbolTable)
 	assert.NotEmpty(t, engine.rules)
 }
 
@@ -37,7 +36,7 @@ func (ts TestStruct) TestMethod() {}
 	engine, err := NewEngine("", []byte(fileContent))
 	assert.NoError(t, err)
 	assert.NotNil(t, engine)
-	assert.NotNil(t, engine.SymbolTable)
+	// assert.NotNil(t, engine.SymbolTable)
 	assert.NotEmpty(t, engine.rules)
 }
 
@@ -105,25 +104,6 @@ func TestReadSourceCode(t *testing.T) {
 	assert.NotNil(t, sourceCode)
 	assert.Len(t, sourceCode.Lines, 5)
 	assert.Equal(t, "package main", sourceCode.Lines[0])
-}
-
-func BenchmarkFilterUndefinedIssues(b *testing.B) {
-	engine := &Engine{
-		SymbolTable: &SymbolTable{},
-	}
-
-	issues := []types.Issue{
-		{Rule: "typecheck", Message: "undefined: someSymbol"},
-		{Rule: "other", Message: "some other issue"},
-		{Rule: "typecheck", Message: "undefined: anotherSymbol"},
-		{Rule: "typecheck", Message: "some other typecheck issue"},
-	}
-
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		engine.filterUndefinedIssues(issues)
-	}
 }
 
 // create dummy source code for benchmark
