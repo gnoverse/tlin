@@ -143,7 +143,7 @@ func (b *IssueFormatterBuilder) AddHeader(kind headerType) *IssueFormatterBuilde
 	// add file name
 	padding := strings.Repeat(" ", b.maxLineNumWidth)
 	b.result.WriteString(lineStyle.Sprint(fmt.Sprintf("%s--> ", padding)))
-	b.result.WriteString(fileStyle.Sprintln(b.issue.Filename))
+	b.result.WriteString(fileStyle.Sprintf("%s:%d:%d\n", b.issue.Filename, b.issue.Start.Line, b.issue.Start.Column))
 
 	return b
 }
