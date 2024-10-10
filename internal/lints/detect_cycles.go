@@ -44,6 +44,11 @@ func (c *cycle) analyzeFuncDecl(fn *ast.FuncDecl) {
 	name := fn.Name.Name
 	c.dependencies[name] = []string{}
 
+	// bodyless function
+	if fn.Body == nil {
+		return
+	}
+
 	ast.Inspect(fn.Body, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.CallExpr:

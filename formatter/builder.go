@@ -86,14 +86,14 @@ func getFormatter(rule string) IssueFormatter {
 /***** Issue Formatter Builder *****/
 
 type IssueFormatterBuilder struct {
+	snippet         *internal.SourceCode
+	padding         string
+	commonIndent    string
 	result          strings.Builder
 	issue           tt.Issue
-	snippet         *internal.SourceCode
 	startLine       int
 	endLine         int
 	maxLineNumWidth int
-	padding         string
-	commonIndent    string
 }
 
 func NewIssueFormatterBuilder(issue tt.Issue, snippet *internal.SourceCode) *IssueFormatterBuilder {

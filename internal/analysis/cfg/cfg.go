@@ -23,15 +23,10 @@ type CFGBuilder interface {
 // CFG defines a control flow graph with statement-level granularity, in which
 // there is a 1-1 correspondence between a block in the CFG and an ast.Stmt.
 type CFG struct {
-	// Sentinel nodes for single-entry CFG. Not in original AST.
-	Entry *ast.BadStmt
-
-	// Sentinel nodes for single-exit CFG. Not in original AST.
-	Exit *ast.BadStmt
-
-	// All defers found in CFG, disjoint from blocks. May be flowed to after Exit.
-	Defers []*ast.DeferStmt
+	Entry  *ast.BadStmt
+	Exit   *ast.BadStmt
 	blocks map[ast.Stmt]*block
+	Defers []*ast.DeferStmt
 }
 
 type block struct {

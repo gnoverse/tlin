@@ -265,8 +265,8 @@ Note: Unnecessary type conversions can make the code less readable and may sligh
 func TestFindCommonIndent(t *testing.T) {
 	tests := []struct {
 		name     string
-		lines    []string
 		expected string
+		lines    []string
 	}{
 		{
 			name: "whitespace indent",

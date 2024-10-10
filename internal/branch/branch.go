@@ -7,8 +7,8 @@ import (
 
 // Branch stores the branch's information within an if-else statement.
 type Branch struct {
-	BranchKind
 	Call
+	BranchKind
 	HasDecls bool
 }
 

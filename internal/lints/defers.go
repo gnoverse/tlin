@@ -8,9 +8,9 @@ import (
 )
 
 type DeferChecker struct {
-	issues   []tt.Issue
-	filename string
 	fset     *token.FileSet
+	filename string
+	issues   []tt.Issue
 }
 
 func NewDeferChecker(filename string, fset *token.FileSet) *DeferChecker {

@@ -16,9 +16,9 @@ type Manager struct {
 
 // scope represents a range in the code where nolint applies.
 type scope struct {
+	rules map[string]struct{}
 	start token.Position
 	end   token.Position
-	rules map[string]struct{} // empty, null => apply to all lint rules
 }
 
 // ParseComments parses nolint comments in the given AST file and returns a nolintManager.

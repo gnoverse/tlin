@@ -17,15 +17,15 @@ func TestRunLinter(t *testing.T) {
 	testDir := filepath.Join(filepath.Dir(current), "..", "..", "testdata", "pkg")
 
 	tests := []struct {
-		filename       string
-		expectedIssues []struct {
-			rule    string
-			message string
-		}
 		expectedDeps map[string]struct {
 			isGno     bool
 			isUsed    bool
 			isIgnored bool
+		}
+		filename       string
+		expectedIssues []struct {
+			rule    string
+			message string
 		}
 	}{
 		{
