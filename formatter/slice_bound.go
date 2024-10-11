@@ -13,7 +13,7 @@ func (f *SliceBoundsCheckFormatter) Format(
 ) string {
 	builder := NewIssueFormatterBuilder(issue, snippet)
 	return builder.
-		AddHeader(errorHeader).
+		AddHeader().
 		AddCodeSnippet().
 		AddUnderlineAndMessage().
 		AddWarning().

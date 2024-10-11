@@ -10,7 +10,7 @@ type DefersFormatter struct{}
 func (f *DefersFormatter) Format(issue tt.Issue, snippet *internal.SourceCode) string {
 	builder := NewIssueFormatterBuilder(issue, snippet)
 	return builder.
-		AddHeader(errorHeader).
+		AddHeader().
 		AddCodeSnippet().
 		AddUnderlineAndMessage().
 		AddNote().
