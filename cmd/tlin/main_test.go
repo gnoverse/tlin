@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	tt "github.com/gnolang/tlin/internal/types"
+
 	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -284,6 +286,7 @@ func TestRunJsonOutput(t *testing.T) {
 				assert.Equal(t, 5, issue.Start.Column)
 				assert.Equal(t, 5, issue.End.Line)
 				assert.Equal(t, 24, issue.End.Column)
+				assert.Equal(t, tt.SeverityError, issue.Severity)
 			}
 
 			return

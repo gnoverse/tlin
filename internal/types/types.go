@@ -78,6 +78,28 @@ func (s Severity) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.String())
 }
 
+func (s Severity) UnmarshalJSON(data []byte) error {
+	var severityStr string
+	if err := json.Unmarshal(data, &severityStr); err != nil {
+		return err
+	}
+
+	switch severityStr {
+	case "ERROR":
+		s = SeverityError
+	case "WARNING":
+		s = SeverityWarning
+	case "INFO":
+		s = SeverityInfo
+	case "OFF":
+		s = SeverityOff
+	default:
+		return errors.New("invalid severity level")
+	}
+
+	return nil
+}
+
 // UnmarshalYAML unmarshals the Severity from YAML as a string.
 func (s *Severity) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var severityStr string
