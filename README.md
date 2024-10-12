@@ -158,6 +158,7 @@ tlin supports several flags to customize its behavior:
 - `-o <path>`: Write output to a file instead of stdout
 - `-json-output`: Output results in JSON format
 - `-init`: Initialize a new tlin configuration file in the current directory
+- `-c <path>`: Specify a custom configuration file
 
 ## Contributing
 
