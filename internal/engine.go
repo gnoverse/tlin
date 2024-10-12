@@ -20,6 +20,7 @@ type Engine struct {
 	nolintMgr    *nolint.Manager
 	rules        []LintRule
 	defaultRules []LintRule
+	allRules     []LintRule
 }
 
 // NewEngine creates a new lint engine.
@@ -31,41 +32,11 @@ func NewEngine(rootDir string, source []byte, rules map[string]tt.ConfigRule) (*
 }
 
 func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
-	e.defaultRules = []LintRule{
-		NewGolangciLintRule(),
-		NewDeprecateFuncRule(),
-		NewEarlyReturnOpportunityRule(),
-		NewSimplifySliceExprRule(),
-		NewUnnecessaryConversionRule(),
-		NewLoopAllocationRule(),
-		NewEmitFormatRule(),
-		NewDetectCycleRule(),
-		NewGnoSpecificRule(),
-		NewRepeatedRegexCompilationRule(),
-		NewUselessBreakRule(),
-		NewDeferRule(),
-		NewMissingModPackageRule(),
-	}
 	e.registerDefaultRules()
-
-	allRules := []LintRule{
-		&GolangciLintRule{},
-		&DeprecateFuncRule{},
-		&EarlyReturnOpportunityRule{},
-		&SimplifySliceExprRule{},
-		&UnnecessaryConversionRule{},
-		&LoopAllocationRule{},
-		&EmitFormatRule{},
-		&DetectCycleRule{},
-		&GnoSpecificRule{},
-		&RepeatedRegexCompilationRule{},
-		&UselessBreakRule{},
-		&DeferRule{},
-		&MissingModPackageRule{},
-	}
+	e.registerAllRules()
 
 	// Iterate over the rules and apply severity
-	for _, rule := range allRules {
+	for _, rule := range e.allRules {
 		if _, ok := rules[rule.Name()]; ok {
 			severity := rules[rule.Name()].Severity
 			appliedRule := e.findRule(rule.Name())
@@ -86,7 +57,41 @@ func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 	}
 }
 
+func (e *Engine) registerAllRules() {
+	allRules := []LintRule{
+		&GolangciLintRule{},
+		&DeprecateFuncRule{},
+		&EarlyReturnOpportunityRule{},
+		&SimplifySliceExprRule{},
+		&UnnecessaryConversionRule{},
+		&LoopAllocationRule{},
+		&EmitFormatRule{},
+		&DetectCycleRule{},
+		&GnoSpecificRule{},
+		&RepeatedRegexCompilationRule{},
+		&UselessBreakRule{},
+		&DeferRule{},
+		&MissingModPackageRule{},
+	}
+	e.allRules = append(e.allRules, allRules...)
+}
+
 func (e *Engine) registerDefaultRules() {
+	e.defaultRules = []LintRule{
+		NewGolangciLintRule(),
+		NewDeprecateFuncRule(),
+		NewEarlyReturnOpportunityRule(),
+		NewSimplifySliceExprRule(),
+		NewUnnecessaryConversionRule(),
+		NewLoopAllocationRule(),
+		NewEmitFormatRule(),
+		NewDetectCycleRule(),
+		NewGnoSpecificRule(),
+		NewRepeatedRegexCompilationRule(),
+		NewUselessBreakRule(),
+		NewDeferRule(),
+		NewMissingModPackageRule(),
+	}
 	e.rules = append(e.rules, e.defaultRules...)
 }
 
