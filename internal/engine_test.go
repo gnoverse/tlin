@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,6 +22,40 @@ func TestNewEngine(t *testing.T) {
 	assert.NotNil(t, engine)
 	// assert.NotNil(t, engine.SymbolTable)
 	assert.NotEmpty(t, engine.rules)
+}
+
+func TestNewEngineConfig(t *testing.T) {
+	t.Parallel()
+
+	config := map[string]types.ConfigRule{
+		"useless-break": {
+			Severity: types.SeverityOff,
+		},
+		"deprecated-function": {
+			Severity: types.SeverityWarning,
+		},
+		"test-rule": {
+			Severity: types.SeverityError,
+		},
+	}
+	tempDir := createTempDir(t, "engine_test")
+
+	engine, err := NewEngine(tempDir, nil, config)
+	assert.NoError(t, err)
+	assert.NotNil(t, engine)
+
+	assert.NotEmpty(t, engine.rules)
+
+	for _, rule := range engine.rules {
+		switch rule.Name() {
+		case "deprecated-function":
+			assert.Equal(t, types.SeverityWarning, rule.Severity())
+		case "test-rule":
+			assert.Equal(t, types.SeverityError, rule.Severity())
+		}
+	}
+
+	assert.True(t, engine.ignoredRules["useless-break"])
 }
 
 func TestNewEngineContent(t *testing.T) {
