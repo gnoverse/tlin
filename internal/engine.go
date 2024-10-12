@@ -100,13 +100,10 @@ func (e *Engine) findRule(name string) *LintRule {
 }
 
 func (e *Engine) ignoreRule(name string) {
-	// remove a rule from the list of rules
-	for i, rule := range e.rules {
-		if rule.Name() == name {
-			e.rules = append(e.rules[:i], e.rules[i+1:]...)
-			break
-		}
+	if e.ignoredRules == nil {
+		e.ignoredRules = make(map[string]bool)
 	}
+	e.ignoredRules[name] = true
 }
 
 // Run applies all lint rules to the given file and returns a slice of Issues.
@@ -189,7 +186,8 @@ func (e *Engine) RunSource(source []byte) ([]tt.Issue, error) {
 				return
 			}
 
-			nolinted := e.filterNolintIssues(issues)
+			severityIssues := e.applySeverity(issues, r)
+			nolinted := e.filterNolintIssues(severityIssues)
 
 			mu.Lock()
 			allIssues = append(allIssues, nolinted...)
@@ -239,14 +237,10 @@ func (e *Engine) cleanupTemp(temp string) {
 }
 
 func (e *Engine) applySeverity(issues []tt.Issue, rule LintRule) []tt.Issue {
-	severity := rule.Severity()
-	filtered := make([]tt.Issue, 0, len(issues))
-	for _, issue := range issues {
-		if issue.Severity == severity {
-			filtered = append(filtered, issue)
-		}
+	for i := range issues {
+		issues[i].Severity = rule.Severity()
 	}
-	return filtered
+	return issues
 }
 
 // filterNolintIssues filters issues based on nolint comments.
