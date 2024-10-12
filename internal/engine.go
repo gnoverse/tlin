@@ -43,7 +43,7 @@ func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 			if appliedRule != nil {
 				// if severity is OFF, ignore the rule
 				if severity == tt.SeverityOff {
-					e.ignoreRule(rule.Name())
+					e.IgnoreRule(rule.Name())
 					continue
 				}
 				// set the severity of the rule
@@ -102,13 +102,6 @@ func (e *Engine) findRule(name string) *LintRule {
 		}
 	}
 	return nil
-}
-
-func (e *Engine) ignoreRule(name string) {
-	if e.ignoredRules == nil {
-		e.ignoredRules = make(map[string]bool)
-	}
-	e.ignoredRules[name] = true
 }
 
 // Run applies all lint rules to the given file and returns a slice of Issues.
