@@ -62,6 +62,34 @@ To check the current directory, run:
 tlin .
 ```
 
+## Configuration
+
+tlin supports a configuration file (`.tlin.yaml`) to customize its behavior. You can generate a default configuration file by running:
+
+```bash
+tlin -init
+```
+
+This command will create a `.tlin.yaml` file in the current directory with the following content:
+
+```yaml
+# .tlin.yaml
+name: tlin
+rules:
+```
+
+You can customize the configuration file to enable or disable specific lint rules, set cyclomatic complexity thresholds, and more.
+
+```yaml	
+# .tlin.yaml
+name: tlin
+rules:
+  useless-break:
+    severity: WARNING
+  deprecated-function:
+    severity: OFF
+```
+
 ## Adding Gno-Specific Lint Rules
 
 Our linter allows addition of custom lint rules beyond the default golangci-lint rules. To add a new lint rule, follow these steps:
@@ -91,10 +119,20 @@ Our linter allows addition of custom lint rules beyond the default golangci-lint
    }
    ```
 
-   b. Register your new rule in the `registerDefaultRules` method of the `Engine` struct in `internal/engine.go`:
+   b. Register your new rule in the `registerAllRules` and maybe `registerDefaultRules` method of the `Engine` struct in `internal/engine.go`:
 
    ```go
    func (e *Engine) registerDefaultRules() {
+       e.rules = append(e.rules,
+           &GolangciLintRule{},
+           // ...
+           &NewRule{}, // Add your new rule here
+       )
+   }
+   ```
+
+   ```go
+   func (e *Engine) registerAllRules() {
        e.rules = append(e.rules,
            &GolangciLintRule{},
            // ...
