@@ -124,3 +124,15 @@ func ProcessSource(engine LintEngine, source []byte) ([]tt.Issue, error) {
 func hasDesiredExtension(path string) bool {
 	return filepath.Ext(path) == ".go" || filepath.Ext(path) == ".gno"
 }
+
+// Rule represents an individual rule with an ID and severity.
+type Rule struct {
+	Severity string      `yaml:"severity"`
+	Data     interface{} `yaml:"data"` // Data can be anything
+}
+
+// Config represents the overall configuration with a name and a slice of rules.
+type Config struct {
+	Name  string          `yaml:"name"`
+	Rules map[string]Rule `yaml:"rules"`
+}

@@ -19,6 +19,7 @@ import (
 	"github.com/gnolang/tlin/internal/fixer"
 	tt "github.com/gnolang/tlin/internal/types"
 	"github.com/gnolang/tlin/lint"
+	"github.com/go-yaml/yaml"
 	"go.uber.org/zap"
 )
 
@@ -40,6 +41,7 @@ type Config struct {
 	AutoFix              bool
 	DryRun               bool
 	JsonOutput           bool
+	Init                 bool
 }
 
 func main() {
@@ -50,6 +52,15 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 	defer cancel()
+
+	if config.Init {
+		err := initConfigurationFile(config.Output)
+		if err != nil {
+			logger.Error("Error initializing config file", zap.Error(err))
+			os.Exit(1)
+		}
+		return
+	}
 
 	engine, err := lint.New(".", nil)
 	if err != nil {
@@ -97,6 +108,7 @@ func parseFlags(args []string) Config {
 	flagSet.BoolVar(&config.DryRun, "dry-run", false, "Run in dry-run mode (show fixes without applying them)")
 	flagSet.BoolVar(&config.JsonOutput, "json", false, "Output issues in JSON format")
 	flagSet.Float64Var(&config.ConfidenceThreshold, "confidence", defaultConfidenceThreshold, "Confidence threshold for auto-fixing (0.0 to 1.0)")
+	flagSet.BoolVar(&config.Init, "init", false, "Initialize a new linter configuration file")
 
 	err := flagSet.Parse(args)
 	if err != nil {
@@ -105,7 +117,7 @@ func parseFlags(args []string) Config {
 	}
 
 	config.Paths = flagSet.Args()
-	if len(config.Paths) == 0 {
+	if !config.Init && len(config.Paths) == 0 {
 		fmt.Println("error: Please provide file or directory paths")
 		os.Exit(1)
 	}
@@ -210,6 +222,36 @@ func runAutoFix(ctx context.Context, logger *zap.Logger, engine lint.LintEngine,
 			logger.Error("error fixing issues", zap.String("path", path), zap.Error(err))
 		}
 	}
+}
+
+func initConfigurationFile(configurationPath string) error {
+	if configurationPath == "" {
+		configurationPath = ".tlin.yaml"
+	}
+
+	// Create a yaml file with rules
+	config := lint.Config{
+		Name:  "tlin",
+		Rules: map[string]lint.Rule{},
+	}
+	d, err := yaml.Marshal(config)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.Create(configurationPath)
+	if err != nil {
+		return err
+	}
+
+	defer f.Close()
+
+	_, err = f.Write(d)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func printIssues(logger *zap.Logger, issues []tt.Issue, isJson bool, jsonOutput string) {
