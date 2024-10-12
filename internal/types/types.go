@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/token"
 )
@@ -65,13 +66,43 @@ const (
 	SeverityError Severity = iota
 	SeverityWarning
 	SeverityInfo
+	SeverityOff
 )
 
 func (s Severity) String() string {
-	return [...]string{"Low", "Medium", "High", "Critical"}[s]
+	return [...]string{"ERROR", "WARNING", "INFO", "OFF"}[s]
 }
 
 // MarshalJSON marshals the Severity to JSON as a string.
 func (s Severity) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.String())
+}
+
+// UnmarshalYAML unmarshals the Severity from YAML as a string.
+func (s *Severity) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var severityStr string
+	if err := unmarshal(&severityStr); err != nil {
+		return err
+	}
+
+	switch severityStr {
+	case "ERROR":
+		*s = SeverityError
+	case "WARNING":
+		*s = SeverityWarning
+	case "INFO":
+		*s = SeverityInfo
+	case "OFF":
+		*s = SeverityOff
+	default:
+		return errors.New("invalid severity level")
+	}
+
+	return nil
+}
+
+// Rule represents an individual rule with an ID and severity.
+type ConfigRule struct {
+	Severity Severity    `yaml:"severity"`
+	Data     interface{} `yaml:"data"` // Data can be anything
 }

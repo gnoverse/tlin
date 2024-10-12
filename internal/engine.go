@@ -23,20 +23,32 @@ type Engine struct {
 }
 
 // NewEngine creates a new lint engine.
-func NewEngine(rootDir string, source []byte) (*Engine, error) {
+func NewEngine(rootDir string, source []byte, rules map[string]tt.ConfigRule) (*Engine, error) {
 	engine := &Engine{}
-	engine.initDefaultRules()
+	engine.applyRules(rules)
 
 	return engine, nil
 }
 
-// registerDefaultRules adds the default set of lint rules to the engine.
-func (e *Engine) registerDefaultRules() {
-	e.rules = append(e.rules, e.defaultRules...)
-}
-
-func (e *Engine) initDefaultRules() {
+func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 	e.defaultRules = []LintRule{
+		NewGolangciLintRule(),
+		NewDeprecateFuncRule(),
+		NewEarlyReturnOpportunityRule(),
+		NewSimplifySliceExprRule(),
+		NewUnnecessaryConversionRule(),
+		NewLoopAllocationRule(),
+		NewEmitFormatRule(),
+		NewDetectCycleRule(),
+		NewGnoSpecificRule(),
+		NewRepeatedRegexCompilationRule(),
+		NewUselessBreakRule(),
+		NewDeferRule(),
+		NewMissingModPackageRule(),
+	}
+	e.registerDefaultRules()
+
+	allRules := []LintRule{
 		&GolangciLintRule{},
 		&DeprecateFuncRule{},
 		&EarlyReturnOpportunityRule{},
@@ -51,7 +63,50 @@ func (e *Engine) initDefaultRules() {
 		&DeferRule{},
 		&MissingModPackageRule{},
 	}
-	e.registerDefaultRules()
+
+	// Iterate over the rules and apply severity
+	for _, rule := range allRules {
+		if _, ok := rules[rule.Name()]; ok {
+			severity := rules[rule.Name()].Severity
+			appliedRule := e.findRule(rule.Name())
+			if appliedRule != nil {
+				// if severity is OFF, ignore the rule
+				if severity == tt.SeverityOff {
+					e.ignoreRule(rule.Name())
+					continue
+				}
+				// set the severity of the rule
+				(*appliedRule).SetSeverity(severity)
+			} else {
+				// Add a new rule with the given severity
+				rule.SetSeverity(severity)
+				e.rules = append(e.rules, rule)
+			}
+		}
+	}
+}
+
+func (e *Engine) registerDefaultRules() {
+	e.rules = append(e.rules, e.defaultRules...)
+}
+
+func (e *Engine) findRule(name string) *LintRule {
+	for _, rule := range e.rules {
+		if rule.Name() == name {
+			return &rule
+		}
+	}
+	return nil
+}
+
+func (e *Engine) ignoreRule(name string) {
+	// remove a rule from the list of rules
+	for i, rule := range e.rules {
+		if rule.Name() == name {
+			e.rules = append(e.rules[:i], e.rules[i+1:]...)
+			break
+		}
+	}
 }
 
 // Run applies all lint rules to the given file and returns a slice of Issues.

@@ -22,10 +22,19 @@ type LintRule interface {
 
 	// Severity returns the severity of the lint rule.
 	Severity() tt.Severity
+
+	// SetSeverity sets the severity of the lint rule.
+	SetSeverity(tt.Severity)
 }
 
 type GolangciLintRule struct {
 	severity tt.Severity
+}
+
+func NewGolangciLintRule() *GolangciLintRule {
+	return &GolangciLintRule{
+		severity: tt.SeverityError,
+	}
 }
 
 func (r *GolangciLintRule) Check(filename string, _ *ast.File, _ *token.FileSet) ([]tt.Issue, error) {
@@ -40,8 +49,18 @@ func (r *GolangciLintRule) Severity() tt.Severity {
 	return r.severity
 }
 
+func (r *GolangciLintRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
 type DeprecateFuncRule struct {
 	severity tt.Severity
+}
+
+func NewDeprecateFuncRule() *DeprecateFuncRule {
+	return &DeprecateFuncRule{
+		severity: tt.SeverityError,
+	}
 }
 
 func (r *DeprecateFuncRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
@@ -56,8 +75,18 @@ func (r *DeprecateFuncRule) Severity() tt.Severity {
 	return r.severity
 }
 
+func (r *DeprecateFuncRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
 type SimplifySliceExprRule struct {
 	severity tt.Severity
+}
+
+func NewSimplifySliceExprRule() *SimplifySliceExprRule {
+	return &SimplifySliceExprRule{
+		severity: tt.SeverityError,
+	}
 }
 
 func (r *SimplifySliceExprRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
@@ -72,8 +101,18 @@ func (r *SimplifySliceExprRule) Severity() tt.Severity {
 	return r.severity
 }
 
+func (r *SimplifySliceExprRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
 type UnnecessaryConversionRule struct {
 	severity tt.Severity
+}
+
+func NewUnnecessaryConversionRule() *UnnecessaryConversionRule {
+	return &UnnecessaryConversionRule{
+		severity: tt.SeverityError,
+	}
 }
 
 func (r *UnnecessaryConversionRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
@@ -88,8 +127,18 @@ func (r *UnnecessaryConversionRule) Severity() tt.Severity {
 	return r.severity
 }
 
+func (r *UnnecessaryConversionRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
 type LoopAllocationRule struct {
 	severity tt.Severity
+}
+
+func NewLoopAllocationRule() *LoopAllocationRule {
+	return &LoopAllocationRule{
+		severity: tt.SeverityError,
+	}
 }
 
 func (r *LoopAllocationRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
@@ -104,8 +153,18 @@ func (r *LoopAllocationRule) Severity() tt.Severity {
 	return r.severity
 }
 
+func (r *LoopAllocationRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
 type DetectCycleRule struct {
 	severity tt.Severity
+}
+
+func NewDetectCycleRule() *DetectCycleRule {
+	return &DetectCycleRule{
+		severity: tt.SeverityError,
+	}
 }
 
 func (r *DetectCycleRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
@@ -120,8 +179,18 @@ func (r *DetectCycleRule) Severity() tt.Severity {
 	return r.severity
 }
 
+func (r *DetectCycleRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
 type EmitFormatRule struct {
 	severity tt.Severity
+}
+
+func NewEmitFormatRule() *EmitFormatRule {
+	return &EmitFormatRule{
+		severity: tt.SeverityError,
+	}
 }
 
 func (r *EmitFormatRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
@@ -136,8 +205,18 @@ func (r *EmitFormatRule) Severity() tt.Severity {
 	return r.severity
 }
 
+func (r *EmitFormatRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
 type SliceBoundCheckRule struct {
 	severity tt.Severity
+}
+
+func NewSliceBoundCheckRule() *SliceBoundCheckRule {
+	return &SliceBoundCheckRule{
+		severity: tt.SeverityError,
+	}
 }
 
 func (r *SliceBoundCheckRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
@@ -152,8 +231,18 @@ func (r *SliceBoundCheckRule) Severity() tt.Severity {
 	return r.severity
 }
 
+func (r *SliceBoundCheckRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
 type UselessBreakRule struct {
 	severity tt.Severity
+}
+
+func NewUselessBreakRule() *UselessBreakRule {
+	return &UselessBreakRule{
+		severity: tt.SeverityError,
+	}
 }
 
 func (r *UselessBreakRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
@@ -168,8 +257,18 @@ func (r *UselessBreakRule) Severity() tt.Severity {
 	return r.severity
 }
 
+func (r *UselessBreakRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
 type EarlyReturnOpportunityRule struct {
 	severity tt.Severity
+}
+
+func NewEarlyReturnOpportunityRule() *EarlyReturnOpportunityRule {
+	return &EarlyReturnOpportunityRule{
+		severity: tt.SeverityError,
+	}
 }
 
 func (r *EarlyReturnOpportunityRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
@@ -184,8 +283,18 @@ func (r *EarlyReturnOpportunityRule) Severity() tt.Severity {
 	return r.severity
 }
 
+func (r *EarlyReturnOpportunityRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
 type DeferRule struct {
 	severity tt.Severity
+}
+
+func NewDeferRule() *DeferRule {
+	return &DeferRule{
+		severity: tt.SeverityError,
+	}
 }
 
 func (r *DeferRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
@@ -200,8 +309,18 @@ func (r *DeferRule) Severity() tt.Severity {
 	return r.severity
 }
 
+func (r *DeferRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
 type MissingModPackageRule struct {
 	severity tt.Severity
+}
+
+func NewMissingModPackageRule() *MissingModPackageRule {
+	return &MissingModPackageRule{
+		severity: tt.SeverityError,
+	}
 }
 
 func (r *MissingModPackageRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
@@ -216,11 +335,21 @@ func (r *MissingModPackageRule) Severity() tt.Severity {
 	return r.severity
 }
 
+func (r *MissingModPackageRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
 // -----------------------------------------------------------------------------
 // Regex related rules
 
 type RepeatedRegexCompilationRule struct {
 	severity tt.Severity
+}
+
+func NewRepeatedRegexCompilationRule() *RepeatedRegexCompilationRule {
+	return &RepeatedRegexCompilationRule{
+		severity: tt.SeverityError,
+	}
 }
 
 func (r *RepeatedRegexCompilationRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
@@ -235,11 +364,22 @@ func (r *RepeatedRegexCompilationRule) Severity() tt.Severity {
 	return r.severity
 }
 
+func (r *RepeatedRegexCompilationRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
 // -----------------------------------------------------------------------------
 
 type CyclomaticComplexityRule struct {
 	Threshold int
 	severity  tt.Severity
+}
+
+func NewCyclomaticComplexityRule(threshold int) *CyclomaticComplexityRule {
+	return &CyclomaticComplexityRule{
+		Threshold: threshold,
+		severity:  tt.SeverityError,
+	}
 }
 
 func (r *CyclomaticComplexityRule) Check(filename string, node *ast.File) ([]tt.Issue, error) {
@@ -254,11 +394,21 @@ func (r *CyclomaticComplexityRule) Severity() tt.Severity {
 	return r.severity
 }
 
+func (r *CyclomaticComplexityRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
 // -----------------------------------------------------------------------------
 
 // GnoSpecificRule checks for gno-specific package imports. (p, r and std)
 type GnoSpecificRule struct {
 	severity tt.Severity
+}
+
+func NewGnoSpecificRule() *GnoSpecificRule {
+	return &GnoSpecificRule{
+		severity: tt.SeverityError,
+	}
 }
 
 func (r *GnoSpecificRule) Check(filename string, _ *ast.File, _ *token.FileSet) ([]tt.Issue, error) {
@@ -271,4 +421,8 @@ func (r *GnoSpecificRule) Name() string {
 
 func (r *GnoSpecificRule) Severity() tt.Severity {
 	return r.severity
+}
+
+func (r *GnoSpecificRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
 }
