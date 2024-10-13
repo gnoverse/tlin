@@ -46,12 +46,12 @@ func TestNewEngineConfig(t *testing.T) {
 
 	assert.NotEmpty(t, engine.rules)
 
-	for _, rule := range engine.rules {
-		switch rule.Name() {
+	for key, rule := range engine.rules {
+		switch key {
 		case "deprecated-function":
 			assert.Equal(t, types.SeverityWarning, rule.Severity())
 		case "test-rule":
-			assert.Equal(t, types.SeverityError, rule.Severity())
+			assert.Fail(t, "test-rule should not be in the rules")
 		}
 	}
 
