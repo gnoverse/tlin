@@ -18,9 +18,7 @@ import (
 type Engine struct {
 	ignoredRules map[string]bool
 	nolintMgr    *nolint.Manager
-	rules        []LintRule
-	defaultRules []LintRule
-	allRules     []LintRule
+	rules        map[string]LintRule
 }
 
 // NewEngine creates a new lint engine.
@@ -31,75 +29,74 @@ func NewEngine(rootDir string, source []byte, rules map[string]tt.ConfigRule) (*
 	return engine, nil
 }
 
-func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
-	e.registerDefaultRules()
-	e.registerAllRules()
+// Define the ruleConstructor type
+type ruleConstructor func() LintRule
 
-	// Iterate over the rules and apply severity
-	for _, rule := range e.allRules {
-		if _, ok := rules[rule.Name()]; ok {
-			severity := rules[rule.Name()].Severity
-			appliedRule := e.findRule(rule.Name())
-			if appliedRule != nil {
-				// if severity is OFF, ignore the rule
-				if severity == tt.SeverityOff {
-					e.IgnoreRule(rule.Name())
-					continue
-				}
-				// set the severity of the rule
-				(*appliedRule).SetSeverity(severity)
-			} else {
-				// Add a new rule with the given severity
-				rule.SetSeverity(severity)
-				e.rules = append(e.rules, rule)
-			}
-		}
-	}
+// Define the ruleMap type
+type ruleMap map[string]ruleConstructor
+
+// Create a map to hold the mappings of rule names to their constructors
+var allRuleConstructors = ruleMap{
+	"golangci-lint":               NewGolangciLintRule,
+	"deprecated-function":         NewDeprecateFuncRule,
+	"early-return-opportunity":    NewEarlyReturnOpportunityRule,
+	"simplify-slice-range":        NewSimplifySliceExprRule,
+	"unnecessary-type-conversion": NewUnnecessaryConversionRule,
+	"loop-allocation":             NewLoopAllocationRule,
+	"emit-format":                 NewEmitFormatRule,
+	"cycle-detection":             NewDetectCycleRule,
+	"unused-package":              NewGnoSpecificRule,
+	"repeated-regex-compilation":  NewRepeatedRegexCompilationRule,
+	"useless-break":               NewUselessBreakRule,
+	"defer-issues":                NewDeferRule,
+	"gno-mod-tidy":                NewMissingModPackageRule,
+	"slice-bounds-check":          NewSliceBoundCheckRule,
 }
 
-func (e *Engine) registerAllRules() {
-	allRules := []LintRule{
-		&GolangciLintRule{},
-		&DeprecateFuncRule{},
-		&EarlyReturnOpportunityRule{},
-		&SimplifySliceExprRule{},
-		&UnnecessaryConversionRule{},
-		&LoopAllocationRule{},
-		&EmitFormatRule{},
-		&DetectCycleRule{},
-		&GnoSpecificRule{},
-		&RepeatedRegexCompilationRule{},
-		&UselessBreakRule{},
-		&DeferRule{},
-		&MissingModPackageRule{},
+func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
+	e.rules = make(map[string]LintRule)
+	e.registerDefaultRules()
+
+	// Iterate over the rules and apply severity
+	for key, rule := range rules {
+		r := e.findRule(key)
+		if r == nil {
+			newRuleCstr := allRuleConstructors[key]
+			if newRuleCstr == nil {
+				// Unknown rule, continue to the next one
+				continue
+			}
+			newRule := newRuleCstr()
+			newRule.SetSeverity(rule.Severity)
+			e.rules[key] = newRule
+		} else {
+			if rule.Severity == tt.SeverityOff {
+				e.IgnoreRule(key)
+			}
+			r.SetSeverity(rule.Severity)
+		}
 	}
-	e.allRules = append(e.allRules, allRules...)
 }
 
 func (e *Engine) registerDefaultRules() {
-	e.defaultRules = []LintRule{
-		NewGolangciLintRule(),
-		NewDeprecateFuncRule(),
-		NewEarlyReturnOpportunityRule(),
-		NewSimplifySliceExprRule(),
-		NewUnnecessaryConversionRule(),
-		NewLoopAllocationRule(),
-		NewEmitFormatRule(),
-		NewDetectCycleRule(),
-		NewGnoSpecificRule(),
-		NewRepeatedRegexCompilationRule(),
-		NewUselessBreakRule(),
-		NewDeferRule(),
-		NewMissingModPackageRule(),
-	}
-	e.rules = append(e.rules, e.defaultRules...)
+	e.rules["golangci-lint"] = allRuleConstructors["golangci-lint"]()
+	e.rules["deprecated-function"] = allRuleConstructors["deprecated-function"]()
+	e.rules["early-return-opportunity"] = allRuleConstructors["early-return-opportunity"]()
+	e.rules["simplify-slice-range"] = allRuleConstructors["simplify-slice-range"]()
+	e.rules["unnecessary-type-conversion"] = allRuleConstructors["unnecessary-type-conversion"]()
+	e.rules["loop-allocation"] = allRuleConstructors["loop-allocation"]()
+	e.rules["emit-format"] = allRuleConstructors["emit-format"]()
+	e.rules["cycle-detection"] = allRuleConstructors["cycle-detection"]()
+	e.rules["unused-package"] = allRuleConstructors["unused-package"]()
+	e.rules["repeated-regex-compilation"] = allRuleConstructors["repeated-regex-compilation"]()
+	e.rules["useless-break"] = allRuleConstructors["useless-break"]()
+	e.rules["defer-issues"] = allRuleConstructors["defer-issues"]()
+	e.rules["gno-mod-tidy"] = allRuleConstructors["gno-mod-tidy"]()
 }
 
-func (e *Engine) findRule(name string) *LintRule {
-	for _, rule := range e.rules {
-		if rule.Name() == name {
-			return &rule
-		}
+func (e *Engine) findRule(name string) LintRule {
+	if rule, ok := e.rules[name]; ok {
+		return rule
 	}
 	return nil
 }

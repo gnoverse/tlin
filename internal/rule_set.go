@@ -31,7 +31,7 @@ type GolangciLintRule struct {
 	severity tt.Severity
 }
 
-func NewGolangciLintRule() *GolangciLintRule {
+func NewGolangciLintRule() LintRule {
 	return &GolangciLintRule{
 		severity: tt.SeverityError,
 	}
@@ -57,7 +57,7 @@ type DeprecateFuncRule struct {
 	severity tt.Severity
 }
 
-func NewDeprecateFuncRule() *DeprecateFuncRule {
+func NewDeprecateFuncRule() LintRule {
 	return &DeprecateFuncRule{
 		severity: tt.SeverityError,
 	}
@@ -83,7 +83,7 @@ type SimplifySliceExprRule struct {
 	severity tt.Severity
 }
 
-func NewSimplifySliceExprRule() *SimplifySliceExprRule {
+func NewSimplifySliceExprRule() LintRule {
 	return &SimplifySliceExprRule{
 		severity: tt.SeverityError,
 	}
@@ -109,7 +109,7 @@ type UnnecessaryConversionRule struct {
 	severity tt.Severity
 }
 
-func NewUnnecessaryConversionRule() *UnnecessaryConversionRule {
+func NewUnnecessaryConversionRule() LintRule {
 	return &UnnecessaryConversionRule{
 		severity: tt.SeverityError,
 	}
@@ -135,7 +135,7 @@ type LoopAllocationRule struct {
 	severity tt.Severity
 }
 
-func NewLoopAllocationRule() *LoopAllocationRule {
+func NewLoopAllocationRule() LintRule {
 	return &LoopAllocationRule{
 		severity: tt.SeverityError,
 	}
@@ -161,7 +161,7 @@ type DetectCycleRule struct {
 	severity tt.Severity
 }
 
-func NewDetectCycleRule() *DetectCycleRule {
+func NewDetectCycleRule() LintRule {
 	return &DetectCycleRule{
 		severity: tt.SeverityError,
 	}
@@ -187,7 +187,7 @@ type EmitFormatRule struct {
 	severity tt.Severity
 }
 
-func NewEmitFormatRule() *EmitFormatRule {
+func NewEmitFormatRule() LintRule {
 	return &EmitFormatRule{
 		severity: tt.SeverityError,
 	}
@@ -213,7 +213,7 @@ type SliceBoundCheckRule struct {
 	severity tt.Severity
 }
 
-func NewSliceBoundCheckRule() *SliceBoundCheckRule {
+func NewSliceBoundCheckRule() LintRule {
 	return &SliceBoundCheckRule{
 		severity: tt.SeverityError,
 	}
@@ -239,7 +239,7 @@ type UselessBreakRule struct {
 	severity tt.Severity
 }
 
-func NewUselessBreakRule() *UselessBreakRule {
+func NewUselessBreakRule() LintRule {
 	return &UselessBreakRule{
 		severity: tt.SeverityError,
 	}
@@ -265,7 +265,7 @@ type EarlyReturnOpportunityRule struct {
 	severity tt.Severity
 }
 
-func NewEarlyReturnOpportunityRule() *EarlyReturnOpportunityRule {
+func NewEarlyReturnOpportunityRule() LintRule {
 	return &EarlyReturnOpportunityRule{
 		severity: tt.SeverityError,
 	}
@@ -291,7 +291,7 @@ type DeferRule struct {
 	severity tt.Severity
 }
 
-func NewDeferRule() *DeferRule {
+func NewDeferRule() LintRule {
 	return &DeferRule{
 		severity: tt.SeverityError,
 	}
@@ -317,7 +317,7 @@ type MissingModPackageRule struct {
 	severity tt.Severity
 }
 
-func NewMissingModPackageRule() *MissingModPackageRule {
+func NewMissingModPackageRule() LintRule {
 	return &MissingModPackageRule{
 		severity: tt.SeverityError,
 	}
@@ -346,7 +346,7 @@ type RepeatedRegexCompilationRule struct {
 	severity tt.Severity
 }
 
-func NewRepeatedRegexCompilationRule() *RepeatedRegexCompilationRule {
+func NewRepeatedRegexCompilationRule() LintRule {
 	return &RepeatedRegexCompilationRule{
 		severity: tt.SeverityError,
 	}
@@ -375,14 +375,14 @@ type CyclomaticComplexityRule struct {
 	severity  tt.Severity
 }
 
-func NewCyclomaticComplexityRule(threshold int) *CyclomaticComplexityRule {
+func NewCyclomaticComplexityRule(threshold int) LintRule {
 	return &CyclomaticComplexityRule{
 		Threshold: threshold,
 		severity:  tt.SeverityError,
 	}
 }
 
-func (r *CyclomaticComplexityRule) Check(filename string, node *ast.File) ([]tt.Issue, error) {
+func (r *CyclomaticComplexityRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
 	return lints.DetectHighCyclomaticComplexity(filename, r.Threshold)
 }
 
@@ -405,7 +405,7 @@ type GnoSpecificRule struct {
 	severity tt.Severity
 }
 
-func NewGnoSpecificRule() *GnoSpecificRule {
+func NewGnoSpecificRule() LintRule {
 	return &GnoSpecificRule{
 		severity: tt.SeverityError,
 	}
