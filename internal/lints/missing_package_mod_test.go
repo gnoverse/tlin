@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -109,7 +110,7 @@ func TestDetectMissingPackageInMod(t *testing.T) {
 			node, err := parser.ParseFile(fset, gnoFile, nil, parser.ParseComments)
 			require.NoError(t, err)
 
-			issues, err := DetectMissingModPackage(gnoFile, node, fset)
+			issues, err := DetectMissingModPackage(gnoFile, node, fset, types.SeverityError)
 
 			require.NoError(t, err)
 			assert.Len(t, issues, tt.expectedIssues)

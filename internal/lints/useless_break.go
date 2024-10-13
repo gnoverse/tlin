@@ -8,20 +8,20 @@ import (
 )
 
 // DetectUselessBreak detects useless break statements in switch or select statements.
-func DetectUselessBreak(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+func DetectUselessBreak(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	var issues []tt.Issue
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch v := n.(type) {
 		case *ast.SwitchStmt:
 			for _, stmt := range v.Body.List {
 				if caseClause, ok := stmt.(*ast.CaseClause); ok {
-					checkUselessBreak(caseClause.Body, filename, fset, &issues)
+					checkUselessBreak(caseClause.Body, filename, fset, &issues, severity)
 				}
 			}
 		case *ast.SelectStmt:
 			for _, stmt := range v.Body.List {
 				if commClause, ok := stmt.(*ast.CommClause); ok {
-					checkUselessBreak(commClause.Body, filename, fset, &issues)
+					checkUselessBreak(commClause.Body, filename, fset, &issues, severity)
 				}
 			}
 		}
@@ -31,7 +31,7 @@ func DetectUselessBreak(filename string, node *ast.File, fset *token.FileSet) ([
 	return issues, nil
 }
 
-func checkUselessBreak(stmts []ast.Stmt, filename string, fset *token.FileSet, issues *[]tt.Issue) {
+func checkUselessBreak(stmts []ast.Stmt, filename string, fset *token.FileSet, issues *[]tt.Issue, severity tt.Severity) {
 	if len(stmts) == 0 {
 		return
 	}
@@ -44,6 +44,7 @@ func checkUselessBreak(stmts []ast.Stmt, filename string, fset *token.FileSet, i
 			Start:    fset.Position(breakStmt.Pos()),
 			End:      fset.Position(breakStmt.End()),
 			Message:  "useless break statement at the end of case clause",
+			Severity: severity,
 		})
 	}
 }

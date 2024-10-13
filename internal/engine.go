@@ -136,8 +136,7 @@ func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 				return
 			}
 
-			severityIssues := e.applySeverity(issues, r)
-			nolinted := e.filterNolintIssues(severityIssues)
+			nolinted := e.filterNolintIssues(issues)
 
 			mu.Lock()
 			allIssues = append(allIssues, nolinted...)
@@ -181,8 +180,7 @@ func (e *Engine) RunSource(source []byte) ([]tt.Issue, error) {
 				return
 			}
 
-			severityIssues := e.applySeverity(issues, r)
-			nolinted := e.filterNolintIssues(severityIssues)
+			nolinted := e.filterNolintIssues(issues)
 
 			mu.Lock()
 			allIssues = append(allIssues, nolinted...)
@@ -229,13 +227,6 @@ func (e *Engine) cleanupTemp(temp string) {
 	if temp != "" && strings.HasPrefix(filepath.Base(temp), "temp_") {
 		_ = os.Remove(temp)
 	}
-}
-
-func (e *Engine) applySeverity(issues []tt.Issue, rule LintRule) []tt.Issue {
-	for i := range issues {
-		issues[i].Severity = rule.Severity()
-	}
-	return issues
 }
 
 // filterNolintIssues filters issues based on nolint comments.

@@ -13,7 +13,7 @@ import (
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-func DetectMissingModPackage(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+func DetectMissingModPackage(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	dir := filepath.Dir(filename)
 	modFile := filepath.Join(dir, "gno.mod")
 
@@ -43,6 +43,7 @@ func DetectMissingModPackage(filename string, node *ast.File, fset *token.FileSe
 			Start:    token.Position{Filename: modFile},
 			End:      token.Position{Filename: modFile},
 			Message:  fmt.Sprintf("Packages %s are declared in gno.mod file but not imported.\nRun `gno mod tidy`", strings.Join(unusedPackages, ", ")),
+			Severity: severity,
 		}
 		issues = append(issues, issue)
 	}
@@ -55,6 +56,7 @@ func DetectMissingModPackage(filename string, node *ast.File, fset *token.FileSe
 				Start:    token.Position{Filename: modFile},
 				End:      token.Position{Filename: modFile},
 				Message:  fmt.Sprintf("Package %s is imported but not declared in gno.mod file. Please consider to remove.\nRun `gno mod tidy`", pkg),
+				Severity: severity,
 			}
 			issues = append(issues, issue)
 		}

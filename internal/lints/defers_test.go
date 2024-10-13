@@ -5,6 +5,7 @@ import (
 	"go/token"
 	"testing"
 
+	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -85,7 +86,7 @@ func main() {
 			f, err := parser.ParseFile(fset, "test.go", tt.code, 0)
 			require.NoError(t, err)
 
-			checker := NewDeferChecker("test.go", fset)
+			checker := NewDeferChecker("test.go", fset, types.SeverityError)
 			issues := checker.Check(f)
 
 			assert.Len(t, issues, len(tt.expected), "Unexpected number of issues")
@@ -168,7 +169,7 @@ func foo() {
 			f, err := parser.ParseFile(fset, "test.go", tt.code, 0)
 			require.NoError(t, err)
 
-			checker := NewDeferChecker("test.go", fset)
+			checker := NewDeferChecker("test.go", fset, types.SeverityError)
 			issues := checker.Check(f)
 
 			hasReturnInDeferIssue := false

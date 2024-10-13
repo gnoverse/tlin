@@ -113,7 +113,7 @@ func ProcessPath(
 }
 
 func ProcessCyclomaticComplexity(path string, threshold int) ([]tt.Issue, error) {
-	return lints.DetectHighCyclomaticComplexity(path, threshold)
+	return lints.DetectHighCyclomaticComplexity(path, threshold, tt.SeverityError)
 }
 
 func ProcessFile(engine LintEngine, filePath string) ([]tt.Issue, error) {

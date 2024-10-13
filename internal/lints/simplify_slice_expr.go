@@ -9,7 +9,7 @@ import (
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-func DetectUnnecessarySliceLength(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+func DetectUnnecessarySliceLength(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	var issues []tt.Issue
 	ast.Inspect(node, func(n ast.Node) bool {
 		sliceExpr, ok := n.(*ast.SliceExpr)
@@ -50,6 +50,7 @@ func DetectUnnecessarySliceLength(filename string, node *ast.File, fset *token.F
 							Message:    baseMessage,
 							Suggestion: suggestion,
 							Note:       detailedMessage,
+							Severity:   severity,
 						}
 						issues = append(issues, issue)
 					}

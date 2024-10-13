@@ -25,13 +25,13 @@ type Dependency struct {
 
 type Dependencies map[string]*Dependency
 
-func DetectGnoPackageImports(filename string) ([]tt.Issue, error) {
+func DetectGnoPackageImports(filename string, severity tt.Severity) ([]tt.Issue, error) {
 	file, deps, err := analyzeFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("error analyzing file: %w", err)
 	}
 
-	issues := runGnoPackageLinter(file, deps)
+	issues := runGnoPackageLinter(file, deps, severity)
 
 	for i := range issues {
 		issues[i].Filename = filename
@@ -83,14 +83,15 @@ func analyzeFile(filename string) (*ast.File, Dependencies, error) {
 	return file, deps, nil
 }
 
-func runGnoPackageLinter(_ *ast.File, deps Dependencies) []tt.Issue {
+func runGnoPackageLinter(_ *ast.File, deps Dependencies, severity tt.Severity) []tt.Issue {
 	var issues []tt.Issue
 
 	for impPath, dep := range deps {
 		if !dep.IsUsed && !dep.IsIgnored {
 			issue := tt.Issue{
-				Rule:    "unused-import",
-				Message: fmt.Sprintf("unused import: %s", impPath),
+				Rule:     "unused-import",
+				Message:  fmt.Sprintf("unused import: %s", impPath),
+				Severity: severity,
 			}
 			issues = append(issues, issue)
 		}

@@ -8,7 +8,7 @@ import (
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-func DetectEmitFormat(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+func DetectEmitFormat(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	imports := extractImports(node, func(path string) bool {
 		return path == "std"
 	})
@@ -35,6 +35,7 @@ func DetectEmitFormat(filename string, node *ast.File, fset *token.FileSet) ([]t
 						Message:    "Consider formatting std.Emit call for better readability",
 						Suggestion: formatEmitCall(call),
 						Confidence: 1.0,
+						Severity:   severity,
 					}
 					issues = append(issues, issue)
 				}

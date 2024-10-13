@@ -38,7 +38,7 @@ func NewGolangciLintRule() LintRule {
 }
 
 func (r *GolangciLintRule) Check(filename string, _ *ast.File, _ *token.FileSet) ([]tt.Issue, error) {
-	return lints.RunGolangciLint(filename)
+	return lints.RunGolangciLint(filename, r.severity)
 }
 
 func (r *GolangciLintRule) Name() string {
@@ -64,7 +64,7 @@ func NewDeprecateFuncRule() LintRule {
 }
 
 func (r *DeprecateFuncRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectDeprecatedFunctions(filename, node, fset)
+	return lints.DetectDeprecatedFunctions(filename, node, fset, r.severity)
 }
 
 func (r *DeprecateFuncRule) Name() string {
@@ -90,7 +90,7 @@ func NewSimplifySliceExprRule() LintRule {
 }
 
 func (r *SimplifySliceExprRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectUnnecessarySliceLength(filename, node, fset)
+	return lints.DetectUnnecessarySliceLength(filename, node, fset, r.severity)
 }
 
 func (r *SimplifySliceExprRule) Name() string {
@@ -116,7 +116,7 @@ func NewUnnecessaryConversionRule() LintRule {
 }
 
 func (r *UnnecessaryConversionRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectUnnecessaryConversions(filename, node, fset)
+	return lints.DetectUnnecessaryConversions(filename, node, fset, r.severity)
 }
 
 func (r *UnnecessaryConversionRule) Name() string {
@@ -142,7 +142,7 @@ func NewLoopAllocationRule() LintRule {
 }
 
 func (r *LoopAllocationRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectLoopAllocation(filename, node, fset)
+	return lints.DetectLoopAllocation(filename, node, fset, r.severity)
 }
 
 func (r *LoopAllocationRule) Name() string {
@@ -168,7 +168,7 @@ func NewDetectCycleRule() LintRule {
 }
 
 func (r *DetectCycleRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectCycle(filename, node, fset)
+	return lints.DetectCycle(filename, node, fset, r.severity)
 }
 
 func (r *DetectCycleRule) Name() string {
@@ -194,7 +194,7 @@ func NewEmitFormatRule() LintRule {
 }
 
 func (r *EmitFormatRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectEmitFormat(filename, node, fset)
+	return lints.DetectEmitFormat(filename, node, fset, r.severity)
 }
 
 func (r *EmitFormatRule) Name() string {
@@ -220,7 +220,7 @@ func NewSliceBoundCheckRule() LintRule {
 }
 
 func (r *SliceBoundCheckRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectSliceBoundCheck(filename, node, fset)
+	return lints.DetectSliceBoundCheck(filename, node, fset, r.severity)
 }
 
 func (r *SliceBoundCheckRule) Name() string {
@@ -246,7 +246,7 @@ func NewUselessBreakRule() LintRule {
 }
 
 func (r *UselessBreakRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectUselessBreak(filename, node, fset)
+	return lints.DetectUselessBreak(filename, node, fset, r.severity)
 }
 
 func (r *UselessBreakRule) Name() string {
@@ -272,7 +272,7 @@ func NewEarlyReturnOpportunityRule() LintRule {
 }
 
 func (r *EarlyReturnOpportunityRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectEarlyReturnOpportunities(filename, node, fset)
+	return lints.DetectEarlyReturnOpportunities(filename, node, fset, r.severity)
 }
 
 func (r *EarlyReturnOpportunityRule) Name() string {
@@ -298,7 +298,7 @@ func NewDeferRule() LintRule {
 }
 
 func (r *DeferRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectDeferIssues(filename, node, fset)
+	return lints.DetectDeferIssues(filename, node, fset, r.severity)
 }
 
 func (r *DeferRule) Name() string {
@@ -324,7 +324,7 @@ func NewMissingModPackageRule() LintRule {
 }
 
 func (r *MissingModPackageRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectMissingModPackage(filename, node, fset)
+	return lints.DetectMissingModPackage(filename, node, fset, r.severity)
 }
 
 func (r *MissingModPackageRule) Name() string {
@@ -353,7 +353,7 @@ func NewRepeatedRegexCompilationRule() LintRule {
 }
 
 func (r *RepeatedRegexCompilationRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectRepeatedRegexCompilation(filename, node)
+	return lints.DetectRepeatedRegexCompilation(filename, node, r.severity)
 }
 
 func (r *RepeatedRegexCompilationRule) Name() string {
@@ -383,7 +383,7 @@ func NewCyclomaticComplexityRule(threshold int) LintRule {
 }
 
 func (r *CyclomaticComplexityRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectHighCyclomaticComplexity(filename, r.Threshold)
+	return lints.DetectHighCyclomaticComplexity(filename, r.Threshold, r.severity)
 }
 
 func (r *CyclomaticComplexityRule) Name() string {
@@ -412,7 +412,7 @@ func NewGnoSpecificRule() LintRule {
 }
 
 func (r *GnoSpecificRule) Check(filename string, _ *ast.File, _ *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectGnoPackageImports(filename)
+	return lints.DetectGnoPackageImports(filename, r.severity)
 }
 
 func (r *GnoSpecificRule) Name() string {

@@ -9,7 +9,7 @@ import (
 )
 
 // TODO: Make more precisely.
-func DetectSliceBoundCheck(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+func DetectSliceBoundCheck(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	var issues []tt.Issue
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch x := n.(type) {
@@ -26,7 +26,7 @@ func DetectSliceBoundCheck(filename string, node *ast.File, fset *token.FileSet)
 						// because the slice will be nil and accessing an index will panic
 						if len(callExpr.Args) >= 2 {
 							if lit, ok := callExpr.Args[1].(*ast.BasicLit); ok && lit.Value == "0" {
-								issue := createIssue(x, ident, filename, fset)
+								issue := createIssue(x, ident, filename, fset, severity)
 								issues = append(issues, issue)
 								return true
 							}
@@ -36,7 +36,7 @@ func DetectSliceBoundCheck(filename string, node *ast.File, fset *token.FileSet)
 			}
 
 			if !isWithinSafeContext(node, x) && !isWithinBoundsCheck(node, x, ident) {
-				issue := createIssue(x, ident, filename, fset)
+				issue := createIssue(x, ident, filename, fset, severity)
 				issues = append(issues, issue)
 			}
 		}
@@ -46,7 +46,7 @@ func DetectSliceBoundCheck(filename string, node *ast.File, fset *token.FileSet)
 	return issues, nil
 }
 
-func createIssue(node ast.Node, ident *ast.Ident, filename string, fset *token.FileSet) tt.Issue {
+func createIssue(node ast.Node, ident *ast.Ident, filename string, fset *token.FileSet, severity tt.Severity) tt.Issue {
 	var category, message, suggestion, note string
 
 	switch x := node.(type) {
@@ -75,6 +75,7 @@ func createIssue(node ast.Node, ident *ast.Ident, filename string, fset *token.F
 		Suggestion: suggestion,
 		Note:       note,
 		Confidence: 0.8,
+		Severity:   severity,
 	}
 }
 

@@ -16,7 +16,7 @@ import (
 // DetectEarlyReturnOpportunities detects if-else chains that can be simplified using early returns.
 // This rule considers an else block unnecessary if the if block ends with a return statement.
 // In such cases, the else block can be removed and the code can be flattened to improve readability.
-func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	var issues []tt.Issue
 
 	content, err := os.ReadFile(filename)
@@ -48,6 +48,7 @@ func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token
 				Message:    "This if-else chain can be simplified using early returns",
 				Suggestion: suggestion,
 				Confidence: 0.8,
+				Severity:   severity,
 			}
 			issues = append(issues, issue)
 		}

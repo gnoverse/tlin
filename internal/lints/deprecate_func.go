@@ -23,6 +23,7 @@ func DetectDeprecatedFunctions(
 	filename string,
 	node *ast.File,
 	fset *token.FileSet,
+	severity tt.Severity,
 ) ([]tt.Issue, error) {
 	deprecated := register()
 
@@ -57,6 +58,7 @@ func DetectDeprecatedFunctions(
 			End:        df.End,
 			Message:    createDeprecationMessage(df),
 			Suggestion: df.Alternative,
+			Severity:   severity,
 		})
 	}
 
