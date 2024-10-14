@@ -39,7 +39,7 @@ type golangciOutput struct {
 	} `json:"Issues"`
 }
 
-func RunGolangciLint(filename string) ([]tt.Issue, error) {
+func RunGolangciLint(filename string, severity tt.Severity) ([]tt.Issue, error) {
 	cmd := exec.Command("golangci-lint", "run", "--config=./.golangci.yml", "--out-format=json", filename)
 	output, _ := cmd.CombinedOutput()
 
@@ -57,6 +57,7 @@ func RunGolangciLint(filename string) ([]tt.Issue, error) {
 			Start:    token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
 			End:      token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1},
 			Message:  gi.Text,
+			Severity: severity,
 		})
 	}
 

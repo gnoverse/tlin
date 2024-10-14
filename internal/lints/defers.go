@@ -11,12 +11,14 @@ type DeferChecker struct {
 	fset     *token.FileSet
 	filename string
 	issues   []tt.Issue
+	severity tt.Severity
 }
 
-func NewDeferChecker(filename string, fset *token.FileSet) *DeferChecker {
+func NewDeferChecker(filename string, fset *token.FileSet, severity tt.Severity) *DeferChecker {
 	return &DeferChecker{
 		filename: filename,
 		fset:     fset,
+		severity: severity,
 	}
 }
 
@@ -101,10 +103,11 @@ func (dc *DeferChecker) addIssue(rule string, start, end token.Pos, message, sug
 		End:        dc.fset.Position(end),
 		Message:    message,
 		Suggestion: suggestion,
+		Severity:   dc.severity,
 	})
 }
 
-func DetectDeferIssues(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	checker := NewDeferChecker(filename, fset)
+func DetectDeferIssues(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
+	checker := NewDeferChecker(filename, fset, severity)
 	return checker.Check(node), nil
 }

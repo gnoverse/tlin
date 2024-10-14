@@ -7,7 +7,7 @@ import (
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-func DetectLoopAllocation(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+func DetectLoopAllocation(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	var issues []tt.Issue
 
 	ast.Inspect(node, func(n ast.Node) bool {
@@ -18,10 +18,11 @@ func DetectLoopAllocation(filename string, node *ast.File, fset *token.FileSet) 
 				case *ast.CallExpr:
 					if isAllocationFunction(innerNode) {
 						issues = append(issues, tt.Issue{
-							Rule:    "loop-allocation",
-							Message: "Potential unnecessary allocation inside loop",
-							Start:   fset.Position(innerNode.Pos()),
-							End:     fset.Position(innerNode.End()),
+							Rule:     "loop-allocation",
+							Message:  "Potential unnecessary allocation inside loop",
+							Start:    fset.Position(innerNode.Pos()),
+							End:      fset.Position(innerNode.End()),
+							Severity: severity,
 						})
 					}
 					// case *ast.AssignStmt:

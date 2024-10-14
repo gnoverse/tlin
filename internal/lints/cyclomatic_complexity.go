@@ -10,7 +10,7 @@ import (
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-func DetectHighCyclomaticComplexity(filename string, threshold int) ([]tt.Issue, error) {
+func DetectHighCyclomaticComplexity(filename string, threshold int, severity tt.Severity) ([]tt.Issue, error) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
@@ -43,6 +43,7 @@ func DetectHighCyclomaticComplexity(filename string, threshold int) ([]tt.Issue,
 				Message:    fmt.Sprintf("function %s has a cyclomatic complexity of %d (threshold %d)", stat.FuncName, stat.Complexity, threshold),
 				Suggestion: "Consider refactoring this function to reduce its complexity. You can split it into smaller functions or simplify the logic.\n",
 				Note:       "High cyclomatic complexity can make the code harder to understand, test, and maintain. Aim for a complexity score of 10 or less for most functions.\n",
+				Severity:   severity,
 			}
 			issues = append(issues, issue)
 		}

@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -72,7 +73,7 @@ func TestRunLinter(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, file)
 
-			issues := runGnoPackageLinter(file, deps)
+			issues := runGnoPackageLinter(file, deps, types.SeverityError)
 
 			assert.Equal(t, len(tt.expectedIssues), len(issues), "Number of issues doesn't match expected for %s", tt.filename)
 

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -85,7 +86,7 @@ func multipleRepeats() {
 			node, err := parser.ParseFile(fset, tempFile, nil, parser.ParseComments)
 			require.NoError(t, err)
 
-			issues, err := DetectRepeatedRegexCompilation(tempFile, node)
+			issues, err := DetectRepeatedRegexCompilation(tempFile, node, types.SeverityError)
 			require.NoError(t, err)
 
 			assert.Len(t, issues, tt.expected)

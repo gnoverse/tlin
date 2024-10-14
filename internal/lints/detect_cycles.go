@@ -8,7 +8,7 @@ import (
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-func DetectCycle(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+func DetectCycle(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	c := newCycle()
 	cycles := c.detectCycles(node)
 
@@ -20,6 +20,7 @@ func DetectCycle(filename string, node *ast.File, fset *token.FileSet) ([]tt.Iss
 			Start:    fset.Position(node.Pos()),
 			End:      fset.Position(node.End()),
 			Message:  "Detected cycle in function call: " + cycle,
+			Severity: severity,
 		}
 		issues = append(issues, issue)
 	}

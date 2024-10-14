@@ -10,6 +10,7 @@ import (
 	"github.com/gnolang/tlin/internal/lints"
 	tt "github.com/gnolang/tlin/internal/types"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v3"
 )
 
 type LintEngine interface {
@@ -19,8 +20,10 @@ type LintEngine interface {
 }
 
 // export the function NewEngine to be used in other packages
-func New(rootDir string, source []byte) (*internal.Engine, error) {
-	return internal.NewEngine(rootDir, source)
+func New(rootDir string, source []byte, configurationPath string) (*internal.Engine, error) {
+	config, _ := parseConfigurationFile(configurationPath)
+
+	return internal.NewEngine(rootDir, source, config.Rules)
 }
 
 func ProcessSources(
@@ -110,7 +113,7 @@ func ProcessPath(
 }
 
 func ProcessCyclomaticComplexity(path string, threshold int) ([]tt.Issue, error) {
-	return lints.DetectHighCyclomaticComplexity(path, threshold)
+	return lints.DetectHighCyclomaticComplexity(path, threshold, tt.SeverityError)
 }
 
 func ProcessFile(engine LintEngine, filePath string) ([]tt.Issue, error) {
@@ -123,4 +126,30 @@ func ProcessSource(engine LintEngine, source []byte) ([]tt.Issue, error) {
 
 func hasDesiredExtension(path string) bool {
 	return filepath.Ext(path) == ".go" || filepath.Ext(path) == ".gno"
+}
+
+// Config represents the overall configuration with a name and a slice of rules.
+type Config struct {
+	Name  string                   `yaml:"name"`
+	Rules map[string]tt.ConfigRule `yaml:"rules"`
+}
+
+func parseConfigurationFile(configurationPath string) (Config, error) {
+	var config Config
+
+	// Read the configuration file
+	f, err := os.Open(configurationPath)
+	if err != nil {
+		return config, err
+	}
+	defer f.Close()
+
+	// Parse the configuration file
+	decoder := yaml.NewDecoder(f)
+	err = decoder.Decode(&config)
+	if err != nil {
+		return config, err
+	}
+
+	return config, nil
 }

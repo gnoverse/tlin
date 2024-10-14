@@ -10,7 +10,7 @@ import (
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-func DetectUnnecessaryConversions(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+func DetectUnnecessaryConversions(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	info := &types.Info{
 		Types: make(map[ast.Expr]types.TypeAndValue),
 		Uses:  make(map[*ast.Ident]types.Object),
@@ -118,6 +118,7 @@ func DetectUnnecessaryConversions(filename string, node *ast.File, fset *token.F
 				Suggestion: suggestion,
 				Note:       memo,
 				Confidence: 0.8,
+				Severity:   severity,
 			})
 		}
 

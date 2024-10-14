@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,11 +17,45 @@ func TestNewEngine(t *testing.T) {
 
 	tempDir := createTempDir(t, "engine_test")
 
-	engine, err := NewEngine(tempDir, nil)
+	engine, err := NewEngine(tempDir, nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, engine)
 	// assert.NotNil(t, engine.SymbolTable)
 	assert.NotEmpty(t, engine.rules)
+}
+
+func TestNewEngineConfig(t *testing.T) {
+	t.Parallel()
+
+	config := map[string]types.ConfigRule{
+		"useless-break": {
+			Severity: types.SeverityOff,
+		},
+		"deprecated-function": {
+			Severity: types.SeverityWarning,
+		},
+		"test-rule": {
+			Severity: types.SeverityError,
+		},
+	}
+	tempDir := createTempDir(t, "engine_test")
+
+	engine, err := NewEngine(tempDir, nil, config)
+	assert.NoError(t, err)
+	assert.NotNil(t, engine)
+
+	assert.NotEmpty(t, engine.rules)
+
+	for key, rule := range engine.rules {
+		switch key {
+		case "deprecated-function":
+			assert.Equal(t, types.SeverityWarning, rule.Severity())
+		case "test-rule":
+			assert.Fail(t, "test-rule should not be in the rules")
+		}
+	}
+
+	assert.True(t, engine.ignoredRules["useless-break"])
 }
 
 func TestNewEngineContent(t *testing.T) {
@@ -33,7 +68,7 @@ var TestVar int
 func (ts TestStruct) TestMethod() {}
 `
 
-	engine, err := NewEngine("", []byte(fileContent))
+	engine, err := NewEngine("", []byte(fileContent), nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, engine)
 	// assert.NotNil(t, engine.SymbolTable)
@@ -134,7 +169,7 @@ func BenchmarkRun(b *testing.B) {
 	require.True(b, ok)
 	testDataDir := filepath.Join(filepath.Dir(currentFile), "../testdata")
 
-	engine, err := NewEngine(testDataDir, nil)
+	engine, err := NewEngine(testDataDir, nil, nil)
 	if err != nil {
 		b.Fatalf("failed to create engine: %v", err)
 	}

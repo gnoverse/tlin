@@ -15,7 +15,7 @@ var RepeatedRegexCompilationAnalyzer = &analysis.Analyzer{
 	Run:  runRepeatedRegexCompilation,
 }
 
-func DetectRepeatedRegexCompilation(filename string, node *ast.File) ([]tt.Issue, error) {
+func DetectRepeatedRegexCompilation(filename string, node *ast.File, severity tt.Severity) ([]tt.Issue, error) {
 	imports := extractImports(node, func(path string) bool {
 		return path == "regexp"
 	})
@@ -24,14 +24,14 @@ func DetectRepeatedRegexCompilation(filename string, node *ast.File) ([]tt.Issue
 		return nil, nil
 	}
 
-	issues, err := runAnalyzer(filename, RepeatedRegexCompilationAnalyzer)
+	issues, err := runAnalyzer(filename, RepeatedRegexCompilationAnalyzer, severity)
 	if err != nil {
 		return nil, err
 	}
 	return issues, nil
 }
 
-func runAnalyzer(filename string, a *analysis.Analyzer) ([]tt.Issue, error) {
+func runAnalyzer(filename string, a *analysis.Analyzer, severity tt.Severity) ([]tt.Issue, error) {
 	cfg := &packages.Config{
 		Mode:  packages.NeedFiles | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedTypes,
 		Tests: false,
@@ -68,6 +68,7 @@ func runAnalyzer(filename string, a *analysis.Analyzer) ([]tt.Issue, error) {
 			Start:    pass.Fset.Position(diag.Pos),
 			End:      pass.Fset.Position(diag.End),
 			Message:  diag.Message,
+			Severity: severity,
 		})
 	}
 

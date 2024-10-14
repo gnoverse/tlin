@@ -14,31 +14,33 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gnolang/tlin/internal/types"
+	tt "github.com/gnolang/tlin/internal/types"
+	"github.com/gnolang/tlin/lint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v3"
 )
 
 type mockLintEngine struct {
 	mock.Mock
 }
 
-func (m *mockLintEngine) Run(filePath string) ([]types.Issue, error) {
+func (m *mockLintEngine) Run(filePath string) ([]tt.Issue, error) {
 	args := m.Called(filePath)
-	return args.Get(0).([]types.Issue), args.Error(1)
+	return args.Get(0).([]tt.Issue), args.Error(1)
 }
 
-func (m *mockLintEngine) RunSource(source []byte) ([]types.Issue, error) {
+func (m *mockLintEngine) RunSource(source []byte) ([]tt.Issue, error) {
 	args := m.Called(source)
-	return args.Get(0).([]types.Issue), args.Error(1)
+	return args.Get(0).([]tt.Issue), args.Error(1)
 }
 
 func (m *mockLintEngine) IgnoreRule(rule string) {
 	m.Called(rule)
 }
 
-func setupMockEngine(expectedIssues []types.Issue, filePath string) *mockLintEngine {
+func setupMockEngine(expectedIssues []tt.Issue, filePath string) *mockLintEngine {
 	mockEngine := new(mockLintEngine)
 	mockEngine.On("Run", filePath).Return(expectedIssues, nil)
 	return mockEngine
@@ -58,6 +60,7 @@ func TestParseFlags(t *testing.T) {
 				AutoFix:             true,
 				Paths:               []string{"file.go"},
 				ConfidenceThreshold: defaultConfidenceThreshold,
+				ConfigurationPath:   ".tlin.yaml",
 			},
 		},
 		{
@@ -68,6 +71,7 @@ func TestParseFlags(t *testing.T) {
 				DryRun:              true,
 				Paths:               []string{"file.go"},
 				ConfidenceThreshold: defaultConfidenceThreshold,
+				ConfigurationPath:   ".tlin.yaml",
 			},
 		},
 		{
@@ -77,6 +81,7 @@ func TestParseFlags(t *testing.T) {
 				AutoFix:             true,
 				Paths:               []string{"file.go"},
 				ConfidenceThreshold: 0.9,
+				ConfigurationPath:   ".tlin.yaml",
 			},
 		},
 		{
@@ -86,6 +91,7 @@ func TestParseFlags(t *testing.T) {
 				Paths:               []string{"file.go"},
 				JsonOutput:          true,
 				ConfidenceThreshold: defaultConfidenceThreshold,
+				ConfigurationPath:   ".tlin.yaml",
 			},
 		},
 		{
@@ -95,6 +101,16 @@ func TestParseFlags(t *testing.T) {
 				Paths:               []string{"file.go"},
 				Output:              "output.svg",
 				ConfidenceThreshold: defaultConfidenceThreshold,
+				ConfigurationPath:   ".tlin.yaml",
+			},
+		},
+		{
+			name: "Configuration File",
+			args: []string{"-c", "config.yaml", "file.go"},
+			expected: Config{
+				Paths:               []string{"file.go"},
+				ConfidenceThreshold: defaultConfidenceThreshold,
+				ConfigurationPath:   "config.yaml",
 			},
 		},
 	}
@@ -111,6 +127,7 @@ func TestParseFlags(t *testing.T) {
 			assert.Equal(t, tt.expected.Paths, config.Paths)
 			assert.Equal(t, tt.expected.JsonOutput, config.JsonOutput)
 			assert.Equal(t, tt.expected.Output, config.Output)
+			assert.Equal(t, tt.expected.ConfigurationPath, config.ConfigurationPath)
 		})
 	}
 }
@@ -134,6 +151,33 @@ func TestRunWithTimeout(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("function unexpectedly timed out")
 	}
+}
+
+func TestInitConfigurationFile(t *testing.T) {
+	t.Parallel()
+	tempDir, err := os.MkdirTemp("", "init-test")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	configPath := filepath.Join(tempDir, ".tlin.yaml")
+
+	err = initConfigurationFile(configPath)
+	assert.NoError(t, err)
+
+	_, err = os.Stat(configPath)
+	assert.NoError(t, err)
+
+	content, err := os.ReadFile(configPath)
+	assert.NoError(t, err)
+
+	expectedConfig := lint.Config{
+		Name:  "tlin",
+		Rules: map[string]tt.ConfigRule{},
+	}
+	config := &lint.Config{}
+	yaml.Unmarshal(content, config)
+
+	assert.Equal(t, expectedConfig, *config)
 }
 
 func TestRunCFGAnalysis(t *testing.T) {
@@ -208,7 +252,7 @@ func TestRunAutoFix(t *testing.T) {
 	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0o644)
 	assert.NoError(t, err)
 
-	expectedIssues := []types.Issue{
+	expectedIssues := []tt.Issue{
 		{
 			Rule:       "simplify-slice-range",
 			Filename:   testFile,
@@ -267,7 +311,7 @@ func TestRunJsonOutput(t *testing.T) {
 			content, err := os.ReadFile(jsonOutput)
 			assert.NoError(t, err)
 
-			var actualContent map[string][]types.Issue
+			var actualContent map[string][]tt.Issue
 			err = json.Unmarshal(content, &actualContent)
 			assert.NoError(t, err)
 
@@ -284,6 +328,7 @@ func TestRunJsonOutput(t *testing.T) {
 				assert.Equal(t, 5, issue.Start.Column)
 				assert.Equal(t, 5, issue.End.Line)
 				assert.Equal(t, 24, issue.End.Column)
+				assert.Equal(t, tt.SeverityError, issue.Severity)
 			}
 
 			return
@@ -302,7 +347,7 @@ func TestRunJsonOutput(t *testing.T) {
 	err = os.WriteFile(testFile, []byte(sliceRangeIssueExample), 0o644)
 	assert.NoError(t, err)
 
-	expectedIssues := []types.Issue{
+	expectedIssues := []tt.Issue{
 		{
 			Rule:       "simplify-slice-range",
 			Filename:   testFile,

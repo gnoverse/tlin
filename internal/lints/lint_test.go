@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -88,7 +89,7 @@ func main() {
 			node, fset, err := ParseFile(tmpfile, nil)
 			require.NoError(t, err)
 
-			issues, err := DetectUnnecessarySliceLength(tmpfile, node, fset)
+			issues, err := DetectUnnecessarySliceLength(tmpfile, node, fset, types.SeverityError)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), "Number of detected unnecessary slice length doesn't match expected")
@@ -192,7 +193,7 @@ func example() {
 			node, fset, err := ParseFile(tmpfile, nil)
 			require.NoError(t, err)
 
-			issues, err := DetectUnnecessaryConversions(tmpfile, node, fset)
+			issues, err := DetectUnnecessaryConversions(tmpfile, node, fset, types.SeverityError)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), "Number of detected unnecessary type conversions doesn't match expected")
@@ -296,7 +297,7 @@ func main() {
 			node, fset, err := ParseFile(tmpfile, nil)
 			require.NoError(t, err)
 
-			issues, err := DetectLoopAllocation(tmpfile, node, fset)
+			issues, err := DetectLoopAllocation(tmpfile, node, fset, types.SeverityError)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), "Number of issues does not match expected")
@@ -360,7 +361,7 @@ func TestDetectEmitFormat(t *testing.T) {
 			node, fset, err := ParseFile(tmpfile, nil)
 			require.NoError(t, err)
 
-			issues, err := DetectEmitFormat(tmpfile, node, fset)
+			issues, err := DetectEmitFormat(tmpfile, node, fset, types.SeverityError)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), fmt.Sprintf("Number of detected issues doesn't match expected for %s. %v", tt.filename, issues))
@@ -511,7 +512,7 @@ func removeStringFromStringArr(arr []string, str string) []string {
 				t.Fatalf("Failed to parse code: %v", err)
 			}
 
-			issues, err := DetectSliceBoundCheck("test.go", node, fset)
+			issues, err := DetectSliceBoundCheck("test.go", node, fset, types.SeverityError)
 			for i, issue := range issues {
 				t.Logf("Issue %d: %v", i, issue)
 			}
@@ -612,7 +613,7 @@ outer:
 			node, err := parser.ParseFile(fset, "test.go", tt.code, parser.ParseComments)
 			require.NoError(t, err)
 
-			issues, err := DetectUselessBreak("test.go", node, fset)
+			issues, err := DetectUselessBreak("test.go", node, fset, types.SeverityError)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), "Number of detected useless break statements doesn't match expected")
