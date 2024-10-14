@@ -339,6 +339,32 @@ func (r *MissingModPackageRule) SetSeverity(severity tt.Severity) {
 	r.severity = severity
 }
 
+type ConstErrorDeclarationRule struct {
+	severity tt.Severity
+}
+
+func NewConstErrorDeclarationRule() LintRule {
+	return &ConstErrorDeclarationRule{
+		severity: tt.SeverityError,
+	}
+}
+
+func (r *ConstErrorDeclarationRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectConstErrorDeclaration(filename, node, fset, r.severity)
+}
+
+func (r *ConstErrorDeclarationRule) Name() string {
+	return "const-error-declaration"
+}
+
+func (r *ConstErrorDeclarationRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
+func (r *ConstErrorDeclarationRule) Severity() tt.Severity {
+	return r.severity
+}
+
 // -----------------------------------------------------------------------------
 // Regex related rules
 

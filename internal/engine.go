@@ -51,6 +51,7 @@ var allRuleConstructors = ruleMap{
 	"defer-issues":                NewDeferRule,
 	"gno-mod-tidy":                NewMissingModPackageRule,
 	"slice-bounds-check":          NewSliceBoundCheckRule,
+	"const-error-declaration":     NewConstErrorDeclarationRule,
 }
 
 func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
@@ -92,6 +93,7 @@ func (e *Engine) registerDefaultRules() {
 	e.rules["useless-break"] = allRuleConstructors["useless-break"]()
 	e.rules["defer-issues"] = allRuleConstructors["defer-issues"]()
 	e.rules["gno-mod-tidy"] = allRuleConstructors["gno-mod-tidy"]()
+	e.rules["const-error-declaration"] = allRuleConstructors["const-error-declaration"]()
 }
 
 func (e *Engine) findRule(name string) LintRule {

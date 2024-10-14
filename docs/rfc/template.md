@@ -21,11 +21,11 @@
 
 ### Code Examples
 
-#### Incorrect:
+#### Incorrect
 
 [Example of code that violates the rule]
 
-#### Correct:
+#### Correct
 
 [Example of code that does not violate the rule]
 
