@@ -33,7 +33,7 @@ type GolangciLintRule struct {
 
 func NewGolangciLintRule() LintRule {
 	return &GolangciLintRule{
-		severity: tt.SeverityError,
+		severity: tt.SeverityWarning,
 	}
 }
 
@@ -111,7 +111,7 @@ type UnnecessaryConversionRule struct {
 
 func NewUnnecessaryConversionRule() LintRule {
 	return &UnnecessaryConversionRule{
-		severity: tt.SeverityError,
+		severity: tt.SeverityWarning,
 	}
 }
 
@@ -137,7 +137,7 @@ type LoopAllocationRule struct {
 
 func NewLoopAllocationRule() LintRule {
 	return &LoopAllocationRule{
-		severity: tt.SeverityError,
+		severity: tt.SeverityWarning,
 	}
 }
 
@@ -163,7 +163,7 @@ type DetectCycleRule struct {
 
 func NewDetectCycleRule() LintRule {
 	return &DetectCycleRule{
-		severity: tt.SeverityError,
+		severity: tt.SeverityError, // TODO
 	}
 }
 
@@ -189,7 +189,7 @@ type EmitFormatRule struct {
 
 func NewEmitFormatRule() LintRule {
 	return &EmitFormatRule{
-		severity: tt.SeverityError,
+		severity: tt.SeverityInfo,
 	}
 }
 
@@ -267,7 +267,7 @@ type EarlyReturnOpportunityRule struct {
 
 func NewEarlyReturnOpportunityRule() LintRule {
 	return &EarlyReturnOpportunityRule{
-		severity: tt.SeverityError,
+		severity: tt.SeverityInfo,
 	}
 }
 
@@ -293,7 +293,7 @@ type DeferRule struct {
 
 func NewDeferRule() LintRule {
 	return &DeferRule{
-		severity: tt.SeverityError,
+		severity: tt.SeverityWarning,
 	}
 }
 
@@ -374,7 +374,7 @@ type RepeatedRegexCompilationRule struct {
 
 func NewRepeatedRegexCompilationRule() LintRule {
 	return &RepeatedRegexCompilationRule{
-		severity: tt.SeverityError,
+		severity: tt.SeverityWarning,
 	}
 }
 
@@ -433,7 +433,7 @@ type GnoSpecificRule struct {
 
 func NewGnoSpecificRule() LintRule {
 	return &GnoSpecificRule{
-		severity: tt.SeverityError,
+		severity: tt.SeverityWarning,
 	}
 }
 

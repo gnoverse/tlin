@@ -80,20 +80,13 @@ func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 }
 
 func (e *Engine) registerDefaultRules() {
-	e.rules["golangci-lint"] = allRuleConstructors["golangci-lint"]()
-	e.rules["deprecated-function"] = allRuleConstructors["deprecated-function"]()
-	e.rules["early-return-opportunity"] = allRuleConstructors["early-return-opportunity"]()
-	e.rules["simplify-slice-range"] = allRuleConstructors["simplify-slice-range"]()
-	e.rules["unnecessary-type-conversion"] = allRuleConstructors["unnecessary-type-conversion"]()
-	e.rules["loop-allocation"] = allRuleConstructors["loop-allocation"]()
-	e.rules["emit-format"] = allRuleConstructors["emit-format"]()
-	e.rules["cycle-detection"] = allRuleConstructors["cycle-detection"]()
-	e.rules["unused-package"] = allRuleConstructors["unused-package"]()
-	e.rules["repeated-regex-compilation"] = allRuleConstructors["repeated-regex-compilation"]()
-	e.rules["useless-break"] = allRuleConstructors["useless-break"]()
-	e.rules["defer-issues"] = allRuleConstructors["defer-issues"]()
-	e.rules["gno-mod-tidy"] = allRuleConstructors["gno-mod-tidy"]()
-	e.rules["const-error-declaration"] = allRuleConstructors["const-error-declaration"]()
+	// iterate over allRuleConstructors and add them to the rules map if severity is not off
+	for key, newRuleCstr := range allRuleConstructors {
+		newRule := newRuleCstr()
+		if newRule.Severity() != tt.SeverityOff {
+			e.rules[key] = newRule
+		}
+	}
 }
 
 func (e *Engine) findRule(name string) LintRule {
