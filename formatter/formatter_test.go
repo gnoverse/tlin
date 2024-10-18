@@ -40,14 +40,14 @@ func TestFormatIssuesWithArrows(t *testing.T) {
 	}
 
 	expected := `error: unused-variable
- --> test.go
+ --> test.go:4:5
   |
 4 | x := 1
   | ~~
   = x declared but not used
 
 error: empty-if
- --> test.go
+ --> test.go:5:5
   |
 5 | if true {}
   | ~~~~~~~~~
@@ -72,14 +72,14 @@ error: empty-if
 	}
 
 	expectedWithTabs := `error: unused-variable
- --> test.go
+ --> test.go:4:5
   |
 4 | x := 1
   | ~~
   = x declared but not used
 
 error: empty-if
- --> test.go
+ --> test.go:5:5
   |
 5 | if true {}
   | ~~~~~~~~~
@@ -134,21 +134,21 @@ func TestFormatIssuesWithArrows_MultipleDigitsLineNumbers(t *testing.T) {
 	}
 
 	expected := `error: unused-variable
- --> test.go
+ --> test.go:4:5
   |
 4 | x := 1  // unused variable
   | ~~
   = x declared but not used
 
 error: empty-if
- --> test.go
+ --> test.go:5:5
   |
 5 | if true {}  // empty if statement
   | ~~~~~~~~~
   = empty branch
 
 error: example
-  --> test.go
+  --> test.go:10:5
    |
 10 | println("end")
    | ~~~~~~~~
@@ -159,61 +159,6 @@ error: example
 	result := GenerateFormattedIssue(issues, code)
 
 	assert.Equal(t, expected, result, "Formatted output with multiple digit line numbers does not match expected")
-}
-
-func TestFormatIssuesWithArrows_UnnecessaryElse(t *testing.T) {
-	t.Skip()
-	t.Parallel()
-	code := &internal.SourceCode{
-		Lines: []string{
-			"package main",
-			"",
-			"func unnecessaryElse() bool {",
-			"	if condition {",
-			"        return true",
-			"    } else {",
-			"        return false",
-			"    }",
-			"}",
-		},
-	}
-
-	issues := []tt.Issue{
-		{
-			Rule:     "unnecessary-else",
-			Filename: "test.go",
-			Start:    token.Position{Line: 6, Column: 5},
-			End:      token.Position{Line: 8, Column: 5},
-			Message:  "unnecessary else block",
-		},
-	}
-
-	expected := `error: unnecessary-else
- --> test.go
-  |
-4 |     if condition {
-5 |         return true
-6 |     } else {
-7 |         return false
-8 |     }
-  | ~~~~~~~~~~~~~~~~~~~~
-  | unnecessary else block
-
-Suggestion:
-  |
-4 | if condition {
-5 | 	return true
-6 | }
-7 | return false
-  |
-Note: Unnecessary 'else' block removed.
-The code inside the 'else' block has been moved outside, as it will only be executed when the 'if' condition is false.
-
-`
-
-	result := GenerateFormattedIssue(issues, code)
-	t.Logf("result: %s", result)
-	assert.Equal(t, expected, result, "Formatted output does not match expected for unnecessary else")
 }
 
 func TestUnnecessaryTypeConversionFormatter(t *testing.T) {
@@ -242,7 +187,7 @@ func TestUnnecessaryTypeConversionFormatter(t *testing.T) {
 	}
 
 	expected := `error: unnecessary-type-conversion
- --> test.go
+ --> test.go:5:10
   |
 5 | result := int(myInt)
   |      ~~~~~~~~~~~
