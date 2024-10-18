@@ -48,6 +48,7 @@ func DetectConstErrorDeclaration(
 				Message:    "Constant declaration of errors.New() is not allowed",
 				Suggestion: "Use var instead of const for error declarations",
 				Confidence: 1.0,
+				Severity:   severity,
 			}
 			issues = append(issues, issue)
 		}
