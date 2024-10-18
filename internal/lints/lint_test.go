@@ -627,3 +627,69 @@ outer:
 		})
 	}
 }
+
+func TestDetectConstErrorDeclaration(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		code     string
+		expected int
+	}{
+		{
+			name: "Constant error declaration",
+			code: `
+package main
+
+import "errors"
+
+const err = errors.New("error")
+`,
+			expected: 1,
+		},
+		{
+			name: "Constant error declaration with multiple errors",
+			code: `
+package main
+
+import "errors"
+
+const (
+	err1 = errors.New("error1")
+	err2 = errors.New("error2")
+)
+`,
+			expected: 1,
+		},
+		{
+			name: "Variable error declaration",
+			code: `
+package main
+
+import "errors"
+
+var err = errors.New("error")
+`,
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fset := token.NewFileSet()
+			node, err := parser.ParseFile(fset, "test.go", tt.code, parser.ParseComments)
+			require.NoError(t, err)
+
+			issues, err := DetectConstErrorDeclaration("test.go", node, fset, types.SeverityError)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expected, len(issues), "Number of detected constant error declarations doesn't match expected")
+
+			for _, issue := range issues {
+				assert.Equal(t, "const-error-declaration", issue.Rule)
+				assert.Contains(t, issue.Message, "Constant declaration of errors.New() is not allowed")
+			}
+		})
+	}
+}
