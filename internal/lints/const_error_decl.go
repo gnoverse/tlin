@@ -9,8 +9,6 @@ import (
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-// This 
-
 func DetectConstErrorDeclaration(
 	filename string,
 	node *ast.File,
