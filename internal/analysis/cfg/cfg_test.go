@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"go/types"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -1008,6 +1009,11 @@ splines="ortho";
 
 func TestRenderToGraphVizFile(t *testing.T) {
 	t.Parallel()
+
+	if _, err := exec.LookPath("dot"); err != nil {
+		t.Skip("GraphViz is not installed. Skipping test.")
+	}
+
 	tmpDir, err := os.MkdirTemp("", "cfg_test")
 	assert.NoError(t, err)
 	defer os.RemoveAll(tmpDir)

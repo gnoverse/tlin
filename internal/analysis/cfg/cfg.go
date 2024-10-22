@@ -1,6 +1,7 @@
 package cfg
 
 import (
+	"context"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -54,9 +55,12 @@ func RenderToGraphVizFile(dotContent []byte, filename string) error {
 	if err != nil {
 		return err
 	}
-	g := graphviz.New()
+	g, err := graphviz.New(context.Background())
+	if err != nil {
+		return err
+	}
 	defer g.Close()
-	err = g.RenderFilename(graph, graphviz.SVG, filename)
+	err = g.RenderFilename(context.Background(), graph, graphviz.SVG, filename)
 	if err != nil {
 		return err
 	}
