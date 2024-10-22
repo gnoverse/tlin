@@ -92,7 +92,12 @@ func main() {
 			issues, err := DetectUnnecessarySliceLength(tmpfile, node, fset, types.SeverityError)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.expected, len(issues), "Number of detected unnecessary slice length doesn't match expected")
+			assert.Equal(
+				t,
+				tt.expected,
+				len(issues),
+				"Number of detected unnecessary slice length doesn't match expected",
+			)
 
 			if len(issues) > 0 {
 				for _, issue := range issues {
@@ -196,7 +201,12 @@ func example() {
 			issues, err := DetectUnnecessaryConversions(tmpfile, node, fset, types.SeverityError)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.expected, len(issues), "Number of detected unnecessary type conversions doesn't match expected")
+			assert.Equal(
+				t,
+				tt.expected,
+				len(issues),
+				"Number of detected unnecessary type conversions doesn't match expected",
+			)
 
 			if len(issues) > 0 {
 				for _, issue := range issues {
@@ -364,7 +374,12 @@ func TestDetectEmitFormat(t *testing.T) {
 			issues, err := DetectEmitFormat(tmpfile, node, fset, types.SeverityError)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.expected, len(issues), fmt.Sprintf("Number of detected issues doesn't match expected for %s. %v", tt.filename, issues))
+			assert.Equal(
+				t,
+				tt.expected,
+				len(issues),
+				fmt.Sprintf("Number of detected issues doesn't match expected for %s. %v", tt.filename, issues),
+			)
 
 			if len(issues) > 0 {
 				assert.Equal(t, "emit-format", issues[0].Rule)
@@ -616,7 +631,12 @@ outer:
 			issues, err := DetectUselessBreak("test.go", node, fset, types.SeverityError)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.expected, len(issues), "Number of detected useless break statements doesn't match expected")
+			assert.Equal(
+				t,
+				tt.expected,
+				len(issues),
+				"Number of detected useless break statements doesn't match expected",
+			)
 
 			if len(issues) > 0 {
 				for _, issue := range issues {
@@ -677,18 +697,32 @@ var err = errors.New("error")
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			fset := token.NewFileSet()
-			node, err := parser.ParseFile(fset, "test.go", tt.code, parser.ParseComments)
+
+			tmpDir, err := os.MkdirTemp("", "lint-test")
+			require.NoError(t, err)
+			defer os.RemoveAll(tmpDir)
+
+			tmpfile := filepath.Join(tmpDir, "test.go")
+			err = os.WriteFile(tmpfile, []byte(tt.code), 0o644)
 			require.NoError(t, err)
 
-			issues, err := DetectConstErrorDeclaration("test.go", node, fset, types.SeverityError)
+			node, fset, err := ParseFile(tmpfile, nil)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.expected, len(issues), "Number of detected constant error declarations doesn't match expected")
+			issues, err := DetectConstErrorDeclaration(tmpfile, node, fset, types.SeverityError)
+			require.NoError(t, err)
+
+			assert.Equal(
+				t,
+				tt.expected,
+				len(issues),
+				"Number of detected constant error declarations doesn't match expected",
+			)
 
 			for _, issue := range issues {
 				assert.Equal(t, "const-error-declaration", issue.Rule)
-				assert.Contains(t, issue.Message, "Constant declaration of errors.New() is not allowed")
+				assert.Contains(t, issue.Message, "Avoid declaring constant errors")
+				assert.Contains(t, issue.Suggestion, "var")
 			}
 		})
 	}

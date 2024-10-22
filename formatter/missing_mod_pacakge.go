@@ -8,7 +8,7 @@ import (
 type MissingModPackageFormatter struct{}
 
 func (f *MissingModPackageFormatter) Format(issue tt.Issue, snippet *internal.SourceCode) string {
-	builder := NewIssueFormatterBuilder(issue, snippet)
+	builder := newIssueFormatterBuilder(issue, snippet)
 	return builder.
 		AddHeader().
 		AddMessage().

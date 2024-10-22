@@ -11,7 +11,7 @@ import (
 type CyclomaticComplexityFormatter struct{}
 
 func (f *CyclomaticComplexityFormatter) Format(issue tt.Issue, snippet *internal.SourceCode) string {
-	builder := NewIssueFormatterBuilder(issue, snippet)
+	builder := newIssueFormatterBuilder(issue, snippet)
 	return builder.
 		AddHeader().
 		AddCodeSnippet().
@@ -21,7 +21,7 @@ func (f *CyclomaticComplexityFormatter) Format(issue tt.Issue, snippet *internal
 		Build()
 }
 
-func (b *IssueFormatterBuilder) AddComplexityInfo() *IssueFormatterBuilder {
+func (b *issueFormatterBuilder) AddComplexityInfo() *issueFormatterBuilder {
 	maxLineNumWidth := calculateMaxLineNumWidth(b.issue.End.Line)
 	padding := strings.Repeat(" ", maxLineNumWidth+1)
 

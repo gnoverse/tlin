@@ -14,10 +14,12 @@ func (f *GeneralIssueFormatter) Format(
 	issue tt.Issue,
 	snippet *internal.SourceCode,
 ) string {
-	builder := NewIssueFormatterBuilder(issue, snippet)
+	builder := newIssueFormatterBuilder(issue, snippet)
 	return builder.
 		AddHeader().
 		AddCodeSnippet().
 		AddUnderlineAndMessage().
+		AddSuggestion().
+		AddNote().
 		Build()
 }
