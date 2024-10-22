@@ -3,6 +3,8 @@ package lints
 import (
 	"go/ast"
 	"go/token"
+	"os"
+	"strings"
 
 	tt "github.com/gnolang/tlin/internal/types"
 )
@@ -14,6 +16,11 @@ func DetectConstErrorDeclaration(
 	severity tt.Severity,
 ) ([]tt.Issue, error) {
 	var issues []tt.Issue
+
+	src, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
 
 	ast.Inspect(node, func(n ast.Node) bool {
 		genDecl, ok := n.(*ast.GenDecl)
@@ -40,13 +47,19 @@ func DetectConstErrorDeclaration(
 		}
 
 		if containsErrorsNew {
+			startPos := fset.Position(genDecl.Pos()).Offset
+			endPos := fset.Position(genDecl.End()).Offset
+			origSnippet := src[startPos:endPos]
+
+			suggestion := strings.Replace(string(origSnippet), "const", "var", 1)
+
 			issue := tt.Issue{
 				Rule:       "const-error-declaration",
 				Filename:   filename,
 				Start:      fset.Position(genDecl.Pos()),
 				End:        fset.Position(genDecl.End()),
-				Message:    "Constant declaration of errors.New() is not allowed",
-				Suggestion: "Use var instead of const for error declarations",
+				Message:    "Avoid declaring constant errors",
+				Suggestion: suggestion,
 				Confidence: 1.0,
 				Severity:   severity,
 			}

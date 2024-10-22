@@ -11,7 +11,7 @@ func (f *SliceBoundsCheckFormatter) Format(
 	issue tt.Issue,
 	snippet *internal.SourceCode,
 ) string {
-	builder := NewIssueFormatterBuilder(issue, snippet)
+	builder := newIssueFormatterBuilder(issue, snippet)
 	return builder.
 		AddHeader().
 		AddCodeSnippet().
@@ -20,7 +20,7 @@ func (f *SliceBoundsCheckFormatter) Format(
 		Build()
 }
 
-func (b *IssueFormatterBuilder) AddWarning() *IssueFormatterBuilder {
+func (b *issueFormatterBuilder) AddWarning() *issueFormatterBuilder {
 	b.result.WriteString(warningStyle.Sprint("warning: "))
 	if b.issue.Category == "index-access" {
 		b.result.WriteString("Index access without bounds checking can lead to runtime panics.\n")

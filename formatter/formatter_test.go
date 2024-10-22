@@ -163,7 +163,7 @@ error: example
 
 func TestUnnecessaryTypeConversionFormatter(t *testing.T) {
 	t.Parallel()
-	formatter := &UnnecessaryTypeConversionFormatter{}
+	formatter := &GeneralIssueFormatter{}
 
 	issue := tt.Issue{
 		Rule:       "unnecessary-type-conversion",
