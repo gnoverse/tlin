@@ -16,8 +16,8 @@ func (f *CyclomaticComplexityFormatter) Format(issue tt.Issue, snippet *internal
 		AddHeader().
 		AddCodeSnippet().
 		AddComplexityInfo().
-		AddSuggestion().
 		AddNote().
+		AddSuggestion().
 		Build()
 }
 

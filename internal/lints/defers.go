@@ -43,9 +43,9 @@ func (dc *DeferChecker) checkDeferPanic(stmt *ast.DeferStmt) {
 		if call, ok := n.(*ast.CallExpr); ok {
 			if ident, ok := call.Fun.(*ast.Ident); ok && ident.Name == "panic" {
 				dc.addIssue("defer-panic", stmt.Pos(), stmt.End(),
-					"Avoid calling panic inside a defer statement",
-					"Consider removing the panic call from the defer statement. "+
-						"If error handling is needed, use a separate error check before the defer.")
+					"avoid calling panic inside a defer statement",
+					"consider removing the panic call from the defer statement. "+
+						"if error handling is needed, use a separate error check before the defer.")
 			}
 		}
 		return true
@@ -56,8 +56,8 @@ func (dc *DeferChecker) checkDeferNilFunc(stmt *ast.DeferStmt) {
 	if ident, ok := stmt.Call.Fun.(*ast.Ident); ok {
 		if ident.Name == "nil" || (ident.Obj != nil && ident.Obj.Kind == ast.Var) {
 			dc.addIssue("defer-nil-func", stmt.Pos(), stmt.End(),
-				"Avoid deferring a potentially nil function",
-				"Deferring a nil function will cause a panic at runtime. Ensure the function is not nil before deferring.")
+				"avoid deferring a potentially nil function",
+				"deferring a nil function will cause a panic at runtime. ensure the function is not nil before deferring.")
 		}
 	}
 }
@@ -68,8 +68,8 @@ func (dc *DeferChecker) checkReturnInDefer(stmt *ast.DeferStmt) {
 			ast.Inspect(funcLit.Body, func(n ast.Node) bool {
 				if _, ok := n.(*ast.ReturnStmt); ok {
 					dc.addIssue("return-in-defer", n.Pos(), n.End(),
-						"Avoid using return statement inside a defer function",
-						"The return statement in a deferred function doesn't affect the returned value of the surrounding function. Consider removing it or refactoring your code.")
+						"avoid using return statement inside a defer function",
+						"the return statement in a deferred function doesn't affect the returned value of the surrounding function. consider removing it or refactoring your code.")
 					return false
 				}
 				return true
@@ -87,23 +87,23 @@ func (dc *DeferChecker) checkDeferInLoop(n ast.Node) {
 		ast.Inspect(n, func(inner ast.Node) bool {
 			if defer_, ok := inner.(*ast.DeferStmt); ok {
 				dc.addIssue("defer-in-loop", defer_.Pos(), defer_.End(),
-					"Avoid using defer inside a loop",
-					"Consider moving the defer statement outside the loop to avoid potential performance issues.")
+					"avoid using defer inside a loop",
+					"consider moving the defer statement outside the loop to avoid potential performance issues.")
 			}
 			return true
 		})
 	}
 }
 
-func (dc *DeferChecker) addIssue(rule string, start, end token.Pos, message, suggestion string) {
+func (dc *DeferChecker) addIssue(rule string, start, end token.Pos, message, note string) {
 	dc.issues = append(dc.issues, tt.Issue{
-		Rule:       rule,
-		Filename:   dc.filename,
-		Start:      dc.fset.Position(start),
-		End:        dc.fset.Position(end),
-		Message:    message,
-		Suggestion: suggestion,
-		Severity:   dc.severity,
+		Rule:     rule,
+		Filename: dc.filename,
+		Start:    dc.fset.Position(start),
+		End:      dc.fset.Position(end),
+		Message:  message,
+		Note:     note,
+		Severity: dc.severity,
 	})
 }
 

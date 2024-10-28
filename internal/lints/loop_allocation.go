@@ -19,7 +19,7 @@ func DetectLoopAllocation(filename string, node *ast.File, fset *token.FileSet, 
 					if isAllocationFunction(innerNode) {
 						issues = append(issues, tt.Issue{
 							Rule:     "loop-allocation",
-							Message:  "Potential unnecessary allocation inside loop",
+							Message:  "potential unnecessary allocation inside loop",
 							Start:    fset.Position(innerNode.Pos()),
 							End:      fset.Position(innerNode.End()),
 							Severity: severity,

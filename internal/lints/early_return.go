@@ -45,7 +45,7 @@ func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token
 				Filename:   filename,
 				Start:      fset.Position(ifStmt.Pos()),
 				End:        fset.Position(ifStmt.End()),
-				Message:    "This if-else chain can be simplified using early returns",
+				Message:    "this if-else chain can be simplified using early returns",
 				Suggestion: suggestion,
 				Confidence: 0.8,
 				Severity:   severity,

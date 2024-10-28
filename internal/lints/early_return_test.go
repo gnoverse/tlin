@@ -153,7 +153,6 @@ func example(x int) {
 			issues, err := DetectEarlyReturnOpportunities(tmpfile, node, fset, types.SeverityError)
 			require.NoError(t, err)
 
-			// assert.Equal(t, tt.expected, len(issues), "Number of detected early return opportunities doesn't match expected")
 			if len(issues) != tt.expected {
 				for _, issue := range issues {
 					t.Logf("Issue: %v", issue)

@@ -55,14 +55,14 @@ func createIssue(node ast.Node, ident *ast.Ident, filename string, fset *token.F
 			return tt.Issue{}
 		}
 		category = "index-access"
-		message = "Potential out of bounds array/slice index access"
+		message = "potential out of bounds array/slice index access"
 		suggestion = fmt.Sprintf("if i < len(%s) { value := %s[i] }", ident.Name, ident.Name)
-		note = "Always check the length of the array/slice before accessing an index to prevent runtime panics."
+		note = "always check the length of the array/slice before accessing an index to prevent runtime panics."
 	case *ast.SliceExpr:
 		category = "slice-expression"
-		message = "Potential out of bounds slice expression"
+		message = "potential out of bounds slice expression"
 		suggestion = fmt.Sprintf("%s = append(%s, newElement)", ident.Name, ident.Name)
-		note = "Consider using append() for slices to automatically handle capacity and prevent out of bounds errors."
+		note = "consider using append() for slices to automatically handle capacity and prevent out of bounds errors."
 	}
 
 	return tt.Issue{

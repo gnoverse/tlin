@@ -43,14 +43,16 @@ func TestFormatIssuesWithArrows(t *testing.T) {
  --> test.go:4:5
   |
 4 | x := 1
-  | ~~
+  | ^^
+  |
   = x declared but not used
 
 error: empty-if
  --> test.go:5:5
   |
 5 | if true {}
-  | ~~~~~~~~~
+  | ^^^^^^^^^
+  |
   = empty branch
 
 `
@@ -75,14 +77,16 @@ error: empty-if
  --> test.go:4:5
   |
 4 | x := 1
-  | ~~
+  | ^^
+  |
   = x declared but not used
 
 error: empty-if
  --> test.go:5:5
   |
 5 | if true {}
-  | ~~~~~~~~~
+  | ^^^^^^^^^
+  |
   = empty branch
 
 `
@@ -137,21 +141,24 @@ func TestFormatIssuesWithArrows_MultipleDigitsLineNumbers(t *testing.T) {
  --> test.go:4:5
   |
 4 | x := 1  // unused variable
-  | ~~
+  | ^^
+  |
   = x declared but not used
 
 error: empty-if
  --> test.go:5:5
   |
 5 | if true {}  // empty if statement
-  | ~~~~~~~~~
+  | ^^^^^^^^^
+  |
   = empty branch
 
 error: example
   --> test.go:10:5
    |
 10 | println("end")
-   | ~~~~~~~~
+   | ^^^^^^^^
+   |
    = example issue
 
 `
@@ -190,15 +197,14 @@ func TestUnnecessaryTypeConversionFormatter(t *testing.T) {
  --> test.go:5:10
   |
 5 | result := int(myInt)
-  |      ~~~~~~~~~~~
+  |      ^^^^^^^^^^^
+  |
   = unnecessary type conversion
-
-Suggestion:
+  = note: Unnecessary type conversions can make the code less readable and may slightly impact performance. They are safe to remove when the expression already has the desired type.
+suggestion:
   |
 5 | Remove the type conversion. Change ` + "`int(myInt)`" + ` to just ` + "`myInt`" + `.
   |
-
-Note: Unnecessary type conversions can make the code less readable and may slightly impact performance. They are safe to remove when the expression already has the desired type.
 
 `
 

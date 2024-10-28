@@ -19,7 +19,7 @@ func (f *GeneralIssueFormatter) Format(
 		AddHeader().
 		AddCodeSnippet().
 		AddUnderlineAndMessage().
-		AddSuggestion().
 		AddNote().
+		AddSuggestion().
 		Build()
 }

@@ -68,10 +68,10 @@ func DetectDeprecatedFunctions(
 func createDeprecationMessage(df checker.DeprecatedFunc) string {
 	msg := "Use of deprecated function"
 	if df.Alternative != "" {
-		msg = fmt.Sprintf("%s. Please use %s instead.", msg, df.Alternative)
+		msg = fmt.Sprintf("%s. please use %s instead.", msg, df.Alternative)
 		return msg
 	}
-	msg = fmt.Sprintf("%s. Please remove it.", msg)
+	msg = fmt.Sprintf("%s. please remove it.", msg)
 	return msg
 }
 
