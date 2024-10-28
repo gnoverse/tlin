@@ -3,7 +3,7 @@ module github.com/gnolang/tlin
 go 1.22.2
 
 require (
-	github.com/fatih/color v1.17.0
+	github.com/fatih/color v1.18.0
 	github.com/fzipp/gocyclo v0.6.0
 	github.com/goccy/go-graphviz v0.2.2
 	github.com/stretchr/testify v1.9.0
