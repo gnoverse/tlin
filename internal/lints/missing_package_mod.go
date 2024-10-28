@@ -42,7 +42,7 @@ func DetectMissingModPackage(filename string, node *ast.File, fset *token.FileSe
 			Filename: modFile,
 			Start:    token.Position{Filename: modFile},
 			End:      token.Position{Filename: modFile},
-			Message:  fmt.Sprintf("Packages %s are declared in gno.mod file but not imported.\nRun `gno mod tidy`", strings.Join(unusedPackages, ", ")),
+			Message:  fmt.Sprintf("packages %s are declared in gno.mod file but not imported.\nrun `gno mod tidy`", strings.Join(unusedPackages, ", ")),
 			Severity: severity,
 		}
 		issues = append(issues, issue)
@@ -55,7 +55,7 @@ func DetectMissingModPackage(filename string, node *ast.File, fset *token.FileSe
 				Filename: modFile,
 				Start:    token.Position{Filename: modFile},
 				End:      token.Position{Filename: modFile},
-				Message:  fmt.Sprintf("Package %s is imported but not declared in gno.mod file. Please consider to remove.\nRun `gno mod tidy`", pkg),
+				Message:  fmt.Sprintf("package %s is imported but not declared in gno.mod file. please consider to remove.\nrun `gno mod tidy`", pkg),
 				Severity: severity,
 			}
 			issues = append(issues, issue)

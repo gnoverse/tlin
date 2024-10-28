@@ -27,18 +27,18 @@ func DetectUnnecessarySliceLength(filename string, node *ast.File, fset *token.F
 						if sliceExpr.Low == nil {
 							suggestion = fmt.Sprintf("%s[:]", arg.Name)
 							detailedMessage = fmt.Sprintf(
-								"%s\nIn this case, `%s[:len(%s)]` is equivalent to `%s[:]`. "+
-									"The full length of the slice is already implied when omitting both start and end indices.",
+								"%s\nin this case, `%s[:len(%s)]` is equivalent to `%s[:]`. "+
+									"the full length of the slice is already implied when omitting both start and end indices.",
 								baseMessage, arg.Name, arg.Name, arg.Name)
 						} else if basicLit, ok := sliceExpr.Low.(*ast.BasicLit); ok {
 							suggestion = fmt.Sprintf("%s[%s:]", arg.Name, basicLit.Value)
-							detailedMessage = fmt.Sprintf("%s\nHere, `%s[%s:len(%s)]` can be simplified to `%s[%s:]`. "+
-								"When slicing to the end of a slice, using len() is unnecessary.",
+							detailedMessage = fmt.Sprintf("%s\nhere, `%s[%s:len(%s)]` can be simplified to `%s[%s:]`. "+
+								"when slicing to the end of a slice, using len() is unnecessary.",
 								baseMessage, arg.Name, basicLit.Value, arg.Name, arg.Name, basicLit.Value)
 						} else if lowIdent, ok := sliceExpr.Low.(*ast.Ident); ok {
 							suggestion = fmt.Sprintf("%s[%s:]", arg.Name, lowIdent.Name)
-							detailedMessage = fmt.Sprintf("%s\nIn this instance, `%s[%s:len(%s)]` can be written as `%s[%s:]`. "+
-								"The len() function is redundant when slicing to the end, regardless of the start index.",
+							detailedMessage = fmt.Sprintf("%s\nin this instance, `%s[%s:len(%s)]` can be written as `%s[%s:]`. "+
+								"the len() function is redundant when slicing to the end, regardless of the start index.",
 								baseMessage, arg.Name, lowIdent.Name, arg.Name, arg.Name, lowIdent.Name)
 						}
 

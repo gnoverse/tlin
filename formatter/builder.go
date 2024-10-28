@@ -25,9 +25,10 @@ var (
 	warningStyle    = color.New(color.FgHiYellow, color.Bold)
 	ruleStyle       = color.New(color.FgYellow, color.Bold)
 	fileStyle       = color.New(color.FgCyan, color.Bold)
-	lineStyle       = color.New(color.FgBlue, color.Bold)
+	lineStyle       = color.New(color.FgHiBlue, color.Bold)
 	messageStyle    = color.New(color.FgRed, color.Bold)
 	suggestionStyle = color.New(color.FgGreen, color.Bold)
+	noStyle         = color.New(color.FgWhite)
 )
 
 // issueFormatter is the interface that wraps the Format method.
@@ -136,7 +137,8 @@ func (b *issueFormatterBuilder) AddCodeSnippet() *issueFormatterBuilder {
 		line = strings.TrimPrefix(line, b.commonIndent)
 		lineNum := fmt.Sprintf("%*d", b.maxLineNumWidth, i)
 
-		b.writeStyledLine(lineStyle, "%s | %s\n", lineNum, line)
+		b.writeStyledLine(lineStyle, "%s | ", lineNum)
+		b.writeStyledLine(noStyle, "%s\n", line)
 	}
 
 	return b
@@ -163,10 +165,15 @@ func (b *issueFormatterBuilder) AddUnderlineAndMessage() *issueFormatterBuilder 
 	underlineLength := underlineEnd - underlineStart + 1
 
 	b.result.WriteString(strings.Repeat(" ", underlineStart))
-	b.writeStyledLine(messageStyle, "%s\n", strings.Repeat("~", underlineLength))
+	b.writeStyledLine(messageStyle, "%s\n", strings.Repeat("^", underlineLength))
+	b.writeStyledLine(lineStyle, "%s|\n", b.padding)
 
 	b.writeStyledLine(lineStyle, "%s= ", b.padding)
-	b.writeStyledLine(messageStyle, "%s\n\n", b.issue.Message)
+	b.writeStyledLine(messageStyle, "%s\n", b.issue.Message)
+
+	if b.issue.Note == "" {
+		b.result.WriteString("\n")
+	}
 
 	return b
 }
@@ -182,13 +189,14 @@ func (b *issueFormatterBuilder) AddSuggestion() *issueFormatterBuilder {
 		return b
 	}
 
-	b.writeStyledLine(suggestionStyle, "Suggestion:\n")
+	b.writeStyledLine(suggestionStyle, "suggestion:\n")
 	b.writeStyledLine(lineStyle, "%s|\n", b.padding)
 
 	suggestionLines := strings.Split(b.issue.Suggestion, "\n")
 	for i, line := range suggestionLines {
 		lineNum := fmt.Sprintf("%*d", b.maxLineNumWidth, b.issue.Start.Line+i)
-		b.writeStyledLine(lineStyle, "%s | %s\n", lineNum, line)
+		b.writeStyledLine(lineStyle, "%s | ", lineNum)
+		b.writeStyledLine(noStyle, "%s\n", line)
 	}
 
 	b.writeStyledLine(lineStyle, "%s|\n\n", b.padding)
@@ -201,8 +209,13 @@ func (b *issueFormatterBuilder) AddNote() *issueFormatterBuilder {
 		return b
 	}
 
-	b.result.WriteString(suggestionStyle.Sprint("Note: "))
-	b.writeStyledLine(lineStyle, "%s\n\n", b.issue.Note)
+	b.writeStyledLine(lineStyle, "%s= ", b.padding)
+	b.result.WriteString(noStyle.Sprint("note: "))
+
+	b.writeStyledLine(noStyle, "%s\n", b.issue.Note)
+	if b.issue.Suggestion == "" {
+		b.result.WriteString("\n")
+	}
 
 	return b
 }

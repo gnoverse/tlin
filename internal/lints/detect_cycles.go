@@ -19,7 +19,7 @@ func DetectCycle(filename string, node *ast.File, fset *token.FileSet, severity 
 			Filename: filename,
 			Start:    fset.Position(node.Pos()),
 			End:      fset.Position(node.End()),
-			Message:  "Detected cycle in function call: " + cycle,
+			Message:  "detected cycle in function call: " + cycle,
 			Severity: severity,
 		}
 		issues = append(issues, issue)

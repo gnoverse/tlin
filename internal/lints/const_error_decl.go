@@ -58,7 +58,7 @@ func DetectConstErrorDeclaration(
 				Filename:   filename,
 				Start:      fset.Position(genDecl.Pos()),
 				End:        fset.Position(genDecl.End()),
-				Message:    "Avoid declaring constant errors",
+				Message:    "avoid declaring constant errors",
 				Suggestion: suggestion,
 				Confidence: 1.0,
 				Severity:   severity,

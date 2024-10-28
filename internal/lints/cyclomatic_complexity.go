@@ -41,8 +41,8 @@ func DetectHighCyclomaticComplexity(filename string, threshold int, severity tt.
 				Start:      fset.Position(funcNode.Pos()),
 				End:        fset.Position(funcNode.End()),
 				Message:    fmt.Sprintf("function %s has a cyclomatic complexity of %d (threshold %d)", stat.FuncName, stat.Complexity, threshold),
-				Suggestion: "Consider refactoring this function to reduce its complexity. You can split it into smaller functions or simplify the logic.\n",
-				Note:       "High cyclomatic complexity can make the code harder to understand, test, and maintain. Aim for a complexity score of 10 or less for most functions.\n",
+				Suggestion: "consider refactoring this function to reduce its complexity. you can split it into smaller functions or simplify the logic.\n",
+				Note:       "high cyclomatic complexity can make the code harder to understand, test, and maintain. aim for a complexity score of 10 or less for most functions.\n",
 				Severity:   severity,
 			}
 			issues = append(issues, issue)

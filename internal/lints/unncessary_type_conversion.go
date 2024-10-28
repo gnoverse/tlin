@@ -102,7 +102,7 @@ func DetectUnnecessaryConversions(filename string, node *ast.File, fset *token.F
 					if _, exists := varDecls[obj]; exists {
 						declType := obj.Type().String()
 						memo = fmt.Sprintf(
-							"The variable '%s' is declared as type '%s'. This type conversion appears unnecessary.",
+							"the variable '%s' is declared as type '%s'. this type conversion appears unnecessary.",
 							id.Name, declType,
 						)
 					}

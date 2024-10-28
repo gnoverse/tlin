@@ -313,7 +313,7 @@ func main() {
 			assert.Equal(t, tt.expected, len(issues), "Number of issues does not match expected")
 
 			for _, issue := range issues {
-				assert.Contains(t, issue.Message, "Potential unnecessary allocation inside loop")
+				assert.Contains(t, issue.Message, "potential unnecessary allocation inside loop")
 			}
 		})
 	}
@@ -383,7 +383,7 @@ func TestDetectEmitFormat(t *testing.T) {
 
 			if len(issues) > 0 {
 				assert.Equal(t, "emit-format", issues[0].Rule)
-				assert.Contains(t, issues[0].Message, "Consider formatting std.Emit call for better readability")
+				assert.Contains(t, issues[0].Message, "consider formatting std.Emit call for better readability")
 			}
 		})
 	}
@@ -721,7 +721,7 @@ var err = errors.New("error")
 
 			for _, issue := range issues {
 				assert.Equal(t, "const-error-declaration", issue.Rule)
-				assert.Contains(t, issue.Message, "Avoid declaring constant errors")
+				assert.Contains(t, issue.Message, "avoid declaring constant errors")
 				assert.Contains(t, issue.Suggestion, "var")
 			}
 		})
