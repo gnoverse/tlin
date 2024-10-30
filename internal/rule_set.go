@@ -365,6 +365,32 @@ func (r *ConstErrorDeclarationRule) Severity() tt.Severity {
 	return r.severity
 }
 
+type ErrCheckRule struct {
+	severity tt.Severity
+}
+
+func NewErrCheckRule() LintRule {
+	return &ErrCheckRule{
+		severity: tt.SeverityWarning,
+	}
+}
+
+func (r *ErrCheckRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return lints.DetectErrCheck(filename, node, fset, r.severity)
+}
+
+func (r *ErrCheckRule) Name() string {
+	return "error-check"
+}
+
+func (r *ErrCheckRule) Severity() tt.Severity {
+	return r.severity
+}
+
+func (r *ErrCheckRule) SetSeverity(severity tt.Severity) {
+	r.severity = severity
+}
+
 // -----------------------------------------------------------------------------
 // Regex related rules
 
