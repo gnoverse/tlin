@@ -3,7 +3,7 @@ package formatter
 type MissingModPackageFormatter struct{}
 
 func (f *MissingModPackageFormatter) IssueTemplate() string {
-	return `{{header .Rule .Severity .MaxLineNumWidth .Filename .StartLine .StartColumn}}
+	return `{{header .Rule .Severity .MaxLineNumWidth .Filename .StartLine .StartColumn -}}
 {{message .Message}}
 `
 }

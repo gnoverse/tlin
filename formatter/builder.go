@@ -156,7 +156,7 @@ func header(rule string, severity string, maxLineNumWidth int, filename string, 
 
 	padding := strings.Repeat(" ", maxLineNumWidth)
 	endString += lineStyle.Sprintf("%s--> ", padding)
-	endString += fileStyle.Sprintf("%s:%d:%d", filename, startLine, startColumn)
+	endString += fileStyle.Sprintf("%s:%d:%d\n", filename, startLine, startColumn)
 
 	return endString
 }
@@ -174,7 +174,7 @@ func codeSnippet(snippetLines []string, startLine int, endLine int, maxLineNumWi
 		line = strings.TrimPrefix(line, commonIndent)
 		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, i)
 
-		endString += lineStyle.Sprintf("%s | %s", lineNum, line)
+		endString += lineStyle.Sprintf("%s | %s\n", lineNum, line)
 	}
 
 	return endString

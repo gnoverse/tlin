@@ -8,8 +8,8 @@ import (
 type CyclomaticComplexityFormatter struct{}
 
 func (f *CyclomaticComplexityFormatter) IssueTemplate() string {
-	return `{{header .Rule .Severity .MaxLineNumWidth .Filename .StartLine .StartColumn}}
-{{snippet .SnippetLines .StartLine .EndLine .MaxLineNumWidth .CommonIndent .Padding}}
+	return `{{header .Rule .Severity .MaxLineNumWidth .Filename .StartLine .StartColumn -}}
+{{snippet .SnippetLines .StartLine .EndLine .MaxLineNumWidth .CommonIndent .Padding -}}
 {{underlineAndMessage .Message .Padding .StartLine .EndLine .StartColumn .EndColumn .SnippetLines .CommonIndent}}
 {{complexityInfo .Padding .Message }}
 
