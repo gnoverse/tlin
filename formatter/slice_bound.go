@@ -10,13 +10,14 @@ func (f *SliceBoundsCheckFormatter) IssueTemplate() string {
 `
 }
 
+// TODO: make this as a note
 func warning(category string) string {
 	var endString string
 	endString = warningStyle.Sprint("warning: ")
 	if category == "index-access" {
-		endString += "Index access without bounds checking can lead to runtime panics.\n"
+		endString += "Index access without bounds checking can lead to runtime panics.\n\n"
 	} else if category == "slice-expression" {
-		endString += "Slice expressions without proper length checks may cause unexpected behavior.\n"
+		endString += "Slice expressions without proper length checks may cause unexpected behavior.\n\n"
 	}
 
 	return endString

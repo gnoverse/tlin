@@ -205,7 +205,6 @@ suggestion:
 5 | Remove the type conversion. Change ` + "`int(myInt)`" + ` to just ` + "`myInt`" + `.
   |
 
-
 `
 
 	result := GenerateFormattedIssue([]tt.Issue{issue}, snippet)
