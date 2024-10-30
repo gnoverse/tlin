@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+	"sync"
 	"text/template"
 	"unicode"
 
@@ -39,20 +40,20 @@ type issueFormatter interface {
 	IssueTemplate() string
 }
 
+var formatterCache = map[string]issueFormatter{
+	CycloComplexity:   &CyclomaticComplexityFormatter{},
+	SliceBound:        &SliceBoundsCheckFormatter{},
+	MissingModPackage: &MissingModPackageFormatter{},
+}
+
 // getIssueFormatter is a factory function that returns the appropriate IssueFormatter
 // based on the given rule.
 // If no specific formatter is found for the given rule, it returns a GeneralIssueFormatter.
 func getIssueFormatter(rule string) issueFormatter {
-	switch rule {
-	case CycloComplexity:
-		return &CyclomaticComplexityFormatter{}
-	case SliceBound:
-		return &SliceBoundsCheckFormatter{}
-	case MissingModPackage:
-		return &MissingModPackageFormatter{}
-	default:
-		return &GeneralIssueFormatter{}
+	if formatter, ok := formatterCache[rule]; ok {
+		return formatter
 	}
+	return &GeneralIssueFormatter{}
 }
 
 // GenerateFormattedIssue formats a slice of issues into a human-readable string.
@@ -87,6 +88,29 @@ type IssueData struct {
 	CommonIndent    string
 }
 
+var funcMap = template.FuncMap{
+	"header":              header,
+	"suggestion":          suggestion,
+	"note":                note,
+	"snippet":             codeSnippet,
+	"underlineAndMessage": underlineAndMessage,
+	"message":             message,
+	"warning":             warning,
+	"complexityInfo":      complexityInfo,
+}
+
+var templateCache sync.Map
+
+func getCachedTemplate(tmplStr string) *template.Template {
+	if t, ok := templateCache.Load(tmplStr); ok {
+		return t.(*template.Template)
+	}
+
+	newTmpl := template.Must(template.New("issue").Funcs(funcMap).Parse(tmplStr))
+	templateCache.Store(tmplStr, newTmpl)
+	return newTmpl
+}
+
 func buildIssue(issue tt.Issue, snippet *internal.SourceCode, formatter issueFormatter) string {
 	startLine := issue.Start.Line
 	endLine := issue.End.Line
@@ -118,19 +142,8 @@ func buildIssue(issue tt.Issue, snippet *internal.SourceCode, formatter issueFor
 		SnippetLines:    snippet.Lines,
 	}
 
-	funcMap := template.FuncMap{
-		"header":              header,
-		"suggestion":          suggestion,
-		"note":                note,
-		"snippet":             codeSnippet,
-		"underlineAndMessage": underlineAndMessage,
-		"message":             message,
-		"warning":             warning,
-		"complexityInfo":      complexityInfo,
-	}
-
 	issueTemplate := formatter.IssueTemplate()
-	tmpl := template.Must(template.New("issue").Funcs(funcMap).Parse(issueTemplate))
+	tmpl := getCachedTemplate(issueTemplate)
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
@@ -232,7 +245,7 @@ func suggestion(suggestion string, padding string, maxLineNumWidth int, startLin
 		endString += noStyle.Sprintf("%s\n", line)
 	}
 
-	endString += lineStyle.Sprintf("%s|\n\n", padding)
+	endString += lineStyle.Sprintf("%s|\n", padding)
 	return endString
 }
 
@@ -267,9 +280,11 @@ func calculateMaxLineNumWidth(endLine int) int {
 // calculateVisualColumn calculates the visual column position
 // in a string. taking into account tab characters.
 func calculateVisualColumn(line string, column int) int {
-	if column < 0 {
-		return 0
+	if !strings.ContainsRune(line, '\t') || column <= 1 {
+		return column - 1 // adjust to 0-based index
 	}
+
+	// calculate visual column only if there is a tab character
 	visualColumn := 0
 	for i, ch := range line {
 		if i+1 == column {
