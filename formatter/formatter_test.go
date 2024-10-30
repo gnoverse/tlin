@@ -170,7 +170,6 @@ error: example
 
 func TestUnnecessaryTypeConversionFormatter(t *testing.T) {
 	t.Parallel()
-	formatter := &GeneralIssueFormatter{}
 
 	issue := tt.Issue{
 		Rule:       "unnecessary-type-conversion",
@@ -208,7 +207,7 @@ suggestion:
 
 `
 
-	result := formatter.Format(issue, snippet)
+	result := GenerateFormattedIssue([]tt.Issue{issue}, snippet)
 
 	assert.Equal(t, expected, result, "Formatted output should match expected output")
 }

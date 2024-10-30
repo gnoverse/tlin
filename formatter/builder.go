@@ -1,8 +1,11 @@
 package formatter
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
+	"sync"
+	"text/template"
 	"unicode"
 
 	"github.com/fatih/color"
@@ -31,12 +34,26 @@ var (
 	noStyle         = color.New(color.FgWhite)
 )
 
-// issueFormatter is the interface that wraps the Format method.
+// issueFormatter is the interface that wraps the issueTemplate method.
 // Implementations of this interface are responsible for formatting specific types of lint issues.
-//
-// ! TODO: Use template to format issue
 type issueFormatter interface {
-	Format(issue tt.Issue, snippet *internal.SourceCode) string
+	IssueTemplate() string
+}
+
+var formatterCache = map[string]issueFormatter{
+	CycloComplexity:   &CyclomaticComplexityFormatter{},
+	SliceBound:        &SliceBoundsCheckFormatter{},
+	MissingModPackage: &MissingModPackageFormatter{},
+}
+
+// getIssueFormatter is a factory function that returns the appropriate IssueFormatter
+// based on the given rule.
+// If no specific formatter is found for the given rule, it returns a GeneralIssueFormatter.
+func getIssueFormatter(rule string) issueFormatter {
+	if formatter, ok := formatterCache[rule]; ok {
+		return formatter
+	}
+	return &GeneralIssueFormatter{}
 }
 
 // GenerateFormattedIssue formats a slice of issues into a human-readable string.
@@ -44,42 +61,57 @@ type issueFormatter interface {
 func GenerateFormattedIssue(issues []tt.Issue, snippet *internal.SourceCode) string {
 	var builder strings.Builder
 	for _, issue := range issues {
-		formatter := getFormatter(issue.Rule)
-		builder.WriteString(formatter.Format(issue, snippet))
+		formatter := getIssueFormatter(issue.Rule)
+		formattedIssue := buildIssue(issue, snippet, formatter)
+		builder.WriteString(formattedIssue)
 	}
 	return builder.String()
 }
 
-// getFormatter is a factory function that returns the appropriate IssueFormatter
-// based on the given rule.
-// If no specific formatter is found for the given rule, it returns a GeneralIssueFormatter.
-func getFormatter(rule string) issueFormatter {
-	switch rule {
-	case CycloComplexity:
-		return &CyclomaticComplexityFormatter{}
-	case SliceBound:
-		return &SliceBoundsCheckFormatter{}
-	case MissingModPackage:
-		return &MissingModPackageFormatter{}
-	default:
-		return &GeneralIssueFormatter{}
-	}
-}
-
 /***** Issue Formatter Builder *****/
 
-type issueFormatterBuilder struct {
-	snippet         *internal.SourceCode
-	padding         string
-	commonIndent    string
-	result          strings.Builder
-	issue           tt.Issue
-	startLine       int
-	endLine         int
-	maxLineNumWidth int
+type IssueData struct {
+	Category        string
+	Severity        string
+	Rule            string
+	Filename        string
+	Padding         string
+	StartLine       int
+	StartColumn     int
+	EndLine         int
+	EndColumn       int
+	MaxLineNumWidth int
+	Message         string
+	Suggestion      string
+	Note            string
+	SnippetLines    []string
+	CommonIndent    string
 }
 
-func newIssueFormatterBuilder(issue tt.Issue, snippet *internal.SourceCode) *issueFormatterBuilder {
+var funcMap = template.FuncMap{
+	"header":              header,
+	"suggestion":          suggestion,
+	"note":                note,
+	"snippet":             codeSnippet,
+	"underlineAndMessage": underlineAndMessage,
+	"message":             message,
+	"warning":             warning,
+	"complexityInfo":      complexityInfo,
+}
+
+var templateCache sync.Map
+
+func getCachedTemplate(tmplStr string) *template.Template {
+	if t, ok := templateCache.Load(tmplStr); ok {
+		return t.(*template.Template)
+	}
+
+	newTmpl := template.Must(template.New("issue").Funcs(funcMap).Parse(tmplStr))
+	templateCache.Store(tmplStr, newTmpl)
+	return newTmpl
+}
+
+func buildIssue(issue tt.Issue, snippet *internal.SourceCode, formatter issueFormatter) string {
 	startLine := issue.Start.Line
 	endLine := issue.End.Line
 	maxLineNumWidth := calculateMaxLineNumWidth(endLine)
@@ -92,150 +124,153 @@ func newIssueFormatterBuilder(issue tt.Issue, snippet *internal.SourceCode) *iss
 		commonIndent = findCommonIndent(snippet.Lines[startLine-1 : endLine])
 	}
 
-	return &issueFormatterBuilder{
-		issue:           issue,
-		snippet:         snippet,
-		startLine:       startLine,
-		endLine:         endLine,
-		maxLineNumWidth: maxLineNumWidth,
-		padding:         padding,
-		commonIndent:    commonIndent,
-	}
-}
-
-func (b *issueFormatterBuilder) AddHeader() *issueFormatterBuilder {
-	// add header type and rule name
-	switch b.issue.Severity {
-	case tt.SeverityError:
-		b.writeStyledLine(errorStyle, "error: ")
-	case tt.SeverityWarning:
-		b.writeStyledLine(warningStyle, "warning: ")
-	case tt.SeverityInfo:
-		b.writeStyledLine(messageStyle, "info: ")
+	data := IssueData{
+		Severity:        issue.Severity.String(),
+		Category:        issue.Category,
+		Rule:            issue.Rule,
+		Filename:        issue.Filename,
+		StartLine:       issue.Start.Line,
+		StartColumn:     issue.Start.Column,
+		EndLine:         issue.End.Line,
+		EndColumn:       issue.End.Column,
+		Message:         issue.Message,
+		Suggestion:      issue.Suggestion,
+		Note:            issue.Note,
+		MaxLineNumWidth: maxLineNumWidth,
+		Padding:         padding,
+		CommonIndent:    commonIndent,
+		SnippetLines:    snippet.Lines,
 	}
 
-	b.writeStyledLine(ruleStyle, "%s\n", b.issue.Rule)
+	issueTemplate := formatter.IssueTemplate()
+	tmpl := getCachedTemplate(issueTemplate)
 
-	// add file name
-	padding := strings.Repeat(" ", b.maxLineNumWidth)
-	b.writeStyledLine(lineStyle, "%s--> ", padding)
-	b.writeStyledLine(fileStyle, "%s:%d:%d\n", b.issue.Filename, b.issue.Start.Line, b.issue.Start.Column)
-
-	return b
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fmt.Sprintf("Error formatting issue: %v", err)
+	}
+	return buf.String()
 }
 
-func (b *issueFormatterBuilder) AddCodeSnippet() *issueFormatterBuilder {
-	// add separator
-	b.writeStyledLine(lineStyle, "%s|\n", b.padding)
+// utils functions used in the text templates
 
-	for i := b.startLine; i <= b.endLine; i++ {
-		if i-1 < 0 || i-1 >= len(b.snippet.Lines) {
+func header(rule string, severity string, maxLineNumWidth int, filename string, startLine int, startColumn int) string {
+	var endString string
+	switch severity {
+	case "ERROR":
+		endString = errorStyle.Sprintf("error: ")
+	case "WARNING":
+		endString = warningStyle.Sprintf("warning: ")
+	case "INFO":
+		endString = messageStyle.Sprintf("info: ")
+	}
+
+	endString += ruleStyle.Sprintf("%s\n", rule)
+
+	padding := strings.Repeat(" ", maxLineNumWidth)
+	endString += lineStyle.Sprintf("%s--> ", padding)
+	endString += fileStyle.Sprintf("%s:%d:%d\n", filename, startLine, startColumn)
+
+	return endString
+}
+
+func codeSnippet(snippetLines []string, startLine int, endLine int, maxLineNumWidth int, commonIndent string, padding string) string {
+	var endString string
+	endString = lineStyle.Sprintf("%s|\n", padding)
+
+	for i := startLine; i <= endLine; i++ {
+		if i-1 < 0 || i-1 >= len(snippetLines) {
 			continue
 		}
 
-		line := b.snippet.Lines[i-1]
-		line = strings.TrimPrefix(line, b.commonIndent)
-		lineNum := fmt.Sprintf("%*d", b.maxLineNumWidth, i)
+		line := snippetLines[i-1]
+		line = strings.TrimPrefix(line, commonIndent)
+		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, i)
 
-		b.writeStyledLine(lineStyle, "%s | ", lineNum)
-		b.writeStyledLine(noStyle, "%s\n", line)
+		endString += lineStyle.Sprintf("%s | ", lineNum)
+		endString += noStyle.Sprintf("%s\n", line)
 	}
 
-	return b
+	return endString
 }
 
-func (b *issueFormatterBuilder) AddUnderlineAndMessage() *issueFormatterBuilder {
-	b.writeStyledLine(lineStyle, "%s| ", b.padding)
+func underlineAndMessage(message string, padding string, startLine int, endLine int, startColumn int, endColumn int, snippetLines []string, commonIndent string, note string) string {
+	var endString string
+	endString = lineStyle.Sprintf("%s| ", padding)
 
-	if !b.isValidLineRange() {
-		b.writeStyledLine(messageStyle, "%s\n\n", b.issue.Message)
-		return b
+	if !isValidLineRange(startLine, endLine, snippetLines) {
+		endString += messageStyle.Sprintf("%s\n", message)
+		return endString
 	}
 
-	commonIndentWidth := calculateVisualColumn(b.commonIndent, len(b.commonIndent)+1)
+	commonIndentWidth := calculateVisualColumn(commonIndent, len(commonIndent)+1)
 
 	// calculate underline start position
-	underlineStart := calculateVisualColumn(b.snippet.Lines[b.startLine-1], b.issue.Start.Column) - commonIndentWidth
+	underlineStart := calculateVisualColumn(snippetLines[startLine-1], startColumn) - commonIndentWidth
 	if underlineStart < 0 {
 		underlineStart = 0
 	}
 
 	// calculate underline end position
-	underlineEnd := calculateVisualColumn(b.snippet.Lines[b.endLine-1], b.issue.End.Column) - commonIndentWidth
+	underlineEnd := calculateVisualColumn(snippetLines[endLine-1], endColumn) - commonIndentWidth
 	underlineLength := underlineEnd - underlineStart + 1
 
-	b.result.WriteString(strings.Repeat(" ", underlineStart))
-	b.writeStyledLine(messageStyle, "%s\n", strings.Repeat("^", underlineLength))
-	b.writeStyledLine(lineStyle, "%s|\n", b.padding)
+	endString += fmt.Sprint(strings.Repeat(" ", underlineStart))
+	endString += messageStyle.Sprintf("%s\n", strings.Repeat("^", underlineLength))
+	endString += lineStyle.Sprintf("%s|\n", padding)
 
-	b.writeStyledLine(lineStyle, "%s= ", b.padding)
-	b.writeStyledLine(messageStyle, "%s\n", b.issue.Message)
+	endString += lineStyle.Sprintf("%s= ", padding)
+	endString += messageStyle.Sprintf("%s", message)
 
-	if b.issue.Note == "" {
-		b.result.WriteString("\n")
+	if note == "" {
+		endString += "\n"
 	}
 
-	return b
+	return endString
 }
 
-func (b *issueFormatterBuilder) AddMessage() *issueFormatterBuilder {
-	b.writeStyledLine(messageStyle, "%s\n\n", b.issue.Message)
-
-	return b
-}
-
-func (b *issueFormatterBuilder) AddSuggestion() *issueFormatterBuilder {
-	if b.issue.Suggestion == "" {
-		return b
+func suggestion(suggestion string, padding string, maxLineNumWidth int, startLine int) string {
+	if suggestion == "" {
+		return ""
 	}
 
-	b.writeStyledLine(suggestionStyle, "suggestion:\n")
-	b.writeStyledLine(lineStyle, "%s|\n", b.padding)
+	var endString string
+	endString = suggestionStyle.Sprintf("suggestion:\n")
+	endString += lineStyle.Sprintf("%s|\n", padding)
 
-	suggestionLines := strings.Split(b.issue.Suggestion, "\n")
+	suggestionLines := strings.Split(suggestion, "\n")
 	for i, line := range suggestionLines {
-		lineNum := fmt.Sprintf("%*d", b.maxLineNumWidth, b.issue.Start.Line+i)
-		b.writeStyledLine(lineStyle, "%s | ", lineNum)
-		b.writeStyledLine(noStyle, "%s\n", line)
+		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, startLine+i)
+		endString += lineStyle.Sprintf("%s | ", lineNum)
+		endString += noStyle.Sprintf("%s\n", line)
 	}
 
-	b.writeStyledLine(lineStyle, "%s|\n\n", b.padding)
-
-	return b
+	endString += lineStyle.Sprintf("%s|\n", padding)
+	return endString
 }
 
-func (b *issueFormatterBuilder) AddNote() *issueFormatterBuilder {
-	if b.issue.Note == "" {
-		return b
+func note(note string, padding string, suggestion string) string {
+	if note == "" {
+		return ""
 	}
 
-	b.writeStyledLine(lineStyle, "%s= ", b.padding)
-	b.result.WriteString(noStyle.Sprint("note: "))
+	var endString string
+	endString += lineStyle.Sprintf("%s= ", padding)
+	endString += noStyle.Sprintf("note: ")
 
-	b.writeStyledLine(noStyle, "%s\n", b.issue.Note)
-	if b.issue.Suggestion == "" {
-		b.result.WriteString("\n")
+	endString += noStyle.Sprintf("%s", note)
+	if suggestion == "" {
+		endString += "\n"
 	}
-
-	return b
+	return endString
 }
 
-func (b *issueFormatterBuilder) writeStyledLine(style *color.Color, format string, a ...interface{}) {
-	b.result.WriteString(style.Sprintf(format, a...))
-}
-
-type BaseFormatter struct{}
-
-func (b *issueFormatterBuilder) Build() string {
-	return b.result.String()
-}
-
-func (b *issueFormatterBuilder) isValidLineRange() bool {
-	return b.startLine > 0 &&
-		b.endLine > 0 &&
-		b.startLine <= b.endLine &&
-		b.startLine <= len(b.snippet.Lines) &&
-		b.endLine <= len(b.snippet.Lines)
+func isValidLineRange(startLine int, endLine int, snippetLines []string) bool {
+	return startLine > 0 &&
+		endLine > 0 &&
+		startLine <= endLine &&
+		startLine <= len(snippetLines) &&
+		endLine <= len(snippetLines)
 }
 
 func calculateMaxLineNumWidth(endLine int) int {
@@ -245,9 +280,11 @@ func calculateMaxLineNumWidth(endLine int) int {
 // calculateVisualColumn calculates the visual column position
 // in a string. taking into account tab characters.
 func calculateVisualColumn(line string, column int) int {
-	if column < 0 {
-		return 0
+	if !strings.ContainsRune(line, '\t') || column <= 1 {
+		return column - 1 // adjust to 0-based index
 	}
+
+	// calculate visual column only if there is a tab character
 	visualColumn := 0
 	for i, ch := range line {
 		if i+1 == column {

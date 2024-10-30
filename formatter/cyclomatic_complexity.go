@@ -3,31 +3,31 @@ package formatter
 import (
 	"fmt"
 	"strings"
-
-	"github.com/gnolang/tlin/internal"
-	tt "github.com/gnolang/tlin/internal/types"
 )
 
 type CyclomaticComplexityFormatter struct{}
 
-func (f *CyclomaticComplexityFormatter) Format(issue tt.Issue, snippet *internal.SourceCode) string {
-	builder := newIssueFormatterBuilder(issue, snippet)
-	return builder.
-		AddHeader().
-		AddCodeSnippet().
-		AddComplexityInfo().
-		AddNote().
-		AddSuggestion().
-		Build()
+func (f *CyclomaticComplexityFormatter) IssueTemplate() string {
+	return `{{header .Rule .Severity .MaxLineNumWidth .Filename .StartLine .StartColumn -}}
+{{snippet .SnippetLines .StartLine .EndLine .MaxLineNumWidth .CommonIndent .Padding -}}
+{{underlineAndMessage .Message .Padding .StartLine .EndLine .StartColumn .EndColumn .SnippetLines .CommonIndent .Note -}}
+{{complexityInfo .Padding .Message }}
+
+{{- if .Note }}
+{{note .Note .Padding .Suggestion}}
+{{- end }}
+
+{{- if .Suggestion }}
+{{suggestion .Suggestion .Padding .MaxLineNumWidth .StartLine}}
+{{- end }}
+`
 }
 
-func (b *issueFormatterBuilder) AddComplexityInfo() *issueFormatterBuilder {
-	maxLineNumWidth := calculateMaxLineNumWidth(b.issue.End.Line)
-	padding := strings.Repeat(" ", maxLineNumWidth+1)
+func complexityInfo(padding string, message string) string {
+	var endString string
+	complexityInfo := fmt.Sprintf("Cyclomatic Complexity: %s", strings.TrimPrefix(message, "function "))
+	endString = lineStyle.Sprintf("%s| ", padding)
+	endString += messageStyle.Sprintf("%s\n", complexityInfo)
 
-	complexityInfo := fmt.Sprintf("Cyclomatic Complexity: %s", strings.TrimPrefix(b.issue.Message, "function "))
-	b.result.WriteString(lineStyle.Sprintf("%s| ", padding))
-	b.result.WriteString(messageStyle.Sprintf("%s\n\n", complexityInfo))
-
-	return b
+	return endString
 }
