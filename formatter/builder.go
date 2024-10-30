@@ -174,13 +174,14 @@ func codeSnippet(snippetLines []string, startLine int, endLine int, maxLineNumWi
 		line = strings.TrimPrefix(line, commonIndent)
 		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, i)
 
-		endString += lineStyle.Sprintf("%s | %s\n", lineNum, line)
+		endString += lineStyle.Sprintf("%s | ", lineNum)
+		endString += noStyle.Sprintf("%s\n", line)
 	}
 
 	return endString
 }
 
-func underlineAndMessage(message string, padding string, startLine int, endLine int, startColumn int, endColumn int, snippetLines []string, commonIndent string) string {
+func underlineAndMessage(message string, padding string, startLine int, endLine int, startColumn int, endColumn int, snippetLines []string, commonIndent string, note string) string {
 	var endString string
 	endString = lineStyle.Sprintf("%s| ", padding)
 
@@ -202,10 +203,15 @@ func underlineAndMessage(message string, padding string, startLine int, endLine 
 	underlineLength := underlineEnd - underlineStart + 1
 
 	endString += fmt.Sprint(strings.Repeat(" ", underlineStart))
-	endString += messageStyle.Sprintf("%s\n", strings.Repeat("~", underlineLength))
+	endString += messageStyle.Sprintf("%s\n", strings.Repeat("^", underlineLength))
+	endString += lineStyle.Sprintf("%s|\n", padding)
 
 	endString += lineStyle.Sprintf("%s= ", padding)
-	endString += messageStyle.Sprintf("%s\n", message)
+	endString += messageStyle.Sprintf("%s", message)
+
+	if note == "" {
+		endString += "\n"
+	}
 
 	return endString
 }
@@ -216,27 +222,33 @@ func suggestion(suggestion string, padding string, maxLineNumWidth int, startLin
 	}
 
 	var endString string
-	endString = suggestionStyle.Sprintf("Suggestion:\n")
+	endString = suggestionStyle.Sprintf("suggestion:\n")
 	endString += lineStyle.Sprintf("%s|\n", padding)
 
 	suggestionLines := strings.Split(suggestion, "\n")
 	for i, line := range suggestionLines {
 		lineNum := fmt.Sprintf("%*d", maxLineNumWidth, startLine+i)
-		endString += lineStyle.Sprintf("%s | %s\n", lineNum, line)
+		endString += lineStyle.Sprintf("%s | ", lineNum)
+		endString += noStyle.Sprintf("%s\n", line)
 	}
 
-	endString += lineStyle.Sprintf("%s|\n", padding)
+	endString += lineStyle.Sprintf("%s|\n\n", padding)
 	return endString
 }
 
-func note(note string) string {
+func note(note string, padding string, suggestion string) string {
 	if note == "" {
 		return ""
 	}
 
 	var endString string
-	endString = suggestionStyle.Sprint("Note: ")
-	endString += lineStyle.Sprintf("%s\n", note)
+	endString += lineStyle.Sprintf("%s= ", padding)
+	endString += noStyle.Sprintf("note: ")
+
+	endString += noStyle.Sprintf("%s", note)
+	if suggestion == "" {
+		endString += "\n"
+	}
 	return endString
 }
 

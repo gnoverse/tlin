@@ -5,7 +5,7 @@ type SliceBoundsCheckFormatter struct{}
 func (f *SliceBoundsCheckFormatter) IssueTemplate() string {
 	return `{{header .Rule .Severity .MaxLineNumWidth .Filename .StartLine .StartColumn -}}
 {{snippet .SnippetLines .StartLine .EndLine .MaxLineNumWidth .CommonIndent .Padding -}}
-{{underlineAndMessage .Message .Padding .StartLine .EndLine .StartColumn .EndColumn .SnippetLines .CommonIndent}}
+{{underlineAndMessage .Message .Padding .StartLine .EndLine .StartColumn .EndColumn .SnippetLines .CommonIndent .Note}}
 {{warning .Category -}}
 `
 }
