@@ -5,12 +5,13 @@ go 1.22.2
 require (
 	github.com/fatih/color v1.17.0
 	github.com/fzipp/gocyclo v0.6.0
-	github.com/goccy/go-graphviz v0.2.2
+	github.com/goccy/go-graphviz v0.2.9
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/tools v0.26.0
 )
 
 require (
+	github.com/disintegration/imaging v1.6.2 // indirect
 	github.com/flopp/go-findfont v0.1.0 // indirect
 	github.com/fogleman/gg v1.3.0 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
