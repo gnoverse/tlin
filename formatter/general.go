@@ -1,25 +1,18 @@
 package formatter
 
-import (
-	"github.com/gnolang/tlin/internal"
-	tt "github.com/gnolang/tlin/internal/types"
-)
-
-// GeneralIssueFormatter is a formatter for general lint issues.
 type GeneralIssueFormatter struct{}
 
-// Format formats a general lint issue into a human-readable string.
-// It takes an Issue and a SourceCode snippet as input and returns a formatted string.
-func (f *GeneralIssueFormatter) Format(
-	issue tt.Issue,
-	snippet *internal.SourceCode,
-) string {
-	builder := newIssueFormatterBuilder(issue, snippet)
-	return builder.
-		AddHeader().
-		AddCodeSnippet().
-		AddUnderlineAndMessage().
-		AddNote().
-		AddSuggestion().
-		Build()
+func (f *GeneralIssueFormatter) IssueTemplate() string {
+	return `{{header .Rule .Severity .MaxLineNumWidth .Filename .StartLine .StartColumn -}}
+{{snippet .SnippetLines .StartLine .EndLine .MaxLineNumWidth .CommonIndent .Padding -}}
+{{underlineAndMessage .Message .Padding .StartLine .EndLine .StartColumn .EndColumn .SnippetLines .CommonIndent .Note}}
+
+{{- if .Note }}
+{{note .Note .Padding .Suggestion}}
+{{- end }}
+
+{{- if .Suggestion }}
+{{suggestion .Suggestion .Padding .MaxLineNumWidth .StartLine}}
+{{- end }}
+`
 }
