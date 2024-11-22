@@ -52,6 +52,7 @@ var allRuleConstructors = ruleMap{
 	"gno-mod-tidy":                NewMissingModPackageRule,
 	"slice-bounds-check":          NewSliceBoundCheckRule,
 	"const-error-declaration":     NewConstErrorDeclarationRule,
+	"error-check":                 NewErrCheckRule,
 }
 
 func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
