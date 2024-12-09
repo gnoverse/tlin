@@ -313,32 +313,6 @@ func (r *DeferRule) SetSeverity(severity tt.Severity) {
 	r.severity = severity
 }
 
-type MissingModPackageRule struct {
-	severity tt.Severity
-}
-
-func NewMissingModPackageRule() LintRule {
-	return &MissingModPackageRule{
-		severity: tt.SeverityError,
-	}
-}
-
-func (r *MissingModPackageRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectMissingModPackage(filename, node, fset, r.severity)
-}
-
-func (r *MissingModPackageRule) Name() string {
-	return "gno-mod-tidy"
-}
-
-func (r *MissingModPackageRule) Severity() tt.Severity {
-	return r.severity
-}
-
-func (r *MissingModPackageRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
-}
-
 type ConstErrorDeclarationRule struct {
 	severity tt.Severity
 }

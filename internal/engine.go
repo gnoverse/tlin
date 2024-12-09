@@ -49,7 +49,6 @@ var allRuleConstructors = ruleMap{
 	"repeated-regex-compilation":  NewRepeatedRegexCompilationRule,
 	"useless-break":               NewUselessBreakRule,
 	"defer-issues":                NewDeferRule,
-	"gno-mod-tidy":                NewMissingModPackageRule,
 	"slice-bounds-check":          NewSliceBoundCheckRule,
 	"const-error-declaration":     NewConstErrorDeclarationRule,
 }
