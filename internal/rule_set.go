@@ -53,32 +53,6 @@ func (r *GolangciLintRule) SetSeverity(severity tt.Severity) {
 	r.severity = severity
 }
 
-type DeprecateFuncRule struct {
-	severity tt.Severity
-}
-
-func NewDeprecateFuncRule() LintRule {
-	return &DeprecateFuncRule{
-		severity: tt.SeverityError,
-	}
-}
-
-func (r *DeprecateFuncRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectDeprecatedFunctions(filename, node, fset, r.severity)
-}
-
-func (r *DeprecateFuncRule) Name() string {
-	return "deprecated-function"
-}
-
-func (r *DeprecateFuncRule) Severity() tt.Severity {
-	return r.severity
-}
-
-func (r *DeprecateFuncRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
-}
-
 type SimplifySliceExprRule struct {
 	severity tt.Severity
 }
@@ -131,32 +105,6 @@ func (r *UnnecessaryConversionRule) SetSeverity(severity tt.Severity) {
 	r.severity = severity
 }
 
-type LoopAllocationRule struct {
-	severity tt.Severity
-}
-
-func NewLoopAllocationRule() LintRule {
-	return &LoopAllocationRule{
-		severity: tt.SeverityWarning,
-	}
-}
-
-func (r *LoopAllocationRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectLoopAllocation(filename, node, fset, r.severity)
-}
-
-func (r *LoopAllocationRule) Name() string {
-	return "loop-allocation"
-}
-
-func (r *LoopAllocationRule) Severity() tt.Severity {
-	return r.severity
-}
-
-func (r *LoopAllocationRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
-}
-
 type DetectCycleRule struct {
 	severity tt.Severity
 }
@@ -206,32 +154,6 @@ func (r *EmitFormatRule) Severity() tt.Severity {
 }
 
 func (r *EmitFormatRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
-}
-
-type SliceBoundCheckRule struct {
-	severity tt.Severity
-}
-
-func NewSliceBoundCheckRule() LintRule {
-	return &SliceBoundCheckRule{
-		severity: tt.SeverityError,
-	}
-}
-
-func (r *SliceBoundCheckRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectSliceBoundCheck(filename, node, fset, r.severity)
-}
-
-func (r *SliceBoundCheckRule) Name() string {
-	return "slice-bounds-check"
-}
-
-func (r *SliceBoundCheckRule) Severity() tt.Severity {
-	return r.severity
-}
-
-func (r *SliceBoundCheckRule) SetSeverity(severity tt.Severity) {
 	r.severity = severity
 }
 
