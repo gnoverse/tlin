@@ -38,18 +38,15 @@ type ruleMap map[string]ruleConstructor
 // Create a map to hold the mappings of rule names to their constructors
 var allRuleConstructors = ruleMap{
 	"golangci-lint":               NewGolangciLintRule,
-	"deprecated-function":         NewDeprecateFuncRule,
 	"early-return-opportunity":    NewEarlyReturnOpportunityRule,
 	"simplify-slice-range":        NewSimplifySliceExprRule,
 	"unnecessary-type-conversion": NewUnnecessaryConversionRule,
-	"loop-allocation":             NewLoopAllocationRule,
 	"emit-format":                 NewEmitFormatRule,
 	"cycle-detection":             NewDetectCycleRule,
 	"unused-package":              NewGnoSpecificRule,
 	"repeated-regex-compilation":  NewRepeatedRegexCompilationRule,
 	"useless-break":               NewUselessBreakRule,
 	"defer-issues":                NewDeferRule,
-	"slice-bounds-check":          NewSliceBoundCheckRule,
 	"const-error-declaration":     NewConstErrorDeclarationRule,
 }
 
