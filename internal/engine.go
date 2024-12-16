@@ -48,6 +48,7 @@ var allRuleConstructors = ruleMap{
 	"useless-break":               NewUselessBreakRule,
 	"defer-issues":                NewDeferRule,
 	"const-error-declaration":     NewConstErrorDeclarationRule,
+	"error-check":                 NewErrCheckRule,
 }
 
 func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
