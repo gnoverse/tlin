@@ -7,7 +7,7 @@ require (
 	github.com/fzipp/gocyclo v0.6.0
 	github.com/goccy/go-graphviz v0.2.9
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/tools v0.28.0
+	golang.org/x/tools v0.29.0
 )
 
 require (
@@ -23,7 +23,7 @@ require (
 	golang.org/x/image v0.21.0 // indirect
 	golang.org/x/mod v0.22.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
 )
 
