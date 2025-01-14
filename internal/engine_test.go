@@ -83,6 +83,14 @@ func TestEngine_IgnoreRule(t *testing.T) {
 	assert.True(t, engine.ignoredRules["test_rule"])
 }
 
+func TestEngine_IgnorePath(t *testing.T) {
+	t.Parallel()
+	engine := &Engine{}
+	engine.IgnorePath("test_path")
+
+	assert.Equal(t, "test_path", engine.ignoredPaths[0])
+}
+
 func TestEngine_PrepareFile(t *testing.T) {
 	t.Parallel()
 	engine := &Engine{}

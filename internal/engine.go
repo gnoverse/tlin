@@ -16,6 +16,7 @@ import (
 // Engine manages the linting process.
 // TODO: use symbol table
 type Engine struct {
+	ignoredPaths []string
 	ignoredRules map[string]bool
 	nolintMgr    *nolint.Manager
 	rules        map[string]LintRule
@@ -128,9 +129,10 @@ func (e *Engine) Run(filename string) ([]tt.Issue, error) {
 			}
 
 			nolinted := e.filterNolintIssues(issues)
+			noIgnoredPaths := e.filterIgnoredPaths(nolinted)
 
 			mu.Lock()
-			allIssues = append(allIssues, nolinted...)
+			allIssues = append(allIssues, noIgnoredPaths...)
 			mu.Unlock()
 		}(rule)
 	}
@@ -172,9 +174,10 @@ func (e *Engine) RunSource(source []byte) ([]tt.Issue, error) {
 			}
 
 			nolinted := e.filterNolintIssues(issues)
+			noIgnoredPaths := e.filterIgnoredPaths(nolinted)
 
 			mu.Lock()
-			allIssues = append(allIssues, nolinted...)
+			allIssues = append(allIssues, noIgnoredPaths...)
 			mu.Unlock()
 		}(rule)
 	}
@@ -188,6 +191,10 @@ func (e *Engine) IgnoreRule(rule string) {
 		e.ignoredRules = make(map[string]bool)
 	}
 	e.ignoredRules[rule] = true
+}
+
+func (e *Engine) IgnorePath(path string) {
+	e.ignoredPaths = append(e.ignoredPaths, path)
 }
 
 func (e *Engine) prepareFile(filename string) (string, error) {
@@ -218,6 +225,26 @@ func (e *Engine) cleanupTemp(temp string) {
 	if temp != "" && strings.HasPrefix(filepath.Base(temp), "temp_") {
 		_ = os.Remove(temp)
 	}
+}
+
+func (e *Engine) filterIgnoredPaths(issues []tt.Issue) []tt.Issue {
+	filtered := make([]tt.Issue, 0, len(issues))
+	for _, issue := range issues {
+		if !e.isIgnoredPath(issue.Filename) {
+			filtered = append(filtered, issue)
+		}
+	}
+	return filtered
+}
+
+func (e *Engine) isIgnoredPath(path string) bool {
+	for _, ignored := range e.ignoredPaths {
+		if strings.HasPrefix(path, ignored) {
+			fmt.Println("Ignoring path:", path)
+			return true
+		}
+	}
+	return false
 }
 
 // filterNolintIssues filters issues based on nolint comments.

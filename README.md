@@ -188,6 +188,7 @@ tlin supports several flags to customize its behavior:
 - `-cyclo`: Run cyclomatic complexity analysis
 - `-threshold <int>`: Set cyclomatic complexity threshold (default: 10)
 - `-ignore <rules>`: Comma-separated list of lint rules to ignore
+- `-ignore-paths <paths>`: Comma-separated list of paths to ignore
 - `-cfg`: Run control flow graph analysis
 - `-func <name>`: Specify function name for CFG analysis
 - `-fix`: Automatically fix issues

@@ -17,6 +17,7 @@ type LintEngine interface {
 	Run(filePath string) ([]tt.Issue, error)
 	RunSource(source []byte) ([]tt.Issue, error)
 	IgnoreRule(rule string)
+	IgnorePath(path string)
 }
 
 // export the function NewEngine to be used in other packages
