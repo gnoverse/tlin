@@ -172,6 +172,38 @@ func BenchmarkCreateTempGoFile(b *testing.B) {
 	}
 }
 
+func TestIgnorePaths(t *testing.T) {
+	_, currentFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	testDataDir := filepath.Join(filepath.Dir(currentFile), "../testdata")
+
+	engine, err := NewEngine(testDataDir, nil, nil)
+	if err != nil {
+		t.Fatalf("failed to create engine: %v", err)
+	}
+
+	engine.IgnorePath(filepath.Join(testDataDir,"regex/*"))
+	engine.IgnorePath(filepath.Join(testDataDir,"slice0.gno"))
+
+	files, err := filepath.Glob(filepath.Join(testDataDir, "*/*.gno"))
+	if err != nil {
+		t.Fatalf("failed to list files: %v", err)
+	}
+
+	for _, file := range files {
+		issues, err := engine.Run(file)
+		if err != nil {
+			t.Fatalf("failed to run engine: %v", err)
+		}
+
+		// Check if the ignored file is not in the issues
+		for _, issue := range issues {
+			assert.NotEqual(t, issue.Filename, filepath.Join(testDataDir, "slice0.gno"))
+			assert.NotContains(t, issue.Filename, filepath.Join(testDataDir, "regex"))
+		}
+	}
+}
+
 func BenchmarkRun(b *testing.B) {
 	_, currentFile, _, ok := runtime.Caller(0)
 	require.True(b, ok)

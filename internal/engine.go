@@ -240,7 +240,8 @@ func (e *Engine) filterIgnoredPaths(issues []tt.Issue) []tt.Issue {
 func (e *Engine) isIgnoredPath(path string) bool {
 	for _, ignored := range e.ignoredPaths {
 		res, err := filepath.Match(ignored, path)
-		if err != nil && res {
+		fmt.Println("res:", res, err, ignored, path)
+		if err == nil && res {
 			fmt.Println("Ignoring path:", path)
 			return true
 		}
