@@ -239,7 +239,8 @@ func (e *Engine) filterIgnoredPaths(issues []tt.Issue) []tt.Issue {
 
 func (e *Engine) isIgnoredPath(path string) bool {
 	for _, ignored := range e.ignoredPaths {
-		if strings.HasPrefix(path, ignored) {
+		res, err := filepath.Match(ignored, path)
+		if err != nil && res {
 			fmt.Println("Ignoring path:", path)
 			return true
 		}
