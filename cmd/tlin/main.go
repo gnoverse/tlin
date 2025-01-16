@@ -43,7 +43,7 @@ type Config struct {
 	DryRun               bool
 	JsonOutput           bool
 	Init                 bool
-	IgnorePaths		  	string
+	IgnorePaths          string
 }
 
 func main() {

@@ -182,8 +182,8 @@ func TestIgnorePaths(t *testing.T) {
 		t.Fatalf("failed to create engine: %v", err)
 	}
 
-	engine.IgnorePath(filepath.Join(testDataDir,"regex/*"))
-	engine.IgnorePath(filepath.Join(testDataDir,"slice0.gno"))
+	engine.IgnorePath(filepath.Join(testDataDir, "regex/*"))
+	engine.IgnorePath(filepath.Join(testDataDir, "slice0.gno"))
 
 	files, err := filepath.Glob(filepath.Join(testDataDir, "*/*.gno"))
 	if err != nil {
