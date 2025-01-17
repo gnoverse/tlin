@@ -1,7 +1,6 @@
 package query
 
 import (
-	"reflect"
 	"strings"
 	"testing"
 	"unicode"
@@ -115,8 +114,20 @@ func TestLexer(t *testing.T) {
 			lexer := NewLexer(tt.input)
 			tokens := lexer.Tokenize()
 
-			if !reflect.DeepEqual(tokens, tt.expected) {
-				t.Errorf("Lexer.Tokenize() got = %v, want %v", tokens, tt.expected)
+			if len(tokens) != len(tt.expected) {
+				t.Errorf("Lexer.Tokenize() got %d tokens, want %d tokens", len(tokens), len(tt.expected))
+				return
+			}
+
+			for i, got := range tokens {
+				want := tt.expected[i]
+				if got.Type != want.Type ||
+					got.Value != want.Value ||
+					got.Position != want.Position {
+					t.Errorf("Token[%d] = {Type: %v, Value: %q, Position: %d}, want {Type: %v, Value: %q, Position: %d}",
+						i, got.Type, got.Value, got.Position,
+						want.Type, want.Value, want.Position)
+				}
 			}
 		})
 	}

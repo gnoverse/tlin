@@ -20,9 +20,10 @@ const (
 
 // Token represents a single lexical token with type, value, and position.
 type Token struct {
-	Type     TokenType // type of this token
-	Value    string    // the literal string for this token
-	Position int       // the starting position in the original input
+	Type       TokenType   // type of this token
+	Value      string      // the literal string for this token
+	Position   int         // the starting position in the original input
+	HoleConfig *HoleConfig // configuration for hole tokens (nil for non-hole tokens)
 }
 
 // NodeType defines different node types for AST construction.
@@ -65,18 +66,6 @@ func (p *PatternNode) String() string {
 	return strings.TrimRight(result, "\n")
 }
 func (p *PatternNode) Position() int { return p.pos }
-
-// HoleNode represents a placeholder in the pattern like :[name] or :[[name]].
-type HoleNode struct {
-	Name string
-	pos  int
-}
-
-func (h *HoleNode) Type() NodeType { return NodeHole }
-func (h *HoleNode) String() string {
-	return fmt.Sprintf("HoleNode(%s)", h.Name)
-}
-func (h *HoleNode) Position() int { return h.pos }
 
 // TextNode represents normal text in the pattern.
 type TextNode struct {
