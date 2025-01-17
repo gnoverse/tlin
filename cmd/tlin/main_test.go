@@ -40,6 +40,10 @@ func (m *mockLintEngine) IgnoreRule(rule string) {
 	m.Called(rule)
 }
 
+func (m *mockLintEngine) IgnorePath(path string) {
+	m.Called(path)
+}
+
 func setupMockEngine(expectedIssues []tt.Issue, filePath string) *mockLintEngine {
 	mockEngine := new(mockLintEngine)
 	mockEngine.On("Run", filePath).Return(expectedIssues, nil)

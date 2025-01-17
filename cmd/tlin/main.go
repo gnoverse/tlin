@@ -43,6 +43,7 @@ type Config struct {
 	DryRun               bool
 	JsonOutput           bool
 	Init                 bool
+	IgnorePaths          string
 }
 
 func main() {
@@ -75,6 +76,13 @@ func main() {
 		}
 	}
 
+	if config.IgnorePaths != "" {
+		paths := strings.Split(config.IgnorePaths, ",")
+		for _, path := range paths {
+			engine.IgnorePath(strings.TrimSpace(path))
+		}
+	}
+
 	if config.CFGAnalysis {
 		runWithTimeout(ctx, func() {
 			runCFGAnalysis(ctx, logger, config.Paths, config.FuncName, config.Output)
@@ -102,6 +110,7 @@ func parseFlags(args []string) Config {
 	flagSet.BoolVar(&config.CyclomaticComplexity, "cyclo", false, "Run cyclomatic complexity analysis")
 	flagSet.IntVar(&config.CyclomaticThreshold, "threshold", 10, "Cyclomatic complexity threshold")
 	flagSet.StringVar(&config.IgnoreRules, "ignore", "", "Comma-separated list of lint rules to ignore")
+	flagSet.StringVar(&config.IgnorePaths, "ignore-paths", "", "Comma-separated list of paths to ignore")
 	flagSet.BoolVar(&config.CFGAnalysis, "cfg", false, "Run control flow graph analysis")
 	flagSet.StringVar(&config.FuncName, "func", "", "Function name for CFG analysis")
 	flagSet.BoolVar(&config.AutoFix, "fix", false, "Automatically fix issues")
