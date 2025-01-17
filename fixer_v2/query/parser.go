@@ -91,9 +91,10 @@ func (p *Parser) parseBlock() Node {
 }
 
 // peek peeks at the next token
-func (p *Parser) peek() Token {
-	if p.current+1 >= len(p.tokens) {
-		return Token{Type: TokenEOF, Value: "", Position: -1}
-	}
-	return p.tokens[p.current+1]
-}
+// TODO: commented out for now
+// func (p *Parser) peek() Token {
+// 	if p.current+1 >= len(p.tokens) {
+// 		return Token{Type: TokenEOF, Value: "", Position: -1}
+// 	}
+// 	return p.tokens[p.current+1]
+// }
