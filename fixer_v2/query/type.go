@@ -101,7 +101,7 @@ func (h *HoleNode) String() string {
 }
 
 func (h *HoleNode) Position() int { return h.pos }
-func (h *HoleNode) Name() string   { return h.Config.Name }
+func (h *HoleNode) Name() string  { return h.Config.Name }
 
 // TextNode represents normal text in the pattern.
 type TextNode struct {
