@@ -55,56 +55,56 @@ Reference:
 */
 
 type (
-    States  int8 // Represents possible states of the parser
-    Classes int8 // Represents character classes in the pattern
+	States  int8 // Represents possible states of the parser
+	Classes int8 // Represents character classes in the pattern
 )
 
 const __ States = -1 // Represents an invalid state transition
 
 // States represent different stages of lexical analysis:
-//  - GO (0)  - Initial state, ready to start processing input
-//  - OK (1)  - Accept state, token successfully recognized
-//  - CL (2)  - After seeing a colon, expecting bracket or identifier
-//  - OB (3)  - After first opening bracket, may start double bracket
-//  - DB (4)  - After double bracket, expecting identifier
-//  - NM (5)  - Reading name part of metavariable
-//  - ID (6)  - Reading type identifier (after colon in name)
-//  - CB (7)  - After first closing bracket
-//  - QB (8)  - After second closing bracket
-//  - QT (9)  - Processing quantifier (*, +, ?)
-//  - TX (10) - Processing regular text
-//  - WS (11) - Processing whitespace
-//  - BR (12) - Processing block delimiters ({, })
+//   - GO (0)  - Initial state, ready to start processing input
+//   - OK (1)  - Accept state, token successfully recognized
+//   - CL (2)  - After seeing a colon, expecting bracket or identifier
+//   - OB (3)  - After first opening bracket, may start double bracket
+//   - DB (4)  - After double bracket, expecting identifier
+//   - NM (5)  - Reading name part of metavariable
+//   - ID (6)  - Reading type identifier (after colon in name)
+//   - CB (7)  - After first closing bracket
+//   - QB (8)  - After second closing bracket
+//   - QT (9)  - Processing quantifier (*, +, ?)
+//   - TX (10) - Processing regular text
+//   - WS (11) - Processing whitespace
+//   - BR (12) - Processing block delimiters ({, })
 //
 // The state numbering is significant - states <= OK are final states,
 // allowing for efficient loop termination with a single comparison.
 const (
-    GO States = iota  // Initial state
-    OK               // Accept state (successful parse)
-    CL               // After colon state (:)
-    OB               // After first bracket state ([)
-    DB               // After double bracket state ([[)
-    NM               // Reading name state
-    ID               // Reading type identifier state
-    CB               // After closing bracket state (])
-    QB               // After double closing bracket state (]])
-    QT               // Reading quantifier state (*, +, ?)
-    TX               // Reading text state
-    WS               // Reading whitespace state
-    BR               // Reading block state ({, })
+	GO States = iota // Initial state
+	OK               // Accept state (successful parse)
+	CL               // After colon state (:)
+	OB               // After first bracket state ([)
+	DB               // After double bracket state ([[)
+	NM               // Reading name state
+	ID               // Reading type identifier state
+	CB               // After closing bracket state (])
+	QB               // After double closing bracket state (]])
+	QT               // Reading quantifier state (*, +, ?)
+	TX               // Reading text state
+	WS               // Reading whitespace state
+	BR               // Reading block state ({, })
 )
 
 // Character class definitions
 const (
-    C_COLON  Classes = iota // Colon character (:)
-    C_LBRACK               // Left bracket ([)
-    C_RBRACK               // Right bracket (])
-    C_LBRACE               // Left brace ({)
-    C_RBRACE               // Right brace (})
-    C_SPACE                // Whitespace characters (space, tab, newline)
-    C_IDENT                // Identifier characters (alphanumeric, _, -)
-    C_QUANT                // Quantifiers (*, +, ?)
-    C_OTHER                // Any other character
+	C_COLON  Classes = iota // Colon character (:)
+	C_LBRACK                // Left bracket ([)
+	C_RBRACK                // Right bracket (])
+	C_LBRACE                // Left brace ({)
+	C_RBRACE                // Right brace (})
+	C_SPACE                 // Whitespace characters (space, tab, newline)
+	C_IDENT                 // Identifier characters (alphanumeric, _, -)
+	C_QUANT                 // Quantifiers (*, +, ?)
+	C_OTHER                 // Any other character
 )
 
 // State transition table for the pattern parser
@@ -113,6 +113,7 @@ const (
 //  2. CB and QB states allow whitespace transitions for better error recovery
 //  3. After quantifiers (QT), we can continue with any valid pattern start
 //  4. TX (text) state allows transitioning back to pattern parsing
+//nolint:gofumpt
 var StateTransitionTable = [13][9]States{
     //          COLON  LBRACK RBRACK LBRACE RBRACE SPACE  IDENT  QUANT  OTHER
     /* GO  */ { CL,    TX,    TX,    BR,    BR,    WS,    TX,    TX,    TX   },
@@ -131,147 +132,147 @@ var StateTransitionTable = [13][9]States{
 }
 
 func (c Classes) String() string {
-    switch c {
-    case C_COLON:
-        return "COLON"
-    case C_LBRACK:
-        return "LBRACK"
-    case C_RBRACK:
-        return "RBRACK"
-    case C_LBRACE:
-        return "LBRACE"
-    case C_RBRACE:
-        return "RBRACE"
-    case C_SPACE:
-        return "SPACE"
-    case C_IDENT:
-        return "IDENT"
-    case C_QUANT:
-        return "QUANT"
-    case C_OTHER:
-        return "OTHER"
-    default:
-        return "UNKNOWN"
-    }
+	switch c {
+	case C_COLON:
+		return "COLON"
+	case C_LBRACK:
+		return "LBRACK"
+	case C_RBRACK:
+		return "RBRACK"
+	case C_LBRACE:
+		return "LBRACE"
+	case C_RBRACE:
+		return "RBRACE"
+	case C_SPACE:
+		return "SPACE"
+	case C_IDENT:
+		return "IDENT"
+	case C_QUANT:
+		return "QUANT"
+	case C_OTHER:
+		return "OTHER"
+	default:
+		return "UNKNOWN"
+	}
 }
 
 // StateMachine represents the parser's state machine
 type StateMachine struct {
-    state       States  // Current state
-    input       string  // Input pattern to parse
-    position    int     // Current position in input
-    accumulator string  // Accumulates characters for token building
+	state       States // Current state
+	input       string // Input pattern to parse
+	position    int    // Current position in input
+	accumulator string // Accumulates characters for token building
 }
 
 func NewStateMachine(input string) *StateMachine {
-    return &StateMachine{
-        state:    GO,
-        input:    input,
-        position: 0,
-    }
+	return &StateMachine{
+		state:    GO,
+		input:    input,
+		position: 0,
+	}
 }
 
 func (sm *StateMachine) run() error {
-    for sm.position < len(sm.input) {
-        c := sm.input[sm.position]
-        class := getCharacterClass(c)
-        
-        currentState := sm.state
-        nextState := StateTransitionTable[currentState][class]
-        
-        fmt.Printf("Char: %c, Current State: %v, Class: %v, Next State: %v\n", 
-            c, currentState, class, nextState)
+	for sm.position < len(sm.input) {
+		c := sm.input[sm.position]
+		class := getCharacterClass(c)
 
-        if nextState == __ {
-            return fmt.Errorf("invalid transition at position %d: %c", 
-                sm.position, c)
-        }
-        
-        sm.state = nextState
-        sm.position++
-    }
-    return nil
+		currentState := sm.state
+		nextState := StateTransitionTable[currentState][class]
+
+		fmt.Printf("Char: %c, Current State: %v, Class: %v, Next State: %v\n",
+			c, currentState, class, nextState)
+
+		if nextState == __ {
+			return fmt.Errorf("invalid transition at position %d: %c",
+				sm.position, c)
+		}
+
+		sm.state = nextState
+		sm.position++
+	}
+	return nil
 }
 
 // Transition records the transition details between states
 type Transition struct {
-    char       byte
-    fromState  States
-    class      Classes
-    toState    States
+	char      byte
+	fromState States
+	class     Classes
+	toState   States
 }
 
 func (sm *StateMachine) recordTransitions() []Transition {
-    var transitions []Transition
-    
-    for sm.position < len(sm.input) {
-        c := sm.input[sm.position]
-        class := getCharacterClass(c)
-        currentState := sm.state
-        nextState := StateTransitionTable[currentState][class]
-        
-        transitions = append(transitions, Transition{
-            char:      c,
-            fromState: currentState,
-            class:     class,
-            toState:   nextState,
-        })
-        
-        sm.state = nextState
-        sm.position++
-    }
-    
-    return transitions
+	var transitions []Transition
+
+	for sm.position < len(sm.input) {
+		c := sm.input[sm.position]
+		class := getCharacterClass(c)
+		currentState := sm.state
+		nextState := StateTransitionTable[currentState][class]
+
+		transitions = append(transitions, Transition{
+			char:      c,
+			fromState: currentState,
+			class:     class,
+			toState:   nextState,
+		})
+
+		sm.state = nextState
+		sm.position++
+	}
+
+	return transitions
 }
 
 func visualizeTransitions(transitions []Transition) string {
-    var b strings.Builder
-    for _, t := range transitions {
-        fmt.Fprintf(&b, "%c: %v -%v-> %v\n", 
-            t.char, t.fromState, t.class, t.toState)
-    }
-    return b.String()
+	var b strings.Builder
+	for _, t := range transitions {
+		fmt.Fprintf(&b, "%c: %v -%v-> %v\n",
+			t.char, t.fromState, t.class, t.toState)
+	}
+	return b.String()
 }
 
 // getCharacterClass determines the character class for a given byte
 // Handles special characters, whitespace, and identifier characters
 // Returns C_OTHER for any character that doesn't fit other categories
 func getCharacterClass(c byte) Classes {
-    // Check special characters first
-    switch c {
-    case ':':
-        return C_COLON
-    case '[':
-        return C_LBRACK  
-    case ']':
-        return C_RBRACK
-    case '{':
-        return C_LBRACE
-    case '}':
-        return C_RBRACE
-    case '*', '+', '?':
-        return C_QUANT
-    }
+	// Check special characters first
+	switch c {
+	case ':':
+		return C_COLON
+	case '[':
+		return C_LBRACK
+	case ']':
+		return C_RBRACK
+	case '{':
+		return C_LBRACE
+	case '}':
+		return C_RBRACE
+	case '*', '+', '?':
+		return C_QUANT
+	}
 
-    // Check for whitespace
-    if isWhitespace(c) {
-        return C_SPACE
-    }
+	// Check for whitespace
+	if isWhitespace(c) {
+		return C_SPACE
+	}
 
-    // Check for identifier characters
-    if isIdentChar(c) {
-        return C_IDENT
-    }
+	// Check for identifier characters
+	if isIdentChar(c) {
+		return C_IDENT
+	}
 
-    return C_OTHER
+	return C_OTHER
 }
 
 // isIdentChar checks if a character is valid in an identifier
 // Allows: alphanumeric, underscore, and hyphen (comby-specific)
 func isIdentChar(c byte) bool {
-    return ('a' <= c && c <= 'z') ||
-           ('A' <= c && c <= 'Z') ||
-           ('0' <= c && c <= '9') ||
-           c == '_' ||
-           c == '-'  // Comby syntax allows hyphens in identifiers
+	return ('a' <= c && c <= 'z') ||
+		('A' <= c && c <= 'Z') ||
+		('0' <= c && c <= '9') ||
+		c == '_' ||
+		c == '-' // Comby syntax allows hyphens in identifiers
 }
