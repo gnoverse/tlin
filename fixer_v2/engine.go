@@ -50,7 +50,7 @@ func buildRegexFromAST(node parser.Node) Option[Result] {
 
 		case *parser.HoleNode:
 			// convert hole name to capture group name
-			captures[v.Config.Name] = groupCount
+			captures[v.Name()] = groupCount
 			groupCount++
 			sb.WriteString(`([^{}]+?)`)
 
@@ -110,11 +110,11 @@ func rewrite(rewritePattern string, env map[string]string) string {
 
 		case *parser.HoleNode:
 			// replace hole name with the corresponding value in 'env'
-			if value, ok := env[v.Config.Name]; ok {
+			if value, ok := env[v.Name()]; ok {
 				result.WriteString(value)
 			} else {
 				// if value is not found, keep the original hole expression
-				result.WriteString(fmt.Sprintf(":[%s]", v.Config.Name))
+				result.WriteString(fmt.Sprintf(":[%s]", v.Name()))
 			}
 
 		case *parser.BlockNode:
