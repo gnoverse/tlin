@@ -67,6 +67,41 @@ func (p *PatternNode) String() string {
 }
 func (p *PatternNode) Position() int { return p.pos }
 
+// HoleConfig stores configuration for a hole pattern
+type HoleConfig struct {
+	Type       HoleType
+	Quantifier Quantifier
+	Name       string
+}
+
+// HoleNode represents a placeholder in the pattern like :[name] or :[[name]].
+type HoleNode struct {
+	Config HoleConfig
+	pos    int
+}
+
+func NewHoleNode(name string, pos int) *HoleNode {
+	return &HoleNode{
+		Config: HoleConfig{
+			Name:       name,
+			Type:       HoleAny,
+			Quantifier: QuantNone,
+		},
+		pos: pos,
+	}
+}
+
+func (h *HoleNode) Type() NodeType { return NodeHole }
+
+func (h *HoleNode) String() string {
+	if h.Config.Type == HoleAny && h.Config.Quantifier == QuantNone {
+		return fmt.Sprintf("HoleNode(%s)", h.Config.Name)
+	}
+	return fmt.Sprintf("HoleNode(%s:%s)%s", h.Config.Name, h.Config.Type, h.Config.Quantifier)
+}
+
+func (h *HoleNode) Position() int { return h.pos }
+
 // TextNode represents normal text in the pattern.
 type TextNode struct {
 	Content string

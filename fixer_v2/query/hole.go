@@ -58,41 +58,6 @@ func (q Quantifier) String() string {
 	}
 }
 
-// HoleConfig stores configuration for a hole pattern
-type HoleConfig struct {
-	Type       HoleType
-	Quantifier Quantifier
-	Name       string
-}
-
-// HoleNode represents a placeholder in the pattern like :[name] or :[[name]].
-type HoleNode struct {
-	Config HoleConfig
-	pos    int
-}
-
-func NewHoleNode(name string, pos int) *HoleNode {
-	return &HoleNode{
-		Config: HoleConfig{
-			Name:       name,
-			Type:       HoleAny,
-			Quantifier: QuantNone,
-		},
-		pos: pos,
-	}
-}
-
-func (h *HoleNode) Type() NodeType { return NodeHole }
-
-func (h *HoleNode) String() string {
-	if h.Config.Type == HoleAny && h.Config.Quantifier == QuantNone {
-		return fmt.Sprintf("HoleNode(%s)", h.Config.Name)
-	}
-	return fmt.Sprintf("HoleNode(%s:%s)%s", h.Config.Name, h.Config.Type, h.Config.Quantifier)
-}
-
-func (h *HoleNode) Position() int { return h.pos }
-
 // ParseHolePattern parses a hole pattern string and returns a HoleConfig
 // Format: :[[name:type]] or :[[name:type]]*
 func ParseHolePattern(pattern string) (*HoleConfig, error) {
