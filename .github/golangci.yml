@@ -78,6 +78,9 @@ issues:
         - gosec # Disabled linting of weak number generators
         - makezero # Disabled linting of intentional slice appends
         - goconst # Disabled linting of common mnemonics and test case strings
+    - path: fixer_v2/query/internal\.go
+      linters:
+        - gofumpt # Disabled linting of gofumpt to prevent breaking the comment formatting
     - path: _\.gno
       linters:
         - errorlint # Disabled linting of error comparisons, because of lacking std lib support

@@ -113,8 +113,6 @@ const (
 //  2. CB and QB states allow whitespace transitions for better error recovery
 //  3. After quantifiers (QT), we can continue with any valid pattern start
 //  4. TX (text) state allows transitioning back to pattern parsing
-//
-// nolint:gofmt
 var StateTransitionTable = [13][9]States{
     //          COLON  LBRACK RBRACK LBRACE RBRACE SPACE  IDENT  QUANT  OTHER
     /* GO  */ { CL,    TX,    TX,    BR,    BR,    WS,    TX,    TX,    TX   },
