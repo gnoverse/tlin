@@ -35,6 +35,7 @@ func (p *Parser) Parse() Node {
 }
 
 // parseNode parses a single node based on the current token
+// parseNode parses a single node based on the current token
 func (p *Parser) parseNode() Node {
 	token := p.tokens[p.current]
 
@@ -47,12 +48,18 @@ func (p *Parser) parseNode() Node {
 		}
 	case TokenHole:
 		p.current++
-		holeName := extractHoleName(token.Value)
-		// update hole expr's position
-		p.holes[holeName] = token.Position
-		return &HoleNode{
-			Name: holeName,
-			pos:  token.Position,
+		if token.HoleConfig != nil {
+			// token has already been parsed with a HoleConfig
+			p.holes[token.HoleConfig.Name] = token.Position
+			return &HoleNode{
+				Config: *token.HoleConfig,
+				pos:    token.Position,
+			}
+		} else {
+			// for backward compatibility
+			holeName := extractHoleName(token.Value)
+			p.holes[holeName] = token.Position
+			return NewHoleNode(holeName, token.Position)
 		}
 	case TokenLBrace:
 		return p.parseBlock()
@@ -89,12 +96,3 @@ func (p *Parser) parseBlock() Node {
 	// TODO: error handling
 	return blockNode
 }
-
-// peek peeks at the next token
-// TODO: commented out for now
-// func (p *Parser) peek() Token {
-// 	if p.current+1 >= len(p.tokens) {
-// 		return Token{Type: TokenEOF, Value: "", Position: -1}
-// 	}
-// 	return p.tokens[p.current+1]
-// }

@@ -59,33 +59,6 @@ func (l *Lexer) Tokenize() []Token {
 	return l.tokens
 }
 
-// matchHole checks if the current position indeed indicates a hole
-// like :[name] or :[[name]]. If it does, it produces a TokenHole token and
-// returns true. Otherwise, it returns false and doesn't modify token list.
-func (l *Lexer) matchHole() bool {
-	// First, ensure there's enough room for ":[" at least.
-	if l.position+1 >= len(l.input) {
-		return false
-	}
-	startPos := l.position
-
-	// Check if the next char is '['
-	if l.input[l.position+1] == '[' {
-		// If it's "[[", we consider it a "long form": :[[name]]
-		isLongForm := (l.position+2 < len(l.input) && l.input[l.position+2] == '[')
-		end := l.findHoleEnd(isLongForm)
-		if end > 0 {
-			// We found a valid closing bracket sequence
-			l.addToken(TokenHole, l.input[l.position:end], startPos)
-			// Move lexer position so that the main loop will continue from the right place.
-			// We do -1 because the main loop increments position once more.
-			l.position = end
-			return true
-		}
-	}
-	return false
-}
-
 // lexWhitespace scans consecutive whitespace and produces one TokenWhitespace.
 func (l *Lexer) lexWhitespace(startPos int) {
 	start := l.position
@@ -121,29 +94,6 @@ func (l *Lexer) lexText(startPos int) {
 	}
 }
 
-// findHoleEnd tries to locate the matching ']' or ']]' depending on whether it's a long form :[[...]].
-// Returns the index just AFTER the closing bracket(s), or -1 if no match is found.
-func (l *Lexer) findHoleEnd(isLongForm bool) int {
-	// If it is a long form :[[ name ]], we look for "]]"
-	if isLongForm {
-		// Start searching from l.position+3 since we already have ":[["
-		for i := l.position + 3; i < len(l.input)-1; i++ {
-			if l.input[i] == ']' && l.input[i+1] == ']' {
-				return i + 2
-			}
-		}
-	} else {
-		// Else, we look for a single ']'
-		// Start from l.position+2 because we have ":["
-		for i := l.position + 2; i < len(l.input); i++ {
-			if l.input[i] == ']' {
-				return i + 1
-			}
-		}
-	}
-	return -1
-}
-
 // addToken is a helper to append a new token to the lexer's token list.
 func (l *Lexer) addToken(tokenType TokenType, value string, pos int) {
 	l.tokens = append(l.tokens, Token{
@@ -156,17 +106,4 @@ func (l *Lexer) addToken(tokenType TokenType, value string, pos int) {
 // isWhitespace checks if the given byte is a space, tab, newline, etc. using unicode.IsSpace.
 func isWhitespace(c byte) bool {
 	return unicode.IsSpace(rune(c))
-}
-
-// extractHoleName extracts the hole name from a string like ":[name]" or ":[[name]]".
-// For example, ":[[cond]]" -> "cond", ":[cond]" -> "cond".
-// Make sure the token value is well-formed before calling this function.
-func extractHoleName(tokenValue string) string {
-	// We expect tokenValue to start with :[ or :[[, e.g. :[[cond]]
-	if len(tokenValue) > 4 && tokenValue[:3] == ":[[" {
-		// :[[ ... ]]
-		return tokenValue[3 : len(tokenValue)-2]
-	}
-	// :[ ... ]
-	return tokenValue[2 : len(tokenValue)-1]
 }

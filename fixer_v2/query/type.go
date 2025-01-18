@@ -20,9 +20,10 @@ const (
 
 // Token represents a single lexical token with type, value, and position.
 type Token struct {
-	Type     TokenType // type of this token
-	Value    string    // the literal string for this token
-	Position int       // the starting position in the original input
+	Type       TokenType   // type of this token
+	Value      string      // the literal string for this token
+	Position   int         // the starting position in the original input
+	HoleConfig *HoleConfig // configuration for hole tokens (nil for non-hole tokens)
 }
 
 // NodeType defines different node types for AST construction.
@@ -66,17 +67,41 @@ func (p *PatternNode) String() string {
 }
 func (p *PatternNode) Position() int { return p.pos }
 
+// HoleConfig stores configuration for a hole pattern
+type HoleConfig struct {
+	Type       HoleType
+	Quantifier Quantifier
+	Name       string
+}
+
 // HoleNode represents a placeholder in the pattern like :[name] or :[[name]].
 type HoleNode struct {
-	Name string
-	pos  int
+	Config HoleConfig
+	pos    int
+}
+
+func NewHoleNode(name string, pos int) *HoleNode {
+	return &HoleNode{
+		Config: HoleConfig{
+			Name:       name,
+			Type:       HoleAny,
+			Quantifier: QuantNone,
+		},
+		pos: pos,
+	}
 }
 
 func (h *HoleNode) Type() NodeType { return NodeHole }
+
 func (h *HoleNode) String() string {
-	return fmt.Sprintf("HoleNode(%s)", h.Name)
+	if h.Config.Type == HoleAny && h.Config.Quantifier == QuantNone {
+		return fmt.Sprintf("HoleNode(%s)", h.Config.Name)
+	}
+	return fmt.Sprintf("HoleNode(%s:%s)%s", h.Config.Name, h.Config.Type, h.Config.Quantifier)
 }
+
 func (h *HoleNode) Position() int { return h.pos }
+func (h *HoleNode) Name() string  { return h.Config.Name }
 
 // TextNode represents normal text in the pattern.
 type TextNode struct {
