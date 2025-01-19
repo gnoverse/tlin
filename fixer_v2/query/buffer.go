@@ -1,6 +1,7 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -136,7 +137,7 @@ func (b *buffer) parseText() (string, error) {
 
 	for b.index < b.length {
 		state, err := b.transition()
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return "", err
 		}
 
