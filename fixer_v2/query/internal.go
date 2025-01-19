@@ -43,23 +43,21 @@ hand-coded switch-case lexer for several performance-critical reasons:
      behavior compared to nested conditional logic.
 
 Implementation Notes:
-  - States are arranged so that final states have lower numbers, allowing for a single
+   1. States are arranged so that final states have lower numbers, allowing for a single
     comparison to detect when token recognition is complete.
-  - The transition table is structured for efficient CPU cache usage by minimizing
+   2. The transition table is structured for efficient CPU cache usage by minimizing
     the table size through character equivalence classes.
-  - The design supports both simple tokens (like operators) and complex tokens
+   3. The design supports both simple tokens (like operators) and complex tokens
     (like identifiers) while maintaining consistent performance characteristics.
 
 Reference:
  [1] https://nothings.org/computer/lexing.html
-*/
+ */
 
 type (
 	States  int8 // Represents possible states of the parser
 	Classes int8 // Represents character classes in the pattern
 )
-
-const __ States = -1 // Represents an invalid state transition
 
 // States represent different stages of lexical analysis:
 //   - GO (0)  - Initial state, ready to start processing input
@@ -113,6 +111,7 @@ const (
 //  2. CB and QB states allow whitespace transitions for better error recovery
 //  3. After quantifiers (QT), we can continue with any valid pattern start
 //  4. TX (text) state allows transitioning back to pattern parsing
+//
 //nolint:gofumpt
 var StateTransitionTable = [13][9]States{
     //          COLON  LBRACK RBRACK LBRACE RBRACE SPACE  IDENT  QUANT  OTHER
@@ -158,10 +157,9 @@ func (c Classes) String() string {
 
 // StateMachine represents the parser's state machine
 type StateMachine struct {
-	state       States // Current state
-	input       string // Input pattern to parse
-	position    int    // Current position in input
-	accumulator string // Accumulates characters for token building
+	state    States // Current state
+	input    string // Input pattern to parse
+	position int    // Current position in input
 }
 
 func NewStateMachine(input string) *StateMachine {
@@ -170,28 +168,6 @@ func NewStateMachine(input string) *StateMachine {
 		input:    input,
 		position: 0,
 	}
-}
-
-func (sm *StateMachine) run() error {
-	for sm.position < len(sm.input) {
-		c := sm.input[sm.position]
-		class := getCharacterClass(c)
-
-		currentState := sm.state
-		nextState := StateTransitionTable[currentState][class]
-
-		fmt.Printf("Char: %c, Current State: %v, Class: %v, Next State: %v\n",
-			c, currentState, class, nextState)
-
-		if nextState == __ {
-			return fmt.Errorf("invalid transition at position %d: %c",
-				sm.position, c)
-		}
-
-		sm.state = nextState
-		sm.position++
-	}
-	return nil
 }
 
 // Transition records the transition details between states
