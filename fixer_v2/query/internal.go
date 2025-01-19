@@ -52,7 +52,7 @@ Implementation Notes:
 
 Reference:
  [1] https://nothings.org/computer/lexing.html
- */
+*/
 
 type (
 	States  int8 // Represents possible states of the parser
@@ -73,6 +73,7 @@ type (
 //   - TX (10) - Processing regular text
 //   - WS (11) - Processing whitespace
 //   - BR (12) - Processing block delimiters ({, })
+//   - ER (13) - Error state (invalid input)
 //
 // The state numbering is significant - states <= OK are final states,
 // allowing for efficient loop termination with a single comparison.
@@ -90,6 +91,7 @@ const (
 	TX               // Reading text state
 	WS               // Reading whitespace state
 	BR               // Reading block state ({, })
+	ER               // Error state
 )
 
 // Character class definitions
@@ -111,21 +113,31 @@ const (
 //  2. CB and QB states allow whitespace transitions for better error recovery
 //  3. After quantifiers (QT), we can continue with any valid pattern start
 //  4. TX (text) state allows transitioning back to pattern parsing
-var StateTransitionTable = [13][9]States{
-    //          COLON  LBRACK RBRACK LBRACE RBRACE SPACE  IDENT  QUANT  OTHER
-    /* GO  */ { CL,    TX,    TX,    BR,    BR,    WS,    TX,    TX,    TX   },
-    /* OK  */ { CL,    TX,    TX,    BR,    BR,    WS,    TX,    TX,    TX   },
-    /* CL  */ { TX,    OB,    TX,    TX,    TX,    TX,    ID,    TX,    TX   },
-    /* OB  */ { TX,    DB,    TX,    TX,    TX,    TX,    NM,    TX,    TX   },
-    /* DB  */ { TX,    TX,    TX,    TX,    TX,    TX,    NM,    TX,    TX   },
-    /* NM  */ { ID,    TX,    CB,    TX,    TX,    TX,    NM,    TX,    TX   }, // Transition to ID state when colon is encountered
-    /* ID  */ { TX,    TX,    CB,    TX,    TX,    TX,    ID,    TX,    TX   },
-    /* CB  */ { OK,    TX,    QB,    TX,    TX,    WS,    TX,    QT,    TX   }, // Handle whitespace for better error recovery
-    /* QB  */ { OK,    TX,    TX,    TX,    TX,    WS,    TX,    QT,    TX   }, // Handle whitespace for better error recovery
-    /* QT  */ { CL,    TX,    TX,    BR,    BR,    WS,    TX,    TX,    TX   },
-    /* TX  */ { CL,    TX,    TX,    BR,    BR,    WS,    TX,    TX,    TX   },
-    /* WS  */ { CL,    TX,    TX,    BR,    BR,    WS,    TX,    TX,    TX   },
-    /* BR  */ { CL,    TX,    TX,    BR,    OK,    WS,    TX,    TX,    TX   },
+var StateTransitionTable = [14][9]States{
+	//          COLON   LBRACK RBRACK LBRACE RBRACE SPACE  IDENT  QUANT  OTHER
+    /* GO 0*/ { CL,     OB,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
+    /* OK 1*/ { CL,     OB,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
+    /* CL 2*/ { TX,     OB,    ER,    ER,    ER,    ER,    ID,    ER,    ER },
+    /* OB 3*/ { TX,     DB,    ER,    ER,    ER,    ER,    NM,    ER,    ER },
+    /* DB 4*/ { TX,     ER,    ER,    ER,    ER,    ER,    NM,    ER,    ER },
+    /* NM 5*/ { ID,     ER,    CB,    ER,    ER,    ER,    NM,    ER,    ER },
+    /* ID 6*/ { ER,     ER,    CB,    ER,    ER,    ER,    ID,    ER,    ER },
+    /* CB 7*/ { OK,     ER,    QB,    ER,    ER,    WS,    TX,    QT,    ER },
+    /* QB 8*/ { OK,     ER,    ER,    ER,    ER,    WS,    TX,    QT,    ER },
+    /* QT 9*/ { CL,     ER,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
+    /* TX10*/ { CL,     ER,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
+    /* WS11*/ { CL,     ER,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
+    /* BR12*/ { CL,     ER,    ER,    BR,    OK,    WS,    TX,    ER,    ER },
+    /* ER13*/ { ER,     ER,    ER,    ER,    ER,    ER,    ER,    ER,    ER },
+}
+
+// isFinalState determines whether a given state is a final (accepting) state.
+func isFinalState(s States) bool {
+	switch s {
+	case OK, QB, QT, TX:
+		return true
+	}
+	return false
 }
 
 func (c Classes) String() string {
@@ -174,6 +186,7 @@ type Transition struct {
 	fromState States
 	class     Classes
 	toState   States
+	pos       int // Position in input
 }
 
 func (sm *StateMachine) recordTransitions() []Transition {
@@ -190,13 +203,49 @@ func (sm *StateMachine) recordTransitions() []Transition {
 			fromState: currentState,
 			class:     class,
 			toState:   nextState,
+			pos:       sm.position,
 		})
 
 		sm.state = nextState
 		sm.position++
+
+		// if we reach an OK state in middle, we can consider that we have finished one token (e.g., metavariable)
+		// and reset the state to GO to continue recognizing the next token
+		if sm.state == OK {
+			sm.state = GO
+		}
 	}
 
 	return transitions
+}
+
+// recordTransitionsStrict processes the input and ensures that the final state is valid
+func (sm *StateMachine) recordTransitionsStrict() ([]Transition, error) {
+	transitions := sm.recordTransitions()
+
+	// If the final state is CB, check if it was reached from NM (single-bracketed)
+	if sm.state == CB {
+		lastTransition := transitions[len(transitions)-1]
+		if lastTransition.fromState == NM {
+			sm.state = OK
+			return transitions, nil
+		}
+		return transitions, fmt.Errorf("incomplete parse: ended in CB from state %v", lastTransition.fromState)
+	}
+
+	// If the final state is one of the final states, accept
+	if isFinalState(sm.state) {
+		sm.state = OK
+		return transitions, nil
+	}
+
+	// Check if the state is ERROR
+	if sm.state == ER {
+		return transitions, fmt.Errorf("invalid parse: reached ERROR state")
+	}
+
+	// Otherwise, it's an incomplete parse
+	return transitions, fmt.Errorf("incomplete parse: ended in state %v", sm.state)
 }
 
 func visualizeTransitions(transitions []Transition) string {
