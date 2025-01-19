@@ -35,7 +35,6 @@ func (p *Parser) Parse() Node {
 }
 
 // parseNode parses a single node based on the current token
-// parseNode parses a single node based on the current token
 func (p *Parser) parseNode() Node {
 	token := p.tokens[p.current]
 
