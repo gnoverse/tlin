@@ -263,3 +263,40 @@ func TestMatchHoleWithConfig(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkParseHolePattern(b *testing.B) {
+	patterns := []struct {
+		name    string
+		pattern string
+	}{
+		{
+			name:    "simple",
+			pattern: ":[var]",
+		},
+		{
+			name:    "identifier_with_quantifier",
+			pattern: ":[[name:identifier]]*",
+		},
+		{
+			name:    "block_with_quantifier",
+			pattern: ":[[block:block]]+",
+		},
+		{
+			name:    "complex_expression",
+			pattern: ":[[expr:expression]]?",
+		},
+		{
+			name:    "multiple hole expressions",
+			pattern: ":[[var:identifier]]+ :[[expr:expression]]?",
+		},
+	}
+
+	for _, p := range patterns {
+		b.Run(p.name, func(b *testing.B) {
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, _ = ParseHolePattern(p.pattern)
+			}
+		})
+	}
+}

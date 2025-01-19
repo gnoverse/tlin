@@ -59,6 +59,8 @@ type (
 	Classes int8 // Represents character classes in the pattern
 )
 
+const __ States = -1
+
 // States represent different stages of lexical analysis:
 //   - GO (0)  - Initial state, ready to start processing input
 //   - OK (1)  - Accept state, token successfully recognized
@@ -114,21 +116,21 @@ const (
 //  3. After quantifiers (QT), we can continue with any valid pattern start
 //  4. TX (text) state allows transitioning back to pattern parsing
 var StateTransitionTable = [14][9]States{
-	//          COLON   LBRACK RBRACK LBRACE RBRACE SPACE  IDENT  QUANT  OTHER
-    /* GO 0*/ { CL,     OB,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
-    /* OK 1*/ { CL,     OB,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
-    /* CL 2*/ { TX,     OB,    ER,    ER,    ER,    ER,    ID,    ER,    ER },
-    /* OB 3*/ { TX,     DB,    ER,    ER,    ER,    ER,    NM,    ER,    ER },
-    /* DB 4*/ { TX,     ER,    ER,    ER,    ER,    ER,    NM,    ER,    ER },
-    /* NM 5*/ { ID,     ER,    CB,    ER,    ER,    ER,    NM,    ER,    ER },
-    /* ID 6*/ { ER,     ER,    CB,    ER,    ER,    ER,    ID,    ER,    ER },
-    /* CB 7*/ { OK,     ER,    QB,    ER,    ER,    WS,    TX,    QT,    ER },
-    /* QB 8*/ { OK,     ER,    ER,    ER,    ER,    WS,    TX,    QT,    ER },
-    /* QT 9*/ { CL,     ER,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
-    /* TX10*/ { CL,     ER,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
-    /* WS11*/ { CL,     ER,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
-    /* BR12*/ { CL,     ER,    ER,    BR,    OK,    WS,    TX,    ER,    ER },
-    /* ER13*/ { ER,     ER,    ER,    ER,    ER,    ER,    ER,    ER,    ER },
+	//         COLON   LBRACK RBRACK LBRACE RBRACE SPACE  IDENT  QUANT  OTHER
+    /* GO 0*/ { CL,    OB,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
+    /* OK 1*/ { CL,    OB,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
+    /* CL 2*/ { TX,    OB,    ER,    ER,    ER,    ER,    ID,    ER,    ER },
+    /* OB 3*/ { TX,    DB,    ER,    ER,    ER,    ER,    NM,    ER,    ER },
+    /* DB 4*/ { TX,    ER,    ER,    ER,    ER,    ER,    NM,    ER,    ER },
+    /* NM 5*/ { ID,    ER,    CB,    ER,    ER,    ER,    NM,    ER,    ER },
+    /* ID 6*/ { ER,    ER,    CB,    ER,    ER,    ER,    ID,    ER,    ER },
+    /* CB 7*/ { OK,    ER,    QB,    ER,    ER,    WS,    TX,    QT,    ER },
+    /* QB 8*/ { OK,    ER,    ER,    ER,    ER,    WS,    TX,    QT,    ER },
+    /* QT 9*/ { CL,    ER,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
+    /* TX10*/ { CL,    ER,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
+    /* WS11*/ { CL,    ER,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
+    /* BR12*/ { CL,    ER,    ER,    BR,    OK,    WS,    TX,    ER,    ER },
+    /* ER13*/ { ER,    ER,    ER,    ER,    ER,    ER,    ER,    ER,    ER },
 }
 
 // isFinalState determines whether a given state is a final (accepting) state.
