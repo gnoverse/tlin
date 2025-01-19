@@ -83,8 +83,8 @@ issues:
         - errorlint # Disabled linting of error comparisons, because of lacking std lib support
 
     - path: fixer_v2/query/internal\.go$
-    linters:
-      - gofmt
-      - gofumpt
-      - goimports
-      - whitespace
+      linters:
+        - gofmt
+        - gofumpt
+        - goimports
+        - whitespace
