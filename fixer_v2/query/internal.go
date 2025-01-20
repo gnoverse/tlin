@@ -128,15 +128,6 @@ var StateTransitionTable = [14][9]States{
     /* ER13*/ { ER,    ER,    ER,    ER,    ER,    ER,    ER,    ER,    ER },
 }
 
-// isFinalState determines whether a given state is a final (accepting) state.
-func isFinalState(s States) bool {
-	switch s {
-	case OK, QB, QT, TX:
-		return true
-	}
-	return false
-}
-
 func (c Classes) String() string {
 	switch c {
 	case C_COLON:
@@ -159,21 +150,6 @@ func (c Classes) String() string {
 		return "OTHER"
 	default:
 		return "UNKNOWN"
-	}
-}
-
-// StateMachine represents the parser's state machine
-type StateMachine struct {
-	state    States // Current state
-	input    string // Input pattern to parse
-	position int    // Current position in input
-}
-
-func NewStateMachine(input string) *StateMachine {
-	return &StateMachine{
-		state:    GO,
-		input:    input,
-		position: 0,
 	}
 }
 
@@ -222,12 +198,34 @@ func getCharacterClass(c byte, mode CharClassMode) Classes {
 	}
 }
 
+var identCharTable = [256]bool{
+	// lowercase (a-z)
+    'a': true, 'b': true, 'c': true, 'd': true, 'e': true,
+    'f': true, 'g': true, 'h': true, 'i': true, 'j': true,
+    'k': true, 'l': true, 'm': true, 'n': true, 'o': true,
+    'p': true, 'q': true, 'r': true, 's': true, 't': true,
+    'u': true, 'v': true, 'w': true, 'x': true, 'y': true,
+    'z': true,
+    
+	// uppercase (A-Z)
+    'A': true, 'B': true, 'C': true, 'D': true, 'E': true,
+    'F': true, 'G': true, 'H': true, 'I': true, 'J': true,
+    'K': true, 'L': true, 'M': true, 'N': true, 'O': true,
+    'P': true, 'Q': true, 'R': true, 'S': true, 'T': true,
+    'U': true, 'V': true, 'W': true, 'X': true, 'Y': true,
+    'Z': true,
+    
+	// numbers (0-9)
+    '0': true, '1': true, '2': true, '3': true, '4': true,
+    '5': true, '6': true, '7': true, '8': true, '9': true,
+
+	// special characters
+    '_': true,
+    '-': true,
+}
+
 // isIdentChar checks if a character is valid in an identifier
 // Allows: alphanumeric, underscore, and hyphen (comby-specific)
 func isIdentChar(c byte) bool {
-	return ('a' <= c && c <= 'z') ||
-		('A' <= c && c <= 'Z') ||
-		('0' <= c && c <= '9') ||
-		c == '_' ||
-		c == '-' // Comby syntax allows hyphens in identifiers
+	return identCharTable[c]
 }
