@@ -21,6 +21,7 @@ type buffer struct {
 	last  States  // Previous state
 	state States  // Current state
 	class Classes // Character class of current byte
+	mode  CharClassMode
 
 	tokenStart int             // Starting position of current token
 	tokenValue strings.Builder // Accumulates characters for current token
@@ -35,7 +36,12 @@ func newBuffer(input string) *buffer {
 		index:  0,
 		last:   GO,
 		state:  GO,
+		mode:   ModeText,
 	}
+}
+
+func (b *buffer) setMode(mode CharClassMode) {
+	b.mode = mode
 }
 
 // startToken begins accumulating a new token by recording the start position
@@ -52,7 +58,7 @@ func (b *buffer) getClass() Classes {
 	if b.index >= b.length {
 		return C_OTHER
 	}
-	return getCharacterClass(b.data[b.index])
+	return getCharacterClass(b.data[b.index], b.mode)
 }
 
 // transition performs a state transition based on the current character and state.
@@ -134,6 +140,7 @@ func (b *buffer) parseMetaVariable() (*HoleConfig, error) {
 //  3. Returns accumulated text or error if no text found
 func (b *buffer) parseText() (string, error) {
 	b.startToken()
+	b.setMode(ModeText)
 
 	for b.index < b.length {
 		state, err := b.transition()

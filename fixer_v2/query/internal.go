@@ -1,10 +1,5 @@
 package query
 
-import (
-	"fmt"
-	"strings"
-)
-
 /*
 State Transition Machine Design Rationale
 
@@ -182,87 +177,18 @@ func NewStateMachine(input string) *StateMachine {
 	}
 }
 
-// Transition records the transition details between states
-type Transition struct {
-	char      byte
-	fromState States
-	class     Classes
-	toState   States
-	pos       int // Position in input
-}
+// mode for character classification based on context
+type CharClassMode int
 
-func (sm *StateMachine) recordTransitions() []Transition {
-	var transitions []Transition
-
-	for sm.position < len(sm.input) {
-		c := sm.input[sm.position]
-		class := getCharacterClass(c)
-		currentState := sm.state
-		nextState := StateTransitionTable[currentState][class]
-
-		transitions = append(transitions, Transition{
-			char:      c,
-			fromState: currentState,
-			class:     class,
-			toState:   nextState,
-			pos:       sm.position,
-		})
-
-		sm.state = nextState
-		sm.position++
-
-		// if we reach an OK state in middle, we can consider that we have finished one token (e.g., metavariable)
-		// and reset the state to GO to continue recognizing the next token
-		if sm.state == OK {
-			sm.state = GO
-		}
-	}
-
-	return transitions
-}
-
-// recordTransitionsStrict processes the input and ensures that the final state is valid
-func (sm *StateMachine) recordTransitionsStrict() ([]Transition, error) {
-	transitions := sm.recordTransitions()
-
-	// If the final state is CB, check if it was reached from NM (single-bracketed)
-	if sm.state == CB {
-		lastTransition := transitions[len(transitions)-1]
-		if lastTransition.fromState == NM {
-			sm.state = OK
-			return transitions, nil
-		}
-		return transitions, fmt.Errorf("incomplete parse: ended in CB from state %v", lastTransition.fromState)
-	}
-
-	// If the final state is one of the final states, accept
-	if isFinalState(sm.state) {
-		sm.state = OK
-		return transitions, nil
-	}
-
-	// Check if the state is ERROR
-	if sm.state == ER {
-		return transitions, fmt.Errorf("invalid parse: reached ERROR state")
-	}
-
-	// Otherwise, it's an incomplete parse
-	return transitions, fmt.Errorf("incomplete parse: ended in state %v", sm.state)
-}
-
-func visualizeTransitions(transitions []Transition) string {
-	var b strings.Builder
-	for _, t := range transitions {
-		fmt.Fprintf(&b, "%c: %v -%v-> %v\n",
-			t.char, t.fromState, t.class, t.toState)
-	}
-	return b.String()
-}
+const (
+	ModeText CharClassMode = iota 	// normal text mode
+	ModeHole				  		// metavariable hole
+)
 
 // getCharacterClass determines the character class for a given byte
 // Handles special characters, whitespace, and identifier characters
 // Returns C_OTHER for any character that doesn't fit other categories
-func getCharacterClass(c byte) Classes {
+func getCharacterClass(c byte, mode CharClassMode) Classes {
 	// Check special characters first
 	switch c {
 	case ':':
@@ -284,12 +210,16 @@ func getCharacterClass(c byte) Classes {
 		return C_SPACE
 	}
 
-	// Check for identifier characters
-	if isIdentChar(c) {
-		return C_IDENT
+	switch mode {
+	case ModeHole:
+		// in metavariable hole, we allow only identifier characters
+		if isIdentChar(c) {
+			return C_IDENT
+		}
+		return C_OTHER
+	default:
+		return C_IDENT // text mode allows all characters
 	}
-
-	return C_OTHER
 }
 
 // isIdentChar checks if a character is valid in an identifier

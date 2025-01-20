@@ -4,6 +4,8 @@ import (
 	"unicode"
 )
 
+//! TODO: remove this file.
+
 // Lexer is responsible for scanning the input string and producing tokens.
 type Lexer struct {
 	input    string // the entire input to tokenize

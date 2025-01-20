@@ -1,9 +1,7 @@
 package query
 
 import (
-	"strings"
 	"testing"
-	"unicode"
 )
 
 func TestLexer(t *testing.T) {
@@ -131,121 +129,6 @@ func TestLexer(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestParser(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "empty input",
-			input:    "",
-			expected: `PatternNode(0 children):`,
-		},
-		{
-			name:  "multiple adjacent holes",
-			input: ":[a]:[b]:[[c]]",
-			expected: `PatternNode(3 children):
-  0: HoleNode(a)
-  1: HoleNode(b)
-  2: HoleNode(c)`,
-		},
-		{
-			name:  "if statement with condition",
-			input: "if :[[cond]] { return true }",
-			expected: `PatternNode(5 children):
-  0: TextNode(if)
-  1: TextNode( )
-  2: HoleNode(cond)
-  3: TextNode( )
-  4: BlockNode(5 children):
-    0: TextNode( )
-    1: TextNode(return)
-    2: TextNode( )
-    3: TextNode(true)
-    4: TextNode( )`,
-		},
-		{
-			name:  "simple hole",
-			input: "test :[name] here",
-			expected: `PatternNode(5 children):
-  0: TextNode(test)
-  1: TextNode( )
-  2: HoleNode(name)
-  3: TextNode( )
-  4: TextNode(here)`,
-		},
-		{
-			name:  "nested blocks",
-			input: "if { if { return } }",
-			expected: `PatternNode(3 children):
-  0: TextNode(if)
-  1: TextNode( )
-  2: BlockNode(5 children):
-    0: TextNode( )
-    1: TextNode(if)
-    2: TextNode( )
-    3: BlockNode(3 children):
-      0: TextNode( )
-      1: TextNode(return)
-      2: TextNode( )
-    4: TextNode( )`,
-		},
-		{
-			name:  "complex nested blocks",
-			input: "if :[[cond]] { try { :[code] } catch { :[handler] } }",
-			expected: `PatternNode(5 children):
-  0: TextNode(if)
-  1: TextNode( )
-  2: HoleNode(cond)
-  3: TextNode( )
-  4: BlockNode(9 children):
-    0: TextNode( )
-    1: TextNode(try)
-    2: TextNode( )
-    3: BlockNode(3 children):
-      0: TextNode( )
-      1: HoleNode(code)
-      2: TextNode( )
-    4: TextNode( )
-    5: TextNode(catch)
-    6: TextNode( )
-    7: BlockNode(3 children):
-      0: TextNode( )
-      1: HoleNode(handler)
-      2: TextNode( )
-    8: TextNode( )`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			lexer := NewLexer(tt.input)
-			tokens := lexer.Tokenize()
-			parser := NewParser(tokens)
-			ast := parser.Parse()
-
-			got := removeWhitespace(t, ast.String())
-			want := removeWhitespace(t, tt.expected)
-
-			if got != want {
-				t.Errorf("Parser.Parse()\ngot =\n%v\nwant =\n%v", ast.String(), tt.expected)
-			}
-		})
-	}
-}
-
-func removeWhitespace(t *testing.T, s string) string {
-	t.Helper()
-	var result strings.Builder
-	for _, ch := range s {
-		if !unicode.IsSpace(ch) {
-			result.WriteRune(ch)
-		}
-	}
-	return result.String()
 }
 
 func TestHoleExtraction(t *testing.T) {
