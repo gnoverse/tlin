@@ -1,97 +1,206 @@
 package query
 
+import (
+	"fmt"
+)
+
 // Parser is supposed to consume tokens produced by the lexer and build an AST.
 type Parser struct {
-	tokens  []Token
+	buffer  *buffer
 	current int
+	tokens  []Token
 	holes   map[string]int // hole name -> position (optional usage)
 }
 
-// NewParser creates a new Parser instance
-func NewParser(tokens []Token) *Parser {
+func NewParser() *Parser {
 	return &Parser{
-		tokens:  tokens,
-		current: 0,
-		holes:   make(map[string]int),
+		holes: make(map[string]int),
 	}
 }
 
-// Parse processes all tokens and builds an AST
-func (p *Parser) Parse() Node {
-	rootNode := &PatternNode{pos: 0}
+func (p *Parser) Parse(buf *buffer) ([]Node, error) {
+	p.buffer = buf
+	p.tokens = []Token{}
 
-	for p.current < len(p.tokens) {
-		if p.tokens[p.current].Type == TokenEOF {
+	err := p.collectTokens()
+	if err != nil {
+		return nil, fmt.Errorf("failed to collect tokens: %w", err)
+	}
+
+	rootNode := &PatternNode{}
+	current := 0
+
+	for current < len(p.tokens) {
+		if p.tokens[current].Type == TokenEOF {
 			break
 		}
 
-		node := p.parseNode()
+		node := p.parseTokenNode(current)
 		if node != nil {
 			rootNode.Children = append(rootNode.Children, node)
 		}
+		current++
 	}
 
-	return rootNode
+	return rootNode.Children, nil
 }
 
-// parseNode parses a single node based on the current token
-func (p *Parser) parseNode() Node {
-	token := p.tokens[p.current]
+func (p *Parser) collectTokens() error {
+	for {
+		token, err := p.nextToken()
+		if err != nil {
+			return err
+		}
+
+		p.tokens = append(p.tokens, token)
+
+		if token.Type == TokenEOF {
+			break
+		}
+	}
+	return nil
+}
+
+func (p *Parser) nextToken() (Token, error) {
+	if p.buffer.index >= p.buffer.length {
+		return Token{Type: TokenEOF}, nil
+	}
+
+	class := p.buffer.getClass()
+
+	switch class {
+	case C_COLON:
+		return p.scanMetaVariable()
+
+	case C_LBRACE, C_RBRACE:
+		return p.scanBrace()
+
+	default:
+		// treat everything else as text (or with WS) for now
+		return p.scanText()
+	}
+}
+
+func (p *Parser) scanMetaVariable() (Token, error) {
+	startPos := p.buffer.index
+
+	if p.buffer.data[startPos] != ':' {
+		return Token{}, fmt.Errorf("expected ':' at position %d", startPos)
+	}
+
+	if startPos+1 >= p.buffer.length || p.buffer.data[startPos+1] != '[' {
+		return Token{}, fmt.Errorf("expected '[' at position %d", startPos+1)
+	}
+
+	p.buffer.setMode(ModeHole)
+	defer p.buffer.setMode(ModeText)
+
+	cfg, err := p.buffer.parseMetaVariable()
+	if err != nil {
+		return Token{}, fmt.Errorf("failed to parse meta variable at position %d: %w", startPos, err)
+	}
+
+	return Token{
+		Type:       TokenHole,
+		Value:      p.buffer.tokenValue.String(),
+		Position:   startPos,
+		HoleConfig: cfg,
+	}, nil
+}
+
+func (p *Parser) scanWhitespace() (Token, error) {
+	text, err := p.buffer.parseText()
+	if err != nil {
+		return Token{}, err
+	}
+
+	return Token{
+		Type:     TokenWhitespace,
+		Value:    text,
+		Position: p.buffer.tokenStart,
+	}, nil
+}
+
+func (p *Parser) scanText() (Token, error) {
+	text, err := p.buffer.parseText()
+	if err != nil {
+		return Token{}, err
+	}
+
+	if text == "" {
+		return p.nextToken()
+	}
+
+	return Token{
+		Type:     TokenText,
+		Value:    text,
+		Position: p.buffer.tokenStart,
+	}, nil
+}
+
+func (p *Parser) scanBrace() (Token, error) {
+	c := p.buffer.data[p.buffer.index]
+	p.buffer.index++
+
+	tt := TokenLBrace
+	if c == '}' {
+		tt = TokenRBrace
+	}
+
+	return Token{
+		Type:     tt,
+		Value:    string(c),
+		Position: p.buffer.index - 1,
+	}, nil
+}
+
+func (p *Parser) parseTokenNode(current int) Node {
+	token := p.tokens[current]
 
 	switch token.Type {
 	case TokenText, TokenWhitespace:
-		p.current++
 		return &TextNode{
 			Content: token.Value,
 			pos:     token.Position,
 		}
 	case TokenHole:
-		p.current++
 		if token.HoleConfig != nil {
-			// token has already been parsed with a HoleConfig
 			p.holes[token.HoleConfig.Name] = token.Position
 			return &HoleNode{
 				Config: *token.HoleConfig,
 				pos:    token.Position,
 			}
-		} else {
-			// for backward compatibility
-			holeName := extractHoleName(token.Value)
-			p.holes[holeName] = token.Position
-			return NewHoleNode(holeName, token.Position)
 		}
+
+		holeName := extractHoleName(token.Value)
+		p.holes[holeName] = token.Position
+		return NewHoleNode(holeName, token.Position)
+
 	case TokenLBrace:
-		return p.parseBlock()
+		return p.parseBlockFromTokens(current)
+
 	default:
-		p.current++
 		return nil
 	}
 }
 
-// parseBlock parses a block enclosed by '{' and '}'
-func (p *Parser) parseBlock() Node {
-	openPos := p.tokens[p.current].Position
-	p.current++
-
-	blockNode := &BlockNode{
+func (p *Parser) parseBlockFromTokens(start int) Node {
+	bn := &BlockNode{
 		Content: make([]Node, 0),
-		pos:     openPos,
+		pos:     p.tokens[start].Position,
 	}
 
-	// parse nodes until we find the matching '}'
-	for p.current < len(p.tokens) {
-		if p.tokens[p.current].Type == TokenRBrace {
-			p.current++
-			return blockNode
+	current := start + 1
+	for current < len(p.tokens) {
+		if p.tokens[current].Type == TokenRBrace {
+			return bn
 		}
 
-		node := p.parseNode()
-		if node != nil {
-			blockNode.Content = append(blockNode.Content, node)
+		if node := p.parseTokenNode(current); node != nil {
+			bn.Content = append(bn.Content, node)
 		}
+		current++
 	}
 
-	// if we get here, we're missing a closing brace
-	// TODO: error handling
-	return blockNode
+	return bn
 }

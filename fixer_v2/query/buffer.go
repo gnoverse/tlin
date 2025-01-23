@@ -1,7 +1,7 @@
 package query
 
 import (
-	"errors"
+	_ "errors"
 	"fmt"
 	"io"
 	"strings"
@@ -21,6 +21,7 @@ type buffer struct {
 	last  States  // Previous state
 	state States  // Current state
 	class Classes // Character class of current byte
+	mode  CharClassMode
 
 	tokenStart int             // Starting position of current token
 	tokenValue strings.Builder // Accumulates characters for current token
@@ -35,7 +36,12 @@ func newBuffer(input string) *buffer {
 		index:  0,
 		last:   GO,
 		state:  GO,
+		mode:   ModeText,
 	}
+}
+
+func (b *buffer) setMode(mode CharClassMode) {
+	b.mode = mode
 }
 
 // startToken begins accumulating a new token by recording the start position
@@ -52,7 +58,7 @@ func (b *buffer) getClass() Classes {
 	if b.index >= b.length {
 		return C_OTHER
 	}
-	return getCharacterClass(b.data[b.index])
+	return getCharacterClass(b.data[b.index], b.mode)
 }
 
 // transition performs a state transition based on the current character and state.
@@ -125,42 +131,45 @@ func (b *buffer) parseMetaVariable() (*HoleConfig, error) {
 	return nil, fmt.Errorf("incomplete meta variable at position %d", b.tokenStart)
 }
 
-// parseText parses regular text content until a special character or meta-variable
-// pattern is encountered. Handles both regular text and whitespace.
-//
-// The parsing process:
-//  1. Accumulates characters while in TX or WS states
-//  2. Stops at special characters (CL, OB, DB states)
-//  3. Returns accumulated text or error if no text found
+// parseText collects and returns text from the current index
+// until it encounters a 'boundary character' (e.g., :, [, ], {, }, *) or EOF.
+// Implemented using a 'peek' approach to look at the next character.
 func (b *buffer) parseText() (string, error) {
+	if len(b.data) == 0 {
+		return "", nil
+	}
+
 	b.startToken()
+	b.setMode(ModeText)
 
+	// process as text until boundary character appears
 	for b.index < b.length {
-		state, err := b.transition()
-		if err != nil && !errors.Is(err, io.EOF) {
-			return "", err
-		}
+		class := b.getClass()
 
-		currentChar := b.data[b.index]
+		switch class {
+		// current character is for metavar start/end or block delimiter => end text segment
+		case C_COLON, C_LBRACK, C_RBRACK, C_LBRACE, C_RBRACE, C_QUANT:
+			// breaking here leaves the character unconsumed,
+			// so it will be processed by next token (metavar etc.)
+			goto DONE
 
-		// stop at special characters or meta-variable start
-		if state == CL || state == OB || state == DB {
-			break
-		}
+		case C_SPACE:
+			// TODO (@notJoon): Decide whether to treat whitespace as part of text or separate WS token.
+			// If you want "all WS in Text token", handle same as default below
+			// or, if you want separate TokenWhitespace, break here
+			fallthrough
 
-		// handle whitespace or regular text
-		if state == TX || state == WS {
-			b.tokenValue.WriteByte(currentChar)
+		default:
+			// accumulate regular characters as text
+			b.tokenValue.WriteByte(b.data[b.index])
 			b.index++
-			continue
 		}
-
-		break
 	}
 
-	if b.tokenValue.Len() == 0 {
-		return "", fmt.Errorf("no text found at position %d", b.tokenStart)
-	}
-
-	return b.tokenValue.String(), nil
+DONE:
+	// end of text segment
+	text := b.tokenValue.String()
+	// TODO (@notJoon): Return even if length 0
+	// skip empty tokens if needed
+	return text, nil
 }

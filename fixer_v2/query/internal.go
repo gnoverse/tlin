@@ -1,10 +1,5 @@
 package query
 
-import (
-	"fmt"
-	"strings"
-)
-
 /*
 State Transition Machine Design Rationale
 
@@ -117,29 +112,20 @@ const (
 //  4. TX (text) state allows transitioning back to pattern parsing
 var StateTransitionTable = [14][9]States{
 	//         COLON   LBRACK RBRACK LBRACE RBRACE SPACE  IDENT  QUANT  OTHER
-    /* GO 0*/ { CL,    OB,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
-    /* OK 1*/ { CL,    OB,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
-    /* CL 2*/ { TX,    OB,    ER,    ER,    ER,    ER,    ID,    ER,    ER },
-    /* OB 3*/ { TX,    DB,    ER,    ER,    ER,    ER,    NM,    ER,    ER },
-    /* DB 4*/ { TX,    ER,    ER,    ER,    ER,    ER,    NM,    ER,    ER },
-    /* NM 5*/ { ID,    ER,    CB,    ER,    ER,    ER,    NM,    ER,    ER },
-    /* ID 6*/ { ER,    ER,    CB,    ER,    ER,    ER,    ID,    ER,    ER },
-    /* CB 7*/ { OK,    ER,    QB,    ER,    ER,    WS,    TX,    QT,    ER },
-    /* QB 8*/ { OK,    ER,    ER,    ER,    ER,    WS,    TX,    QT,    ER },
-    /* QT 9*/ { CL,    ER,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
-    /* TX10*/ { CL,    ER,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
-    /* WS11*/ { CL,    ER,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
-    /* BR12*/ { CL,    ER,    ER,    BR,    OK,    WS,    TX,    ER,    ER },
-    /* ER13*/ { ER,    ER,    ER,    ER,    ER,    ER,    ER,    ER,    ER },
-}
-
-// isFinalState determines whether a given state is a final (accepting) state.
-func isFinalState(s States) bool {
-	switch s {
-	case OK, QB, QT, TX:
-		return true
-	}
-	return false
+	/* GO 0*/ {CL, OB, ER, BR, BR, WS, TX, ER, ER},
+	/* OK 1*/ {CL, OB, ER, BR, BR, WS, TX, ER, ER},
+	/* CL 2*/ {TX, OB, ER, ER, ER, ER, ID, ER, ER},
+	/* OB 3*/ {TX, DB, ER, ER, ER, ER, NM, ER, ER},
+	/* DB 4*/ {TX, ER, ER, ER, ER, ER, NM, ER, ER},
+	/* NM 5*/ {ID, ER, CB, ER, ER, ER, NM, ER, ER},
+	/* ID 6*/ {ER, ER, CB, ER, ER, ER, ID, ER, ER},
+	/* CB 7*/ {OK, ER, QB, ER, ER, WS, TX, QT, ER},
+	/* QB 8*/ {OK, ER, ER, ER, ER, WS, TX, QT, ER},
+	/* QT 9*/ {CL, ER, ER, BR, BR, WS, TX, ER, ER},
+	/* TX10*/ {CL, OB, CB, BR, BR, WS, TX, QT, ER},
+	/* WS11*/ {CL, ER, ER, BR, BR, WS, TX, ER, ER},
+	/* BR12*/ {CL, ER, ER, BR, OK, WS, TX, ER, ER},
+	/* ER13*/ {ER, ER, ER, ER, ER, ER, ER, ER, ER},
 }
 
 func (c Classes) String() string {
@@ -167,102 +153,18 @@ func (c Classes) String() string {
 	}
 }
 
-// StateMachine represents the parser's state machine
-type StateMachine struct {
-	state    States // Current state
-	input    string // Input pattern to parse
-	position int    // Current position in input
-}
+// mode for character classification based on context
+type CharClassMode int
 
-func NewStateMachine(input string) *StateMachine {
-	return &StateMachine{
-		state:    GO,
-		input:    input,
-		position: 0,
-	}
-}
-
-// Transition records the transition details between states
-type Transition struct {
-	char      byte
-	fromState States
-	class     Classes
-	toState   States
-	pos       int // Position in input
-}
-
-func (sm *StateMachine) recordTransitions() []Transition {
-	var transitions []Transition
-
-	for sm.position < len(sm.input) {
-		c := sm.input[sm.position]
-		class := getCharacterClass(c)
-		currentState := sm.state
-		nextState := StateTransitionTable[currentState][class]
-
-		transitions = append(transitions, Transition{
-			char:      c,
-			fromState: currentState,
-			class:     class,
-			toState:   nextState,
-			pos:       sm.position,
-		})
-
-		sm.state = nextState
-		sm.position++
-
-		// if we reach an OK state in middle, we can consider that we have finished one token (e.g., metavariable)
-		// and reset the state to GO to continue recognizing the next token
-		if sm.state == OK {
-			sm.state = GO
-		}
-	}
-
-	return transitions
-}
-
-// recordTransitionsStrict processes the input and ensures that the final state is valid
-func (sm *StateMachine) recordTransitionsStrict() ([]Transition, error) {
-	transitions := sm.recordTransitions()
-
-	// If the final state is CB, check if it was reached from NM (single-bracketed)
-	if sm.state == CB {
-		lastTransition := transitions[len(transitions)-1]
-		if lastTransition.fromState == NM {
-			sm.state = OK
-			return transitions, nil
-		}
-		return transitions, fmt.Errorf("incomplete parse: ended in CB from state %v", lastTransition.fromState)
-	}
-
-	// If the final state is one of the final states, accept
-	if isFinalState(sm.state) {
-		sm.state = OK
-		return transitions, nil
-	}
-
-	// Check if the state is ERROR
-	if sm.state == ER {
-		return transitions, fmt.Errorf("invalid parse: reached ERROR state")
-	}
-
-	// Otherwise, it's an incomplete parse
-	return transitions, fmt.Errorf("incomplete parse: ended in state %v", sm.state)
-}
-
-func visualizeTransitions(transitions []Transition) string {
-	var b strings.Builder
-	for _, t := range transitions {
-		fmt.Fprintf(&b, "%c: %v -%v-> %v\n",
-			t.char, t.fromState, t.class, t.toState)
-	}
-	return b.String()
-}
+const (
+	ModeText CharClassMode = iota // normal text mode
+	ModeHole                      // metavariable hole
+)
 
 // getCharacterClass determines the character class for a given byte
 // Handles special characters, whitespace, and identifier characters
 // Returns C_OTHER for any character that doesn't fit other categories
-func getCharacterClass(c byte) Classes {
+func getCharacterClass(c byte, mode CharClassMode) Classes {
 	// Check special characters first
 	switch c {
 	case ':':
@@ -284,20 +186,46 @@ func getCharacterClass(c byte) Classes {
 		return C_SPACE
 	}
 
-	// Check for identifier characters
-	if isIdentChar(c) {
-		return C_IDENT
+	switch mode {
+	case ModeHole:
+		// in metavariable hole, we allow only identifier characters
+		if isIdentChar(c) {
+			return C_IDENT
+		}
+		return C_OTHER
+	default:
+		return C_IDENT // text mode allows all characters
 	}
+}
 
-	return C_OTHER
+var identCharTable = [256]bool{
+	// lowercase (a-z)
+	'a': true, 'b': true, 'c': true, 'd': true, 'e': true,
+	'f': true, 'g': true, 'h': true, 'i': true, 'j': true,
+	'k': true, 'l': true, 'm': true, 'n': true, 'o': true,
+	'p': true, 'q': true, 'r': true, 's': true, 't': true,
+	'u': true, 'v': true, 'w': true, 'x': true, 'y': true,
+	'z': true,
+
+	// uppercase (A-Z)
+	'A': true, 'B': true, 'C': true, 'D': true, 'E': true,
+	'F': true, 'G': true, 'H': true, 'I': true, 'J': true,
+	'K': true, 'L': true, 'M': true, 'N': true, 'O': true,
+	'P': true, 'Q': true, 'R': true, 'S': true, 'T': true,
+	'U': true, 'V': true, 'W': true, 'X': true, 'Y': true,
+	'Z': true,
+
+	// numbers (0-9)
+	'0': true, '1': true, '2': true, '3': true, '4': true,
+	'5': true, '6': true, '7': true, '8': true, '9': true,
+
+	// special characters
+	'_': true,
+	'-': true,
 }
 
 // isIdentChar checks if a character is valid in an identifier
 // Allows: alphanumeric, underscore, and hyphen (comby-specific)
 func isIdentChar(c byte) bool {
-	return ('a' <= c && c <= 'z') ||
-		('A' <= c && c <= 'Z') ||
-		('0' <= c && c <= '9') ||
-		c == '_' ||
-		c == '-' // Comby syntax allows hyphens in identifiers
+	return identCharTable[c]
 }
