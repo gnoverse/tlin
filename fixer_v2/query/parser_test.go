@@ -1,7 +1,6 @@
 package query
 
 import (
-	"reflect"
 	"testing"
 )
 
@@ -80,7 +79,7 @@ func TestParser_ScanMetaVariable(t *testing.T) {
 				return
 			}
 
-			if !tt.wantErr && !reflect.DeepEqual(got, tt.want) {
+			if !tt.wantErr && !got.Equal(tt.want) {
 				t.Errorf("Parser.scanMetaVariable() = %v, want %v", got, tt.want)
 			}
 		})
@@ -137,7 +136,7 @@ func TestParser_ScanText(t *testing.T) {
 				return
 			}
 
-			if !tt.wantErr && !reflect.DeepEqual(got, tt.want) {
+			if !tt.wantErr && !got.Equal(tt.want) {
 				t.Errorf("Parser.scanText() = %v, want %v", got, tt.want)
 			}
 		})
@@ -184,13 +183,8 @@ func TestParser_ScanWhitespace(t *testing.T) {
 				return
 			}
 
-			if !tt.wantErr {
-				// Token의 주요 필드들만 비교
-				if got.Type != tt.want.Type ||
-					got.Value != tt.want.Value ||
-					got.Position != tt.want.Position {
-					t.Errorf("Parser.scanWhitespace() = %v, want %v", got, tt.want)
-				}
+			if !tt.wantErr && !tt.want.Equal(got) {
+				t.Errorf("Parser.scanWhitespace() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -236,7 +230,7 @@ func TestParser_ScanBrace(t *testing.T) {
 				return
 			}
 
-			if !tt.wantErr && !reflect.DeepEqual(got, tt.want) {
+			if !tt.wantErr && !tt.want.Equal(got) {
 				t.Errorf("Parser.scanBrace() = %v, want %v", got, tt.want)
 			}
 		})
@@ -329,7 +323,7 @@ func TestParser_ParseTokenNode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &Parser{
 				tokens:  tt.tokens,
-				holes:   make(map[string]int),
+				holes:   make(holes),
 				current: tt.current,
 			}
 

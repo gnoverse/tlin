@@ -132,80 +132,13 @@ func ParseHolePattern(pattern string) (*HoleConfig, error) {
 	return config, nil
 }
 
-func (l *Lexer) matchHole() bool {
-	if l.position+1 >= len(l.input) {
-		return false
-	}
-	startPos := l.position
-
-	if l.input[l.position+1] == '[' {
-		isLongForm := (l.position+2 < len(l.input) && l.input[l.position+2] == '[')
-		end := l.findHoleEnd(isLongForm)
-		if end > 0 {
-			// Check for quantifier
-			if end < len(l.input) && isQuantifier(l.input[end]) {
-				end++
-			}
-
-			value := l.input[l.position:end]
-			config, err := ParseHolePattern(value)
-			if err != nil {
-				// If parsing fails, try to extract at least the name and create a basic config
-				basicName := extractHoleName(value)
-				basicConfig := HoleConfig{
-					Name:       basicName,
-					Type:       HoleAny,
-					Quantifier: QuantNone,
-				}
-				l.addTokenWithHoleConfig(TokenHole, value, startPos, basicConfig)
-			} else {
-				// Create a token with the parsed configuration
-				l.addTokenWithHoleConfig(TokenHole, value, startPos, *config)
-			}
-			l.position = end
-			return true
-		}
-	}
-	return false
-}
-
-func (l *Lexer) addTokenWithHoleConfig(tokenType TokenType, value string, pos int, config HoleConfig) {
-	l.tokens = append(l.tokens, Token{
-		Type:       tokenType,
-		Value:      value,
-		Position:   pos,
-		HoleConfig: &config,
-	})
+var quantifiers = map[byte]bool{
+	'*': true, '+': true, '?': true,
 }
 
 // isQuantifier checks if a character is a valid quantifier
 func isQuantifier(c byte) bool {
-	return c == '*' || c == '+' || c == '?'
-}
-
-func (l *Lexer) findHoleEnd(isLongForm bool) int {
-	if isLongForm {
-		for i := l.position + 3; i < len(l.input)-1; i++ {
-			if l.input[i] == ']' && l.input[i+1] == ']' {
-				// Check if there's a quantifier after the closing brackets
-				if i+2 < len(l.input) && isQuantifier(l.input[i+2]) {
-					return i + 3
-				}
-				return i + 2
-			}
-		}
-	} else {
-		for i := l.position + 2; i < len(l.input); i++ {
-			if l.input[i] == ']' {
-				// Check if there's a quantifier after the closing bracket
-				if i+1 < len(l.input) && isQuantifier(l.input[i+1]) {
-					return i + 2
-				}
-				return i + 1
-			}
-		}
-	}
-	return -1
+	return quantifiers[c]
 }
 
 // extractHoleName extracts the hole name from a string like ":[name]" or ":[[name]]".

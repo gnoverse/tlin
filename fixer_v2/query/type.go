@@ -26,6 +26,19 @@ type Token struct {
 	HoleConfig *HoleConfig // configuration for hole tokens (nil for non-hole tokens)
 }
 
+func (t *Token) Equal(other Token) bool {
+	if t.Type != other.Type || t.Value != other.Value || t.Position != other.Position {
+		return false
+	}
+	if t.HoleConfig == nil && other.HoleConfig == nil {
+		return true
+	}
+	if t.HoleConfig == nil || other.HoleConfig == nil {
+		return false
+	}
+	return t.HoleConfig.Equal(*other.HoleConfig)
+}
+
 // NodeType defines different node types for AST construction.
 type NodeType int
 
@@ -58,6 +71,7 @@ type PatternNode struct {
 }
 
 func (p *PatternNode) Type() NodeType { return NodePattern }
+
 func (p *PatternNode) String() string {
 	result := fmt.Sprintf("PatternNode(%d children):\n", len(p.Children))
 	for i, child := range p.Children {
@@ -66,6 +80,7 @@ func (p *PatternNode) String() string {
 	}
 	return strings.TrimRight(result, "\n")
 }
+
 func (p *PatternNode) Position() int { return p.pos }
 func (p *PatternNode) Equal(other Node) bool {
 	_, ok := other.(*PatternNode)
@@ -77,6 +92,12 @@ type HoleConfig struct {
 	Type       HoleType
 	Quantifier Quantifier
 	Name       string
+}
+
+func (h *HoleConfig) Equal(other HoleConfig) bool {
+	return h.Name == other.Name &&
+		h.Type == other.Type &&
+		h.Quantifier == other.Quantifier
 }
 
 // HoleNode represents a placeholder in the pattern like :[name] or :[[name]].
