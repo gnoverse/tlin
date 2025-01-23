@@ -4,18 +4,19 @@ import (
 	"fmt"
 )
 
+// hole name -> position (optional usage)
+type holes map[string]int
+
 // Parser is supposed to consume tokens produced by the lexer and build an AST.
 type Parser struct {
 	buffer  *buffer
 	current int
 	tokens  []Token
-	holes   map[string]int // hole name -> position (optional usage)
+	holes   holes
 }
 
 func NewParser() *Parser {
-	return &Parser{
-		holes: make(map[string]int),
-	}
+	return &Parser{holes: make(holes)}
 }
 
 func (p *Parser) Parse(buf *buffer) ([]Node, error) {

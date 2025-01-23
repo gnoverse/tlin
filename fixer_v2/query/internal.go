@@ -1,5 +1,7 @@
 package query
 
+import "unicode"
+
 /*
 State Transition Machine Design Rationale
 
@@ -228,4 +230,9 @@ var identCharTable = [256]bool{
 // Allows: alphanumeric, underscore, and hyphen (comby-specific)
 func isIdentChar(c byte) bool {
 	return identCharTable[c]
+}
+
+// isWhitespace checks if the given byte is a space, tab, newline, etc. using unicode.IsSpace.
+func isWhitespace(c byte) bool {
+	return unicode.IsSpace(rune(c))
 }
