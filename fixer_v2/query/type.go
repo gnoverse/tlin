@@ -107,12 +107,12 @@ func (h *HoleNode) String() string {
 
 func (h *HoleNode) Position() int { return h.pos }
 func (h *HoleNode) Name() string  { return h.Config.Name }
-func (n *HoleNode) Equal(other Node) bool {
+func (h *HoleNode) Equal(other Node) bool {
 	if otherHole, ok := other.(*HoleNode); ok {
-		return n.Config.Name == otherHole.Config.Name &&
-			n.Config.Type == otherHole.Config.Type &&
-			n.Config.Quantifier == otherHole.Config.Quantifier &&
-			n.pos == otherHole.pos
+		return h.Config.Name == otherHole.Config.Name &&
+			h.Config.Type == otherHole.Config.Type &&
+			h.Config.Quantifier == otherHole.Config.Quantifier &&
+			h.pos == otherHole.pos
 	}
 	return false
 }
