@@ -112,20 +112,20 @@ const (
 //  4. TX (text) state allows transitioning back to pattern parsing
 var StateTransitionTable = [14][9]States{
 	//         COLON   LBRACK RBRACK LBRACE RBRACE SPACE  IDENT  QUANT  OTHER
-    /* GO 0*/ { CL,    OB,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
-    /* OK 1*/ { CL,    OB,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
-    /* CL 2*/ { TX,    OB,    ER,    ER,    ER,    ER,    ID,    ER,    ER },
-    /* OB 3*/ { TX,    DB,    ER,    ER,    ER,    ER,    NM,    ER,    ER },
-    /* DB 4*/ { TX,    ER,    ER,    ER,    ER,    ER,    NM,    ER,    ER },
-    /* NM 5*/ { ID,    ER,    CB,    ER,    ER,    ER,    NM,    ER,    ER },
-    /* ID 6*/ { ER,    ER,    CB,    ER,    ER,    ER,    ID,    ER,    ER },
-    /* CB 7*/ { OK,    ER,    QB,    ER,    ER,    WS,    TX,    QT,    ER },
-    /* QB 8*/ { OK,    ER,    ER,    ER,    ER,    WS,    TX,    QT,    ER },
-    /* QT 9*/ { CL,    ER,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
-    /* TX10*/ { CL,    ER,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
-    /* WS11*/ { CL,    ER,    ER,    BR,    BR,    WS,    TX,    ER,    ER },
-    /* BR12*/ { CL,    ER,    ER,    BR,    OK,    WS,    TX,    ER,    ER },
-    /* ER13*/ { ER,    ER,    ER,    ER,    ER,    ER,    ER,    ER,    ER },
+	/* GO 0*/ {CL, OB, ER, BR, BR, WS, TX, ER, ER},
+	/* OK 1*/ {CL, OB, ER, BR, BR, WS, TX, ER, ER},
+	/* CL 2*/ {TX, OB, ER, ER, ER, ER, ID, ER, ER},
+	/* OB 3*/ {TX, DB, ER, ER, ER, ER, NM, ER, ER},
+	/* DB 4*/ {TX, ER, ER, ER, ER, ER, NM, ER, ER},
+	/* NM 5*/ {ID, ER, CB, ER, ER, ER, NM, ER, ER},
+	/* ID 6*/ {ER, ER, CB, ER, ER, ER, ID, ER, ER},
+	/* CB 7*/ {OK, ER, QB, ER, ER, WS, TX, QT, ER},
+	/* QB 8*/ {OK, ER, ER, ER, ER, WS, TX, QT, ER},
+	/* QT 9*/ {CL, ER, ER, BR, BR, WS, TX, ER, ER},
+	/* TX10*/ {CL, OB, CB, BR, BR, WS, TX, QT, ER},
+	/* WS11*/ {CL, ER, ER, BR, BR, WS, TX, ER, ER},
+	/* BR12*/ {CL, ER, ER, BR, OK, WS, TX, ER, ER},
+	/* ER13*/ {ER, ER, ER, ER, ER, ER, ER, ER, ER},
 }
 
 func (c Classes) String() string {
@@ -157,8 +157,8 @@ func (c Classes) String() string {
 type CharClassMode int
 
 const (
-	ModeText CharClassMode = iota 	// normal text mode
-	ModeHole				  		// metavariable hole
+	ModeText CharClassMode = iota // normal text mode
+	ModeHole                      // metavariable hole
 )
 
 // getCharacterClass determines the character class for a given byte
@@ -200,28 +200,28 @@ func getCharacterClass(c byte, mode CharClassMode) Classes {
 
 var identCharTable = [256]bool{
 	// lowercase (a-z)
-    'a': true, 'b': true, 'c': true, 'd': true, 'e': true,
-    'f': true, 'g': true, 'h': true, 'i': true, 'j': true,
-    'k': true, 'l': true, 'm': true, 'n': true, 'o': true,
-    'p': true, 'q': true, 'r': true, 's': true, 't': true,
-    'u': true, 'v': true, 'w': true, 'x': true, 'y': true,
-    'z': true,
-    
+	'a': true, 'b': true, 'c': true, 'd': true, 'e': true,
+	'f': true, 'g': true, 'h': true, 'i': true, 'j': true,
+	'k': true, 'l': true, 'm': true, 'n': true, 'o': true,
+	'p': true, 'q': true, 'r': true, 's': true, 't': true,
+	'u': true, 'v': true, 'w': true, 'x': true, 'y': true,
+	'z': true,
+
 	// uppercase (A-Z)
-    'A': true, 'B': true, 'C': true, 'D': true, 'E': true,
-    'F': true, 'G': true, 'H': true, 'I': true, 'J': true,
-    'K': true, 'L': true, 'M': true, 'N': true, 'O': true,
-    'P': true, 'Q': true, 'R': true, 'S': true, 'T': true,
-    'U': true, 'V': true, 'W': true, 'X': true, 'Y': true,
-    'Z': true,
-    
+	'A': true, 'B': true, 'C': true, 'D': true, 'E': true,
+	'F': true, 'G': true, 'H': true, 'I': true, 'J': true,
+	'K': true, 'L': true, 'M': true, 'N': true, 'O': true,
+	'P': true, 'Q': true, 'R': true, 'S': true, 'T': true,
+	'U': true, 'V': true, 'W': true, 'X': true, 'Y': true,
+	'Z': true,
+
 	// numbers (0-9)
-    '0': true, '1': true, '2': true, '3': true, '4': true,
-    '5': true, '6': true, '7': true, '8': true, '9': true,
+	'0': true, '1': true, '2': true, '3': true, '4': true,
+	'5': true, '6': true, '7': true, '8': true, '9': true,
 
 	// special characters
-    '_': true,
-    '-': true,
+	'_': true,
+	'-': true,
 }
 
 // isIdentChar checks if a character is valid in an identifier

@@ -1,9 +1,7 @@
 package query
 
 import (
-	"errors"
 	"fmt"
-	"io"
 )
 
 // Parser is supposed to consume tokens produced by the lexer and build an AST.
@@ -64,25 +62,22 @@ func (p *Parser) collectTokens() error {
 }
 
 func (p *Parser) nextToken() (Token, error) {
-	state, err := p.buffer.transition()
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return Token{Type: TokenEOF, Position: p.buffer.index}, nil
-		}
-		return Token{}, nil
+	if p.buffer.index >= p.buffer.length {
+		return Token{Type: TokenEOF}, nil
 	}
 
-	switch state {
-	case CL:
+	class := p.buffer.getClass()
+
+	switch class {
+	case C_COLON:
 		return p.scanMetaVariable()
-	case WS:
-		return p.scanWhitespace()
-	case BR:
+
+	case C_LBRACE, C_RBRACE:
 		return p.scanBrace()
-	case TX:
-		return p.scanText()
+
 	default:
-		return Token{}, fmt.Errorf("unexpected state: %v", state)
+		// treat everything else as text (or with WS) for now
+		return p.scanText()
 	}
 }
 
@@ -130,6 +125,10 @@ func (p *Parser) scanText() (Token, error) {
 	text, err := p.buffer.parseText()
 	if err != nil {
 		return Token{}, err
+	}
+
+	if text == "" {
+		return p.nextToken()
 	}
 
 	return Token{

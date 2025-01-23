@@ -332,16 +332,16 @@ func TestBuffer_ParseText(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "text between metavariables",
-			input:   ":[var1]middle:[var2]",
-			want:    "",
-			wantErr: true,
+			name:    "if cond with metavariable",
+			input:   "if :[cond] {}",
+			want:    "if ",
+			wantErr: false,
 		},
 		{
 			name:    "empty input",
 			input:   "",
 			want:    "",
-			wantErr: true,
+			wantErr: false,
 		},
 	}
 

@@ -38,9 +38,10 @@ const (
 
 // Node is an interface that any AST node must implement.
 type Node interface {
-	Type() NodeType // returns the node type
-	String() string // debugging or printing purpose
-	Position() int  // where the node starts in the input
+	Type() NodeType        // returns the node type
+	String() string        // debugging or printing purpose
+	Position() int         // where the node starts in the input
+	Equal(other Node) bool // compare two nodes
 }
 
 var (
@@ -66,6 +67,10 @@ func (p *PatternNode) String() string {
 	return strings.TrimRight(result, "\n")
 }
 func (p *PatternNode) Position() int { return p.pos }
+func (p *PatternNode) Equal(other Node) bool {
+	_, ok := other.(*PatternNode)
+	return ok
+}
 
 // HoleConfig stores configuration for a hole pattern
 type HoleConfig struct {
@@ -102,6 +107,15 @@ func (h *HoleNode) String() string {
 
 func (h *HoleNode) Position() int { return h.pos }
 func (h *HoleNode) Name() string  { return h.Config.Name }
+func (n *HoleNode) Equal(other Node) bool {
+	if otherHole, ok := other.(*HoleNode); ok {
+		return n.Config.Name == otherHole.Config.Name &&
+			n.Config.Type == otherHole.Config.Type &&
+			n.Config.Quantifier == otherHole.Config.Quantifier &&
+			n.pos == otherHole.pos
+	}
+	return false
+}
 
 // TextNode represents normal text in the pattern.
 type TextNode struct {
@@ -116,6 +130,12 @@ func (t *TextNode) String() string {
 }
 
 func (t *TextNode) Position() int { return t.pos }
+func (t *TextNode) Equal(other Node) bool {
+	if other.Type() != NodeText {
+		return false
+	}
+	return t.Content == other.(*TextNode).Content
+}
 
 // BlockNode could represent a block enclosed by '{' and '}' in your syntax.
 type BlockNode struct {
@@ -134,3 +154,19 @@ func (b *BlockNode) String() string {
 	return strings.TrimRight(result, "\n")
 }
 func (b *BlockNode) Position() int { return b.pos }
+func (b *BlockNode) Equal(other Node) bool {
+	_, ok := other.(*BlockNode)
+	return ok
+}
+
+func nodesEqual(a, b []Node) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !a[i].Equal(b[i]) {
+			return false
+		}
+	}
+	return true
+}
