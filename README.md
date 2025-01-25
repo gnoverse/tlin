@@ -108,37 +108,23 @@ Our linter allows addition of custom lint rules beyond the default golangci-lint
 
 4. Once the RFC is approved, proceed with the implementation:
 
-   a. Implement the `LintRule` interface for your new rule:
+   a. Create a new variable of type `LintRule` for your new rule:
 
    ```go
-   type NewRule struct{}
+   NewRule = LintRule{severity: tt.SeverityWarning, check: lints.RunNewRule}
 
-   func (r *NewRule) Check(filename string, node *ast.File) ([]types.Issue, error) {
+   func RunNewRule(filename string,  node *ast.File, fset *token.FileSet, severity tt.Severity) ([]types.Issue, error) {
        // Implement your lint rule logic here
        // return a slice of Issues and any error encountered
    }
    ```
 
-   b. Register your new rule in the `registerAllRules` and maybe `registerDefaultRules` method of the `Engine` struct in `internal/engine.go`:
+   b. Add your rule to `allRules` mapping:
 
    ```go
-   func (e *Engine) registerDefaultRules() {
-       e.rules = append(e.rules,
-           &GolangciLintRule{},
-           // ...
-           &NewRule{}, // Add your new rule here
-       )
-   }
-   ```
-
-   ```go
-   func (e *Engine) registerAllRules() {
-       e.rules = append(e.rules,
-           &GolangciLintRule{},
-           // ...
-           &NewRule{}, // Add your new rule here
-       )
-   }
+   var allRules = ruleMap{
+	"new-rule":               NewRule,
+    }
    ```
 
 5. (Optional) If your rule requires special formatting, create a new formatter in the `formatter` package:
