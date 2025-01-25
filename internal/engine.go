@@ -40,9 +40,9 @@ func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 		if !ok {
 			newRule, exists := allRules[key]
 			if !exists {
-                // Unknown rule, continue to the next one
-                continue
-            }
+				// Unknown rule, continue to the next one
+				continue
+			}
 			newRule.SetSeverity(rule.Severity)
 			e.rules[key] = newRule
 		} else {
