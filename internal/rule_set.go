@@ -9,342 +9,64 @@ import (
 )
 
 /*
-* Implement each lint rule as a separate struct
+* Implement each lint rule as a a new LintRule struct.
  */
 
-// LintRule defines the interface for all lint rules.
-type LintRule interface {
-	// Check runs the lint rule on the given file and returns a slice of Issues.
-	Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error)
-
-	// Name returns the name of the lint rule.
-	Name() string
-
-	// Severity returns the severity of the lint rule.
-	Severity() tt.Severity
-
-	// SetSeverity sets the severity of the lint rule.
-	SetSeverity(tt.Severity)
+// LintRule defines the struct for all lint rules.
+type LintRule struct {
+	severity      tt.Severity
+	check 	   	  func(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error)
+	name		  string
 }
 
-type GolangciLintRule struct {
-	severity tt.Severity
-}
-
-func NewGolangciLintRule() LintRule {
-	return &GolangciLintRule{
-		severity: tt.SeverityWarning,
-	}
-}
-
-func (r *GolangciLintRule) Check(filename string, _ *ast.File, _ *token.FileSet) ([]tt.Issue, error) {
-	return lints.RunGolangciLint(filename, r.severity)
-}
-
-func (r *GolangciLintRule) Name() string {
-	return "golangci-lint"
-}
-
-func (r *GolangciLintRule) Severity() tt.Severity {
-	return r.severity
-}
-
-func (r *GolangciLintRule) SetSeverity(severity tt.Severity) {
+func (r LintRule) SetSeverity(severity tt.Severity) {
 	r.severity = severity
 }
 
-type SimplifySliceExprRule struct {
-	severity tt.Severity
-}
-
-func NewSimplifySliceExprRule() LintRule {
-	return &SimplifySliceExprRule{
-		severity: tt.SeverityError,
-	}
-}
-
-func (r *SimplifySliceExprRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectUnnecessarySliceLength(filename, node, fset, r.severity)
-}
-
-func (r *SimplifySliceExprRule) Name() string {
-	return "simplify-slice-range"
-}
-
-func (r *SimplifySliceExprRule) Severity() tt.Severity {
+func (r LintRule) Severity() tt.Severity {
 	return r.severity
 }
 
-func (r *SimplifySliceExprRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
+func (r LintRule) SetName(name string) {
+	r.name = name
 }
 
-type UnnecessaryConversionRule struct {
-	severity tt.Severity
+func (r LintRule) Name() string {
+	return r.name
 }
 
-func NewUnnecessaryConversionRule() LintRule {
-	return &UnnecessaryConversionRule{
-		severity: tt.SeverityWarning,
-	}
+func (r LintRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
+	return r.check(filename, node, fset, r.severity)
 }
 
-func (r *UnnecessaryConversionRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectUnnecessaryConversions(filename, node, fset, r.severity)
-}
+var (
+	GolangciLintRule = LintRule{severity: tt.SeverityWarning, check: lints.RunGolangciLint}
+	SimplifySliceExprRule = LintRule{severity: tt.SeverityError, check: lints.DetectUnnecessarySliceLength}
+	UnnecessaryConversionRule = LintRule{severity: tt.SeverityWarning, check: lints.DetectUnnecessaryConversions}
+	DetectCycleRule = LintRule{severity: tt.SeverityError, check: lints.DetectCycle}
+	EmitFormatRule = LintRule{severity: tt.SeverityInfo, check: lints.DetectEmitFormat}
+	UselessBreakRule = LintRule{severity: tt.SeverityError, check: lints.DetectUselessBreak}
+	EarlyReturnOpportunityRule = LintRule{severity: tt.SeverityInfo, check: lints.DetectEarlyReturnOpportunities}
+	DeferRule = LintRule{severity: tt.SeverityWarning, check: lints.DetectDeferIssues}
+	ConstErrorDeclarationRule = LintRule{severity: tt.SeverityError, check: lints.DetectConstErrorDeclaration}
+	RepeatedRegexCompilationRule = LintRule{severity: tt.SeverityWarning, check: lints.DetectRepeatedRegexCompilation}
+	GnoSpecificRule = LintRule{severity: tt.SeverityWarning, check: lints.DetectGnoPackageImports}
+)
 
-func (r *UnnecessaryConversionRule) Name() string {
-	return "unnecessary-type-conversion"
-}
+// Define the ruleMap type
+type ruleMap map[string]LintRule
 
-func (r *UnnecessaryConversionRule) Severity() tt.Severity {
-	return r.severity
-}
-
-func (r *UnnecessaryConversionRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
-}
-
-type DetectCycleRule struct {
-	severity tt.Severity
-}
-
-func NewDetectCycleRule() LintRule {
-	return &DetectCycleRule{
-		severity: tt.SeverityError, // TODO
-	}
-}
-
-func (r *DetectCycleRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectCycle(filename, node, fset, r.severity)
-}
-
-func (r *DetectCycleRule) Name() string {
-	return "cycle-detection"
-}
-
-func (r *DetectCycleRule) Severity() tt.Severity {
-	return r.severity
-}
-
-func (r *DetectCycleRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
-}
-
-type EmitFormatRule struct {
-	severity tt.Severity
-}
-
-func NewEmitFormatRule() LintRule {
-	return &EmitFormatRule{
-		severity: tt.SeverityInfo,
-	}
-}
-
-func (r *EmitFormatRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectEmitFormat(filename, node, fset, r.severity)
-}
-
-func (r *EmitFormatRule) Name() string {
-	return "emit-format"
-}
-
-func (r *EmitFormatRule) Severity() tt.Severity {
-	return r.severity
-}
-
-func (r *EmitFormatRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
-}
-
-type UselessBreakRule struct {
-	severity tt.Severity
-}
-
-func NewUselessBreakRule() LintRule {
-	return &UselessBreakRule{
-		severity: tt.SeverityError,
-	}
-}
-
-func (r *UselessBreakRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectUselessBreak(filename, node, fset, r.severity)
-}
-
-func (r *UselessBreakRule) Name() string {
-	return "useless-break"
-}
-
-func (r *UselessBreakRule) Severity() tt.Severity {
-	return r.severity
-}
-
-func (r *UselessBreakRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
-}
-
-type EarlyReturnOpportunityRule struct {
-	severity tt.Severity
-}
-
-func NewEarlyReturnOpportunityRule() LintRule {
-	return &EarlyReturnOpportunityRule{
-		severity: tt.SeverityInfo,
-	}
-}
-
-func (r *EarlyReturnOpportunityRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectEarlyReturnOpportunities(filename, node, fset, r.severity)
-}
-
-func (r *EarlyReturnOpportunityRule) Name() string {
-	return "early-return-opportunity"
-}
-
-func (r *EarlyReturnOpportunityRule) Severity() tt.Severity {
-	return r.severity
-}
-
-func (r *EarlyReturnOpportunityRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
-}
-
-type DeferRule struct {
-	severity tt.Severity
-}
-
-func NewDeferRule() LintRule {
-	return &DeferRule{
-		severity: tt.SeverityWarning,
-	}
-}
-
-func (r *DeferRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectDeferIssues(filename, node, fset, r.severity)
-}
-
-func (r *DeferRule) Name() string {
-	return "defer-issues"
-}
-
-func (r *DeferRule) Severity() tt.Severity {
-	return r.severity
-}
-
-func (r *DeferRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
-}
-
-type ConstErrorDeclarationRule struct {
-	severity tt.Severity
-}
-
-func NewConstErrorDeclarationRule() LintRule {
-	return &ConstErrorDeclarationRule{
-		severity: tt.SeverityError,
-	}
-}
-
-func (r *ConstErrorDeclarationRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectConstErrorDeclaration(filename, node, fset, r.severity)
-}
-
-func (r *ConstErrorDeclarationRule) Name() string {
-	return "const-error-declaration"
-}
-
-func (r *ConstErrorDeclarationRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
-}
-
-func (r *ConstErrorDeclarationRule) Severity() tt.Severity {
-	return r.severity
-}
-
-// -----------------------------------------------------------------------------
-// Regex related rules
-
-type RepeatedRegexCompilationRule struct {
-	severity tt.Severity
-}
-
-func NewRepeatedRegexCompilationRule() LintRule {
-	return &RepeatedRegexCompilationRule{
-		severity: tt.SeverityWarning,
-	}
-}
-
-func (r *RepeatedRegexCompilationRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectRepeatedRegexCompilation(filename, node, r.severity)
-}
-
-func (r *RepeatedRegexCompilationRule) Name() string {
-	return "repeated-regex-compilation"
-}
-
-func (r *RepeatedRegexCompilationRule) Severity() tt.Severity {
-	return r.severity
-}
-
-func (r *RepeatedRegexCompilationRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
-}
-
-// -----------------------------------------------------------------------------
-
-type CyclomaticComplexityRule struct {
-	Threshold int
-	severity  tt.Severity
-}
-
-func NewCyclomaticComplexityRule(threshold int) LintRule {
-	return &CyclomaticComplexityRule{
-		Threshold: threshold,
-		severity:  tt.SeverityError,
-	}
-}
-
-func (r *CyclomaticComplexityRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectHighCyclomaticComplexity(filename, r.Threshold, r.severity)
-}
-
-func (r *CyclomaticComplexityRule) Name() string {
-	return "high-cyclomatic-complexity"
-}
-
-func (r *CyclomaticComplexityRule) Severity() tt.Severity {
-	return r.severity
-}
-
-func (r *CyclomaticComplexityRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
-}
-
-// -----------------------------------------------------------------------------
-
-// GnoSpecificRule checks for gno-specific package imports. (p, r and std)
-type GnoSpecificRule struct {
-	severity tt.Severity
-}
-
-func NewGnoSpecificRule() LintRule {
-	return &GnoSpecificRule{
-		severity: tt.SeverityWarning,
-	}
-}
-
-func (r *GnoSpecificRule) Check(filename string, _ *ast.File, _ *token.FileSet) ([]tt.Issue, error) {
-	return lints.DetectGnoPackageImports(filename, r.severity)
-}
-
-func (r *GnoSpecificRule) Name() string {
-	return "unused-package"
-}
-
-func (r *GnoSpecificRule) Severity() tt.Severity {
-	return r.severity
-}
-
-func (r *GnoSpecificRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
+// Create a map to hold the mappings of rule names to LintRule structs
+var allRules = ruleMap{
+	"golangci-lint":               GolangciLintRule,
+	"simplify-slice-range":        SimplifySliceExprRule,
+	"unnecessary-type-conversion": UnnecessaryConversionRule,
+	"cycle-detection":             DetectCycleRule,
+	"emit-format":                 EmitFormatRule,
+	"useless-break":               UselessBreakRule,
+	"early-return-opportunity":    EarlyReturnOpportunityRule,
+	"defer-issues":                DeferRule,
+	"const-error-declaration":     ConstErrorDeclarationRule,
+	"repeated-regex-compilation":  RepeatedRegexCompilationRule,
+	"unused-package":              GnoSpecificRule,
 }

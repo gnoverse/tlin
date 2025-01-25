@@ -25,7 +25,7 @@ type Dependency struct {
 
 type Dependencies map[string]*Dependency
 
-func DetectGnoPackageImports(filename string, severity tt.Severity) ([]tt.Issue, error) {
+func DetectGnoPackageImports(filename string, _ *ast.File, _ *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	file, deps, err := analyzeFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("error analyzing file: %w", err)

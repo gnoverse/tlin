@@ -86,7 +86,7 @@ func multipleRepeats() {
 			node, err := parser.ParseFile(fset, tempFile, nil, parser.ParseComments)
 			require.NoError(t, err)
 
-			issues, err := DetectRepeatedRegexCompilation(tempFile, node, types.SeverityError)
+			issues, err := DetectRepeatedRegexCompilation(tempFile, node, fset, types.SeverityError)
 			require.NoError(t, err)
 
 			assert.Len(t, issues, tt.expected)
