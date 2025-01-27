@@ -11,9 +11,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
-	"sync"
 
 	tt "github.com/gnolang/tlin/internal/types"
 	"github.com/gnolang/tlin/lint"
@@ -385,19 +385,19 @@ func createTempFileWithContent(t *testing.T, content string) string {
 var mu sync.Mutex
 
 func captureOutput(t *testing.T, f func()) string {
-    t.Helper()
-    mu.Lock()
-    defer mu.Unlock()
+	t.Helper()
+	mu.Lock()
+	defer mu.Unlock()
 
-    oldStdout := os.Stdout
-    r, w, _ := os.Pipe()
-    os.Stdout = w
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
 
-    f()
+	f()
 
-    w.Close()
-    os.Stdout = oldStdout
-    var buf bytes.Buffer
-    io.Copy(&buf, r)
-    return buf.String()
+	w.Close()
+	os.Stdout = oldStdout
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	return buf.String()
 }
