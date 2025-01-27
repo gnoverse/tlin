@@ -381,17 +381,22 @@ func createTempFileWithContent(t *testing.T, content string) string {
 	return tempFile.Name()
 }
 
+var mu sync.Mutex
+
 func captureOutput(t *testing.T, f func()) string {
-	t.Helper()
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+    t.Helper()
+    mu.Lock()
+    defer mu.Unlock()
 
-	f()
+    oldStdout := os.Stdout
+    r, w, _ := os.Pipe()
+    os.Stdout = w
 
-	w.Close()
-	os.Stdout = oldStdout
-	var buf bytes.Buffer
-	io.Copy(&buf, r)
-	return buf.String()
+    f()
+
+    w.Close()
+    os.Stdout = oldStdout
+    var buf bytes.Buffer
+    io.Copy(&buf, r)
+    return buf.String()
 }
