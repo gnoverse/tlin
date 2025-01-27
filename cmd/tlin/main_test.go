@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"sync"
 
 	tt "github.com/gnolang/tlin/internal/types"
 	"github.com/gnolang/tlin/lint"
