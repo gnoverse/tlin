@@ -15,7 +15,7 @@ var RepeatedRegexCompilationAnalyzer = &analysis.Analyzer{
 	Run:  runRepeatedRegexCompilation,
 }
 
-func DetectRepeatedRegexCompilation(filename string, node *ast.File, severity tt.Severity) ([]tt.Issue, error) {
+func DetectRepeatedRegexCompilation(filename string, node *ast.File, _ *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	imports := extractImports(node, func(path string) bool {
 		return path == "regexp"
 	})

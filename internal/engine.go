@@ -30,41 +30,19 @@ func NewEngine(rootDir string, source []byte, rules map[string]tt.ConfigRule) (*
 	return engine, nil
 }
 
-// Define the ruleConstructor type
-type ruleConstructor func() LintRule
-
-// Define the ruleMap type
-type ruleMap map[string]ruleConstructor
-
-// Create a map to hold the mappings of rule names to their constructors
-var allRuleConstructors = ruleMap{
-	"golangci-lint":               NewGolangciLintRule,
-	"early-return-opportunity":    NewEarlyReturnOpportunityRule,
-	"simplify-slice-range":        NewSimplifySliceExprRule,
-	"unnecessary-type-conversion": NewUnnecessaryConversionRule,
-	"emit-format":                 NewEmitFormatRule,
-	"cycle-detection":             NewDetectCycleRule,
-	"unused-package":              NewGnoSpecificRule,
-	"repeated-regex-compilation":  NewRepeatedRegexCompilationRule,
-	"useless-break":               NewUselessBreakRule,
-	"defer-issues":                NewDeferRule,
-	"const-error-declaration":     NewConstErrorDeclarationRule,
-}
-
 func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 	e.rules = make(map[string]LintRule)
 	e.registerDefaultRules()
 
 	// Iterate over the rules and apply severity
 	for key, rule := range rules {
-		r := e.findRule(key)
-		if r == nil {
-			newRuleCstr := allRuleConstructors[key]
-			if newRuleCstr == nil {
+		r, ok := e.findRule(key)
+		if !ok {
+			newRule, exists := allRules[key]
+			if !exists {
 				// Unknown rule, continue to the next one
 				continue
 			}
-			newRule := newRuleCstr()
 			newRule.SetSeverity(rule.Severity)
 			e.rules[key] = newRule
 		} else {
@@ -77,28 +55,22 @@ func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 }
 
 func (e *Engine) registerDefaultRules() {
-	// iterate over allRuleConstructors and add them to the rules map if severity is not off
-	for key, newRuleCstr := range allRuleConstructors {
-		newRule := newRuleCstr()
+	// iterate over allRules and add them to the rules map if severity is not off
+	for key, newRule := range allRules {
 		if newRule.Severity() != tt.SeverityOff {
+			newRule.SetName(key)
 			e.rules[key] = newRule
 		}
 	}
 }
 
-func (e *Engine) findRule(name string) LintRule {
-	if rule, ok := e.rules[name]; ok {
-		return rule
-	}
-	return nil
+func (e *Engine) findRule(name string) (LintRule, bool) {
+	rule, exists := e.rules[name]
+	return rule, exists
 }
 
 // Run applies all lint rules to the given file and returns a slice of Issues.
 func (e *Engine) Run(filename string) ([]tt.Issue, error) {
-	if strings.HasSuffix(filename, ".mod") {
-		return e.runModCheck(filename)
-	}
-
 	tempFile, err := e.prepareFile(filename)
 	if err != nil {
 		return nil, err
@@ -202,23 +174,6 @@ func (e *Engine) prepareFile(filename string) (string, error) {
 		return createTempGoFile(filename)
 	}
 	return filename, nil
-}
-
-func (e *Engine) runModCheck(filename string) ([]tt.Issue, error) {
-	var allIssues []tt.Issue
-	for _, rule := range e.rules {
-		if e.ignoredRules[rule.Name()] {
-			continue
-		}
-		if modRule, ok := rule.(ModRule); ok {
-			issues, err := modRule.CheckMod(filename)
-			if err != nil {
-				return nil, fmt.Errorf("error checking .mod file: %w", err)
-			}
-			allIssues = append(allIssues, issues...)
-		}
-	}
-	return allIssues, nil
 }
 
 func (e *Engine) cleanupTemp(temp string) {

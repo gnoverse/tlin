@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -381,8 +382,13 @@ func createTempFileWithContent(t *testing.T, content string) string {
 	return tempFile.Name()
 }
 
+var mu sync.Mutex
+
 func captureOutput(t *testing.T, f func()) string {
 	t.Helper()
+	mu.Lock()
+	defer mu.Unlock()
+
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
