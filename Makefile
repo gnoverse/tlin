@@ -63,6 +63,6 @@ lint:
 	golangci-lint run
 
 fmt:
-	find . -name "*.go" ! -path "./fixer_v2/query/internal.go" -exec go fmt {} \;
+	find . -name "*.go" -exec go fmt {} \;
 
 .PHONY: all build test clean run deps build-linux build-windows build-mac build-all install-linter lint
