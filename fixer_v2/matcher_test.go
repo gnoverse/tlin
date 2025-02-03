@@ -99,7 +99,9 @@ func TestMatchHelper(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tokens, err := Lex(tt.patternStr)
 			if err != nil {
 				t.Fatalf("lex error for pattern %q: %v", tt.patternStr, err)
@@ -130,6 +132,7 @@ func TestMatchHelper(t *testing.T) {
 }
 
 func TestMatcher(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		patternStr     string
@@ -176,6 +179,7 @@ func TestMatcher(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			patternTokens, err := Lex(tt.patternStr)
 			if err != nil {
 				t.Fatalf("pattern lex error: %v", err)
