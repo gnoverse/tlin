@@ -161,7 +161,6 @@ func TestReplacer(t *testing.T) {
 			}
 
 			repl := NewReplacer(patternNodes, replacementNodes)
-			// result := ReplaceAll(patternNodes, replacementNodes, tt.subjectStr)
 			result := repl.ReplaceAll(tt.subjectStr)
 
 			if result != tt.expected {
