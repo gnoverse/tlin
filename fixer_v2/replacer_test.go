@@ -126,7 +126,7 @@ func TestReplacer(t *testing.T) {
 			expected:       "for i := range items {\n    switch {\n    case items[i].Valid:\n        process(items[i])\n    }\n}",
 		},
 		// TODO (@notJoon): If capacity is not provided, it will be replaced with an empty string (ex: make([]int, 0, )).
-		// To solve this, we need add an arbitary default value like I did here, or analyze the context
+		// To solve this, we need add an arbitrary default value like I did here, or analyze the context
 		// to find an appropriate value from other lines of code.
 		// The context must be located in the same or higher scope and should be bounded by the lines
 		// proceeding the current line.
