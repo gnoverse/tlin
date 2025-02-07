@@ -83,10 +83,10 @@ func main() {
 		line     int
 		expected bool
 	}{
-		{"anyrule", 5, true},  // Line 5 is covered by nolint without rules
+		{"anyrule", 5, true},  // Line 5 is covered by nolint (from comment on line 4)
 		{"anyrule", 6, false}, // Line 6 is not covered
-		{"rule1", 7, true},    // Line 7 is covered by nolint:rule1
-		{"rule2", 9, true},    // Line 9 is covered by nolint:rule2
+		{"rule1", 7, true},    // Line 7 is covered by nolint:rule1 (inline)
+		{"rule2", 9, true},    // Line 9 is covered by nolint:rule2 (from comment on line 8)
 		{"rule3", 9, false},   // Line 9 is not covered for rule3
 	}
 
