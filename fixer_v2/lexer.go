@@ -170,7 +170,8 @@ func Lex(input string) ([]Token, error) {
 }
 
 func isIdentifierStart(c byte) bool {
-	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_'
+	// TODO: add colon for boilerplate. need to update the lexing logic.
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_' || c == ':'
 }
 
 func isIdentifierChar(c byte) bool {
