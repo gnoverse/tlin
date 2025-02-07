@@ -19,16 +19,8 @@ type LintRule struct {
 	name     string
 }
 
-func (r LintRule) SetSeverity(severity tt.Severity) {
-	r.severity = severity
-}
-
 func (r LintRule) Severity() tt.Severity {
 	return r.severity
-}
-
-func (r LintRule) SetName(name string) {
-	r.name = name
 }
 
 func (r LintRule) Name() string {

@@ -43,13 +43,14 @@ func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 				// Unknown rule, continue to the next one
 				continue
 			}
-			newRule.SetSeverity(rule.Severity)
+			newRule.severity = rule.Severity
 			e.rules[key] = newRule
 		} else {
 			if rule.Severity == tt.SeverityOff {
 				e.IgnoreRule(key)
 			}
-			r.SetSeverity(rule.Severity)
+			r.severity = rule.Severity
+			e.rules[key] = r
 		}
 	}
 }
@@ -58,7 +59,7 @@ func (e *Engine) registerDefaultRules() {
 	// iterate over allRules and add them to the rules map if severity is not off
 	for key, newRule := range allRules {
 		if newRule.Severity() != tt.SeverityOff {
-			newRule.SetName(key)
+			newRule.name = key
 			e.rules[key] = newRule
 		}
 	}
