@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"reflect"
 	"strings"
 )
 
@@ -13,7 +14,7 @@ import (
 type ASTMatchKind int
 
 const (
-	MatchAny ASTMatchKind = iota
+	MatchAny ASTMatchKind = iota + 1
 	MatchExact
 	MatchType
 	MatchScope
@@ -81,18 +82,21 @@ func matchAST(pattern ASTMetaVariableNode, node ast.Node, config Config) bool {
 }
 
 func matchExactAST(pattern ASTMetaVariableNode, node ast.Node) bool {
-	switch pattern.ASTKind.(type) {
-	case *ast.BasicLit:
-		_, ok := node.(ast.Expr)
-		return ok
-	case *ast.CallExpr:
-		_, ok := node.(*ast.CallExpr)
-		return ok
-	case *ast.Ident:
-		_, ok := node.(*ast.Ident)
-		return ok
+	if !isSameNodeType(pattern.ASTKind, node) {
+		return false
 	}
-	return false
+
+	switch p := pattern.ASTKind.(type) {
+	case *ast.BinaryExpr:
+		if n, ok := node.(*ast.BinaryExpr); ok {
+			return p.Op == n.Op
+		}
+	case *ast.CallExpr:
+		if n, ok := node.(*ast.CallExpr); ok {
+			return len(p.Args) == len(n.Args)
+		}
+	}
+	return true
 }
 
 func matchTypeInfo(pattern ASTMetaVariableNode, node ast.Node, config Config) bool {
@@ -216,20 +220,77 @@ func matcherWithAST(nodes []Node, pIdx int, subject string, sIdx int, captures m
 	}
 }
 
-// findASTNodeAtPos locates AST node at given position
+// findASTNodeAtPos locates AST node at given position.
+// It traverses the AST and returns the most specific node that contains the position.
+// If no specific node type (AssignStmt, FuncDecl, ExprStmt) is found,
+// it returns the closest ancestor node from the traversal stack.
 func findASTNodeAtPos(pos token.Pos, root *ast.File) ast.Node {
-	var result ast.Node
+	var (
+		result ast.Node
+		stack  = make([]ast.Node, 0)
+	)
+
 	ast.Inspect(root, func(n ast.Node) bool {
 		if n == nil {
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1] // pop
+			}
 			return true
 		}
+
+		// manage stack before position check here,
+		// to ensuer parent nodes are stacked properly.
+		stack = append(stack, n)
+
+		// check if current node contains the position
 		if n.Pos() <= pos && pos <= n.End() {
-			result = n
+			switch n.(type) {
+			case *ast.AssignStmt, *ast.FuncDecl, *ast.ExprStmt:
+				result = n
+			}
+			// continue traversal to find most specific node
 			return true
 		}
+
+		// remove node from stack if it doesn't contain the position
+		stack = stack[:len(stack)-1]
 		return true
 	})
+
+	// return closest ancestor from stack, if no target type was found
+	if result == nil && len(stack) > 0 {
+		result = stack[len(stack)-1]
+	}
+
 	return result
+}
+
+func isSameNodeType(pattern, node ast.Node) bool {
+	if pattern == nil || node == nil {
+		return false
+	}
+
+	patternT := reflect.TypeOf(pattern)
+	nodeT := reflect.TypeOf(node)
+
+	if isIdentType[ast.Expr](pattern, node) ||
+		isIdentType[ast.Stmt](pattern, node) ||
+		isIdentType[ast.Decl](pattern, node) {
+		return true
+	}
+	return patternT == nodeT
+}
+
+func isType[T any](node ast.Node) bool {
+	_, ok := node.(T)
+	return ok
+}
+
+func isIdentType[T any](pattern, node ast.Node) bool {
+	if isType[T](pattern) {
+		return isType[T](node)
+	}
+	return false
 }
 
 // ExtendedMatch performs both text and AST-based matching
