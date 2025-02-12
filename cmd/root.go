@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -16,38 +15,29 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "tlin",
-	Short: "tlin is a linter for Gno code",
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		var err error
-		logger, err = zap.NewProduction()
-		if err != nil {
-			return err
+	Use:              "tlin [paths...]",
+	Short:            "tlin - a powerful linting tool with multiple subcommands",
+	TraverseChildren: true, // Prioritize subcommands
+	Run: func(cmd *cobra.Command, args []string) {
+		// no subcommand
+		if len(args) == 0 {
+			// display help when only 'tlin' is entered
+			_ = cmd.Help()
+			return
 		}
-		return nil
-	},
-	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		if logger != nil {
-			logger.Sync()
-		}
+		// Format: tlin [path1 path2 ...] => behaves like the lint subcommand
+		lintCmd.Run(lintCmd, args)
 	},
 }
 
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
-	}
+func Execute() error {
+	return rootCmd.Execute()
 }
 
 func init() {
-	// global flags for the root command
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", ".tlin.yaml", "Path to the linter configuration file")
-	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 5*time.Minute, "Set a timeout for the linter")
-
-	// register subcommands
 	rootCmd.AddCommand(initCmd)
+	rootCmd.AddCommand(lintCmd)
+	rootCmd.AddCommand(fixCmd)
 	rootCmd.AddCommand(cfgCmd)
 	rootCmd.AddCommand(cycloCmd)
-	rootCmd.AddCommand(fixCmd)
-	rootCmd.AddCommand(lintCmd)
 }

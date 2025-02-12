@@ -3,14 +3,15 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"github.com/gnolang/tlin/internal/analysis/cfg"
-	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
 	"strings"
+
+	"github.com/gnolang/tlin/internal/analysis/cfg"
+	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 // variable for flags

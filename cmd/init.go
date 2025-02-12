@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-
 	"os"
 
 	tt "github.com/gnolang/tlin/internal/types"
