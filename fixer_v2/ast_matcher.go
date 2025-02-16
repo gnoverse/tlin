@@ -168,7 +168,7 @@ func PrepareASTMatching(filename string, src string) (*Config, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, filename, src, parser.ParseComments)
 	if err != nil {
-		return nil, fmt.Errorf("parse error: %v", err)
+		return nil, fmt.Errorf("parse error: %w", err)
 	}
 
 	conf := types.Config{
@@ -184,7 +184,7 @@ func PrepareASTMatching(filename string, src string) (*Config, error) {
 
 	pkg, err := conf.Check("", fset, []*ast.File{file}, info)
 	if err != nil {
-		return nil, fmt.Errorf("type check error: %v", err)
+		return nil, fmt.Errorf("type check error: %w", err)
 	}
 
 	return &Config{
