@@ -3,6 +3,7 @@ package fixerv2
 import (
 	"fmt"
 	"go/ast"
+	"go/importer"
 	"go/parser"
 	"go/token"
 	"go/types"
@@ -14,7 +15,8 @@ import (
 type ASTMatchKind int
 
 const (
-	MatchAny ASTMatchKind = iota + 1
+	_ ASTMatchKind = iota
+	MatchAny
 	MatchExact
 	MatchType
 	MatchScope
@@ -28,11 +30,14 @@ type ASTMetaVariableNode struct {
 	ASTKind  ast.Node
 }
 
-// ParseTypeHint parses type hints from metavariable names
-// e.g., "expr:expression" -> (expr, expression)
+// parseTypeHint splits a metavariable name by the first colon (if any).
+//
+//	"expr:expression" → ("expr", "expression")
+//	"call:call_expr"  → ("call", "call_expr")
+//	"foo"             → ("foo", "")
 func parseTypeHint(name string) (string, string) {
-	parts := strings.Split(name, ":")
-	if len(parts) != 2 {
+	parts := strings.SplitN(name, ":", 2)
+	if len(parts) < 2 {
 		return name, ""
 	}
 	return parts[0], parts[1]
@@ -41,7 +46,7 @@ func parseTypeHint(name string) (string, string) {
 // determineMatchKind converts type hint to ASTMatchKind
 func determineMatchKind(hint string) ASTMatchKind {
 	switch hint {
-	case "expression":
+	case "expression", "call_expr":
 		return MatchExact
 	case "type":
 		return MatchType
@@ -53,10 +58,10 @@ func determineMatchKind(hint string) ASTMatchKind {
 }
 
 // findMatchingASTNode locates corresponding AST node for type hint
-func findMatchingASTNode(hint string, file *ast.File) ast.Node {
+func findMatchingASTNode(hint string) ast.Node {
 	switch hint {
 	case "expression":
-		return &ast.BasicLit{}
+		return nil // allow all ast.Expr
 	case "call_expr":
 		return &ast.CallExpr{}
 	case "ident":
@@ -81,7 +86,15 @@ func matchAST(pattern ASTMetaVariableNode, node ast.Node, config Config) bool {
 	return false
 }
 
+// matchExactAST determines if the given node matches the exact type or shape
+// specified by pattern.ASTKind. When ASTKind is nil, it is interpreted as
+// "any ast.Expr" (typically used when the hint is 'expression').
 func matchExactAST(pattern ASTMetaVariableNode, node ast.Node) bool {
+	// accept any kind of expression
+	if pattern.ASTKind == nil {
+		return isType[ast.Expr](node)
+	}
+
 	if !isSameNodeType(pattern.ASTKind, node) {
 		return false
 	}
@@ -91,12 +104,22 @@ func matchExactAST(pattern ASTMetaVariableNode, node ast.Node) bool {
 		if n, ok := node.(*ast.BinaryExpr); ok {
 			return p.Op == n.Op
 		}
+		return false
+
 	case *ast.CallExpr:
+		// parameter count check
 		if n, ok := node.(*ast.CallExpr); ok {
-			return len(p.Args) == len(n.Args)
+			if len(p.Args) > 0 {
+				return len(p.Args) == len(n.Args)
+			}
+			return true
 		}
+		return false
+
+	default:
+		// For all other types, type match is sufficient
+		return true
 	}
-	return true
 }
 
 func matchTypeInfo(pattern ASTMetaVariableNode, node ast.Node, config Config) bool {
@@ -104,31 +127,38 @@ func matchTypeInfo(pattern ASTMetaVariableNode, node ast.Node, config Config) bo
 		return false
 	}
 
+	patIdent, ok := pattern.ASTKind.(*ast.Ident)
+	if !ok {
+		return false
+	}
+
 	ident, ok := node.(*ast.Ident)
 	if !ok {
 		return false
 	}
 
-	if obj := config.TypeInfo.ObjectOf(ident); obj != nil {
-		if pattern.TypeInfo != nil {
-			return types.Identical(pattern.TypeInfo, obj.Type())
-		}
+	// type objects
+	objPat := config.TypeInfo.ObjectOf(patIdent)
+	objNode := config.TypeInfo.ObjectOf(ident)
+
+	if objPat == nil || objNode == nil {
+		return false
 	}
-	return false
+
+	patUnder := objPat.Type().Underlying()
+	nodeUnder := objNode.Type().Underlying()
+
+	return types.Identical(patUnder, nodeUnder)
 }
 
-func matchScope(pattern ASTMetaVariableNode, node ast.Node, config Config) bool {
-	ident, ok := node.(*ast.Ident)
-	if !ok {
+func matchScope(_ ASTMetaVariableNode, node ast.Node, config Config) bool {
+	sc := config.TypeInfo.Scopes[node]
+	if sc == nil {
 		return false
 	}
 
-	if obj := config.TypeInfo.ObjectOf(ident); obj != nil {
-		switch obj.(type) {
-		case *types.Var:
-			// Check if variable is local to function
-			return obj.Parent() != config.Pkg.Scope()
-		}
+	if sc != config.Pkg.Scope() {
+		return true
 	}
 	return false
 }
@@ -141,7 +171,9 @@ func PrepareASTMatching(filename string, src string) (*Config, error) {
 		return nil, fmt.Errorf("parse error: %v", err)
 	}
 
-	conf := types.Config{Importer: nil}
+	conf := types.Config{
+		Importer: importer.Default(), // handle import paths
+	}
 	info := &types.Info{
 		Types:      make(map[ast.Expr]types.TypeAndValue),
 		Defs:       make(map[*ast.Ident]types.Object),
@@ -175,7 +207,7 @@ func ParseWithAST(tokens []Token, config *Config) ([]Node, error) {
 		if meta, ok := node.(MetaVariableNode); ok {
 			name, hint := parseTypeHint(meta.Name)
 			if hint != "" {
-				astNode := findMatchingASTNode(hint, config.File)
+				astNode := findMatchingASTNode(hint)
 				nodes[i] = ASTMetaVariableNode{
 					MetaVariableNode: MetaVariableNode{
 						Name:     name,
@@ -201,29 +233,8 @@ func NewASTReplacer(pattern, replacement []Node, config *Config) *Replacer {
 	}
 }
 
-// matcherWithAST combines text-based and AST-based matching
-func matcherWithAST(nodes []Node, pIdx int, subject string, sIdx int, captures map[string]string, config *Config, astNode ast.Node) (bool, int, map[string]string) {
-	if pIdx == len(nodes) {
-		return true, sIdx, captures
-	}
-
-	switch node := nodes[pIdx].(type) {
-	case ASTMetaVariableNode:
-		if !matchAST(node, astNode, *config) {
-			return false, 0, nil
-		}
-		// Continue with text-based matching
-		return matcher(nodes, pIdx+1, subject, sIdx, captures)
-
-	default:
-		return matcher(nodes, pIdx+1, subject, sIdx, captures)
-	}
-}
-
 // findASTNodeAtPos locates AST node at given position.
 // It traverses the AST and returns the most specific node that contains the position.
-// If no specific node type (AssignStmt, FuncDecl, ExprStmt) is found,
-// it returns the closest ancestor node from the traversal stack.
 func findASTNodeAtPos(pos token.Pos, root *ast.File) ast.Node {
 	var (
 		result ast.Node
@@ -248,11 +259,9 @@ func findASTNodeAtPos(pos token.Pos, root *ast.File) ast.Node {
 			case *ast.AssignStmt, *ast.FuncDecl, *ast.ExprStmt:
 				result = n
 			}
-			// continue traversal to find most specific node
 			return true
 		}
 
-		// remove node from stack if it doesn't contain the position
 		stack = stack[:len(stack)-1]
 		return true
 	})
@@ -291,26 +300,4 @@ func isIdentType[T any](pattern, node ast.Node) bool {
 		return isType[T](node)
 	}
 	return false
-}
-
-// ExtendedMatch performs both text and AST-based matching
-func ExtendedMatch(nodes []Node, subject string, config *Config) (bool, map[string]string) {
-	// First, perform text-based matching
-	ok, end, captures := matcher(nodes, 0, subject, 0, map[string]string{})
-	if !ok || end != len(subject) {
-		return false, nil
-	}
-
-	// Then verify AST constraints
-	for _, node := range nodes {
-		if astNode, ok := node.(ASTMetaVariableNode); ok {
-			pos := config.FileSet.File(config.File.Pos()).Pos(0) // Convert to token.Pos
-			matchingNode := findASTNodeAtPos(pos, config.File)
-			if matchingNode == nil || !matchAST(astNode, matchingNode, *config) {
-				return false, nil
-			}
-		}
-	}
-
-	return true, captures
 }
