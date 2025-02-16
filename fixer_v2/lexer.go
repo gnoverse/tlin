@@ -13,8 +13,6 @@ const (
 	TokenMeta
 )
 
-const ()
-
 func (t TokenType) String() string {
 	switch t {
 	case TokenEOF:
