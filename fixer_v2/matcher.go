@@ -1,5 +1,7 @@
 package fixerv2
 
+// TODO: Refactor this
+
 // Match checks if the entire subject matches the pattern
 func Match(nodes []Node, subject string) (bool, map[string]string) {
 	ok, end, captures := matcher(nodes, 0, subject, 0, map[string]string{})
@@ -9,113 +11,24 @@ func Match(nodes []Node, subject string) (bool, map[string]string) {
 	return false, nil
 }
 
-// isNumeric returns true if s is non-empty and every character is a digit.
-func isNumeric(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
-	}
-	return true
-}
-
-// matcher attempts to match pattern nodes (slice) with subject starting from sIdx using recursive backtracking.
-// On success, returns (true, matching end index, capture map)
+// matcher attempts to match pattern nodes with subject starting from sIdx using recursive backtracking.
 func matcher(nodes []Node, pIdx int, subject string, sIdx int, captures map[string]string) (bool, int, map[string]string) {
 	if pIdx == len(nodes) {
 		return true, sIdx, captures
 	}
 
-	switch node := nodes[pIdx].(type) {
+	currentNode := nodes[pIdx]
+	switch node := currentNode.(type) {
 	case LiteralNode:
-		lit := node.Value
-		if sIdx+len(lit) > len(subject) || subject[sIdx:sIdx+len(lit)] != lit {
-			return false, 0, nil
-		}
-		return matcher(nodes, pIdx+1, subject, sIdx+len(lit), captures)
-
+		return matchLiteral(nodes, pIdx, node, subject, sIdx, captures)
 	case MetaVariableNode:
-		// If this is the last metavariable
-		if pIdx == len(nodes)-1 {
-			// Try candidates with at least 1 character. For numbers, use minimum matching (i.e., decide candidate when next character is not a number).
-			// For non-numbers, consider candidates up to the end of subject (or hard delimiters: newline, '}', ';')
-			for k := sIdx + 1; k <= len(subject); k++ {
-				candidate := subject[sIdx:k]
-				newCaptures := copyCaptures(captures)
-				newCaptures[node.Name] = candidate
-				if k < len(subject) {
-					nextChar := subject[k]
-					if isNumeric(candidate) {
-						// If candidate is a number, consider it a valid boundary when next character is not a number
-						if !('0' <= nextChar && nextChar <= '9') {
-							return true, k, newCaptures
-						}
-					} else {
-						// If not a number, consider newline, '}', ';' as boundaries
-						if nextChar == '\n' || nextChar == '}' || nextChar == ';' {
-							return true, k, newCaptures
-						}
-					}
-				} else {
-					// Accept candidate when reaching the end of subject
-					return true, k, newCaptures
-				}
-			}
-			return false, 0, nil
+		if node.Ellipsis {
+			return matchEllipsis(nodes, pIdx, subject, sIdx, captures)
 		}
-
-		// If not the last node - search for candidates based on following literal (delimiter)
-		delimiter := ""
-		found := false
-		for j := pIdx + 1; j < len(nodes); j++ {
-			if litNode, ok := nodes[j].(LiteralNode); ok && litNode.Value != "" {
-				delimiter = litNode.Value
-				found = true
-				break
-			}
-		}
-		if found {
-			for k := sIdx + 1; k <= len(subject); k++ {
-				if k+len(delimiter) > len(subject) {
-					continue
-				}
-				if subject[k:k+len(delimiter)] == delimiter {
-					candidate := subject[sIdx:k]
-					newCaptures := copyCaptures(captures)
-					newCaptures[node.Name] = candidate
-					if ok, end, res := matcher(nodes, pIdx+1, subject, k, newCaptures); ok {
-						return true, end, res
-					}
-				}
-			}
-			return false, 0, nil
-		} else {
-			// If no delimiter found: try all candidates with at least 1 character
-			for k := sIdx + 1; k <= len(subject); k++ {
-				candidate := subject[sIdx:k]
-				newCaptures := copyCaptures(captures)
-				newCaptures[node.Name] = candidate
-				if ok, end, res := matcher(nodes, pIdx+1, subject, k, newCaptures); ok {
-					return true, end, res
-				}
-			}
-			return false, 0, nil
-		}
-
+		return matchMetaVariable(nodes, pIdx, node, subject, sIdx, captures)
 	default:
 		return false, 0, nil
 	}
-}
-
-func copyCaptures(captures map[string]string) map[string]string {
-	newMap := make(map[string]string)
-	for k, v := range captures {
-		newMap[k] = v
-	}
-	return newMap
 }
 
 // findNextMatch finds the leftmost match (partial match) in the subject after the start index
@@ -134,4 +47,167 @@ func findNextMatch(patternNodes []Node, subject string, start int) (bool, int, i
 		}
 	}
 	return false, 0, 0, nil
+}
+
+// matchMetaVariable handles matching of meta variable nodes
+func matchMetaVariable(nodes []Node, pIdx int, node MetaVariableNode, subject string, sIdx int, captures map[string]string) (bool, int, map[string]string) {
+	if pIdx == len(nodes)-1 {
+		return matchLastMetaVariable(node, subject, sIdx, captures)
+	}
+	return matchMiddleMetaVariable(nodes, pIdx, node, subject, sIdx, captures)
+}
+
+// matchLastMetaVariable handles meta variable that is the last node in the pattern
+func matchLastMetaVariable(node MetaVariableNode, subject string, sIdx int, captures map[string]string) (bool, int, map[string]string) {
+	for k := sIdx + 1; k <= len(subject); k++ {
+		if ok, end, caps := tryMatchLastMetaVariable(node, subject, sIdx, k, captures); ok {
+			return true, end, caps
+		}
+	}
+	return false, 0, nil
+}
+
+// tryMatchLastMetaVariable attempts to match a candidate for the last meta variable
+func tryMatchLastMetaVariable(node MetaVariableNode, subject string, sIdx, k int, captures map[string]string) (bool, int, map[string]string) {
+	candidate := subject[sIdx:k]
+	newCaptures := copyCaptures(captures)
+	newCaptures[node.Name] = candidate
+
+	if k < len(subject) {
+		nextChar := subject[k]
+		if isNumeric(candidate) {
+			if !isDigit(nextChar) {
+				return true, k, newCaptures
+			}
+		} else if isHardDelimiter(nextChar) {
+			return true, k, newCaptures
+		}
+	} else {
+		return true, k, newCaptures
+	}
+
+	return false, 0, nil
+}
+
+// matchMiddleMetaVariable handles meta variable that is not the last node
+func matchMiddleMetaVariable(nodes []Node, pIdx int, node MetaVariableNode, subject string, sIdx int, captures map[string]string) (bool, int, map[string]string) {
+	delimiter := findNextDelimiter(nodes, pIdx+1)
+	if delimiter != "" {
+		return matchWithDelimiter(nodes, pIdx, node, subject, sIdx, captures, delimiter)
+	}
+	return matchWithoutDelimiter(nodes, pIdx, node, subject, sIdx, captures)
+}
+
+// matchLiteral handles matching of literal nodes
+func matchLiteral(nodes []Node, pIdx int, node LiteralNode, subject string, sIdx int, captures map[string]string) (bool, int, map[string]string) {
+	lit := node.Value
+	if sIdx+len(lit) > len(subject) || subject[sIdx:sIdx+len(lit)] != lit {
+		return false, 0, nil
+	}
+	return matcher(nodes, pIdx+1, subject, sIdx+len(lit), captures)
+}
+
+// findNextDelimiter finds the next non-empty literal value in the pattern
+func findNextDelimiter(nodes []Node, startIdx int) string {
+	for j := startIdx; j < len(nodes); j++ {
+		if litNode, ok := nodes[j].(LiteralNode); ok && litNode.Value != "" {
+			return litNode.Value
+		}
+	}
+	return ""
+}
+
+// matchWithDelimiter handles meta variable matching when a delimiter is found
+func matchWithDelimiter(nodes []Node, pIdx int, node MetaVariableNode, subject string, sIdx int, captures map[string]string, delimiter string) (bool, int, map[string]string) {
+	for k := sIdx + 1; k <= len(subject)-len(delimiter); k++ {
+		if subject[k:k+len(delimiter)] == delimiter {
+			if ok, end, caps := tryMatchWithDelimiter(nodes, pIdx, node, subject, sIdx, k, captures); ok {
+				return true, end, caps
+			}
+		}
+	}
+	return false, 0, nil
+}
+
+// tryMatchWithDelimiter attempts to match a candidate when a delimiter is present
+func tryMatchWithDelimiter(nodes []Node, pIdx int, node MetaVariableNode, subject string, sIdx, k int, captures map[string]string) (bool, int, map[string]string) {
+	newCaptures := copyCaptures(captures)
+	newCaptures[node.Name] = subject[sIdx:k]
+	return matcher(nodes, pIdx+1, subject, k, newCaptures)
+}
+
+// matchWithoutDelimiter handles meta variable matching when no delimiter is found
+func matchWithoutDelimiter(nodes []Node, pIdx int, node MetaVariableNode, subject string, sIdx int, captures map[string]string) (bool, int, map[string]string) {
+	for k := sIdx + 1; k <= len(subject); k++ {
+		if ok, end, caps := tryMatchWithoutDelimiter(nodes, pIdx, node, subject, sIdx, k, captures); ok {
+			return true, end, caps
+		}
+	}
+	return false, 0, nil
+}
+
+// tryMatchWithoutDelimiter attempts to match a candidate when no delimiter is present
+func tryMatchWithoutDelimiter(nodes []Node, pIdx int, node MetaVariableNode, subject string, sIdx, k int, captures map[string]string) (bool, int, map[string]string) {
+	newCaptures := copyCaptures(captures)
+	newCaptures[node.Name] = subject[sIdx:k]
+	return matcher(nodes, pIdx+1, subject, k, newCaptures)
+}
+
+var delimeterSet = map[byte]bool{
+	'\n': true, '}': true, ';': true,
+}
+
+func isHardDelimiter(c byte) bool {
+	return delimeterSet[c]
+}
+
+// matchEllipsis handles MetaVariableNode with when node is ellipsis.
+// We try to capture as much as needed until we can match the next node.
+func matchEllipsis(nodes []Node, pIdx int, subject string, sIdx int, captures map[string]string) (bool, int, map[string]string) {
+	// If this is the last node, greedily capture until the end.
+	if pIdx == len(nodes)-1 {
+		newCaps := copyCaptures(captures)
+		newCaps[nodes[pIdx].(MetaVariableNode).Name] = subject[sIdx:]
+		return true, len(subject), newCaps
+	}
+
+	// Otherwise, we need to find a chunk that allows the next node to match.
+	// We'll attempt from sIdx+0 up to len(subject).
+	metaName := nodes[pIdx].(MetaVariableNode).Name
+
+	for cut := sIdx; cut <= len(subject); cut++ {
+		// Try capturing subject[sIdx:cut] as the ellipsis body
+		newCaps := copyCaptures(captures)
+		newCaps[metaName] = subject[sIdx:cut]
+
+		// Then try to match the next node from `cut`.
+		ok, end, res := matcher(nodes, pIdx+1, subject, cut, newCaps)
+		if ok {
+			return true, end, res
+		}
+	}
+
+	// No valid match found
+	return false, 0, nil
+}
+
+// isNumeric returns true if s is non-empty and every character is a digit.
+func isNumeric(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if !isDigit(s[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func copyCaptures(captures map[string]string) map[string]string {
+	newMap := make(map[string]string)
+	for k, v := range captures {
+		newMap[k] = v
+	}
+	return newMap
 }

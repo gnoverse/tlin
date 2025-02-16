@@ -2,6 +2,7 @@ package fixerv2
 
 import (
 	"fmt"
+	"unicode"
 )
 
 type TokenType int
@@ -169,14 +170,18 @@ func Lex(input string) ([]Token, error) {
 	return tokens, nil
 }
 
+func isDigit(c byte) bool {
+	return unicode.IsDigit(rune(c))
+}
+
 func isIdentifierStart(c byte) bool {
-	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_'
+	return unicode.IsLetter(rune(c)) || c == '_' // Use unicode.IsLetter for better i18n support
 }
 
 func isIdentifierChar(c byte) bool {
-	return isIdentifierStart(c) || (c >= '0' && c <= '9')
+	return isIdentifierStart(c) || isDigit(c)
 }
 
 func isWhitespace(c byte) bool {
-	return c == ' ' || c == '\t' || c == '\n' || c == '\r'
+	return unicode.IsSpace(rune(c))
 }
