@@ -11,19 +11,6 @@ func Match(nodes []Node, subject string) (bool, map[string]string) {
 	return false, nil
 }
 
-// isNumeric returns true if s is non-empty and every character is a digit.
-func isNumeric(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		if !isDigit(s[i]) {
-			return false
-		}
-	}
-	return true
-}
-
 // matcher attempts to match pattern nodes with subject starting from sIdx using recursive backtracking.
 func matcher(nodes []Node, pIdx int, subject string, sIdx int, captures map[string]string) (bool, int, map[string]string) {
 	if pIdx == len(nodes) {
@@ -44,13 +31,22 @@ func matcher(nodes []Node, pIdx int, subject string, sIdx int, captures map[stri
 	}
 }
 
-// matchLiteral handles matching of literal nodes
-func matchLiteral(nodes []Node, pIdx int, node LiteralNode, subject string, sIdx int, captures map[string]string) (bool, int, map[string]string) {
-	lit := node.Value
-	if sIdx+len(lit) > len(subject) || subject[sIdx:sIdx+len(lit)] != lit {
-		return false, 0, nil
+// findNextMatch finds the leftmost match (partial match) in the subject after the start index
+func findNextMatch(patternNodes []Node, subject string, start int) (bool, int, int, map[string]string) {
+	for i := start; i < len(subject); i++ {
+		// If pattern starts with `Meta`, assume matching start character must be a number (or alphabet)
+		if len(patternNodes) > 0 {
+			if _, ok := patternNodes[0].(MetaVariableNode); ok {
+				if !isIdentifierChar(subject[i]) {
+					continue
+				}
+			}
+		}
+		if ok, end, captures := matcher(patternNodes, 0, subject, i, map[string]string{}); ok {
+			return true, i, end, captures
+		}
 	}
-	return matcher(nodes, pIdx+1, subject, sIdx+len(lit), captures)
+	return false, 0, 0, nil
 }
 
 // matchMetaVariable handles matching of meta variable nodes
@@ -100,6 +96,15 @@ func matchMiddleMetaVariable(nodes []Node, pIdx int, node MetaVariableNode, subj
 		return matchWithDelimiter(nodes, pIdx, node, subject, sIdx, captures, delimiter)
 	}
 	return matchWithoutDelimiter(nodes, pIdx, node, subject, sIdx, captures)
+}
+
+// matchLiteral handles matching of literal nodes
+func matchLiteral(nodes []Node, pIdx int, node LiteralNode, subject string, sIdx int, captures map[string]string) (bool, int, map[string]string) {
+	lit := node.Value
+	if sIdx+len(lit) > len(subject) || subject[sIdx:sIdx+len(lit)] != lit {
+		return false, 0, nil
+	}
+	return matcher(nodes, pIdx+1, subject, sIdx+len(lit), captures)
 }
 
 // findNextDelimiter finds the next non-empty literal value in the pattern
@@ -186,22 +191,17 @@ func matchEllipsis(nodes []Node, pIdx int, subject string, sIdx int, captures ma
 	return false, 0, nil
 }
 
-// findNextMatch finds the leftmost match (partial match) in the subject after the start index
-func findNextMatch(patternNodes []Node, subject string, start int) (bool, int, int, map[string]string) {
-	for i := start; i < len(subject); i++ {
-		// If pattern starts with `Meta`, assume matching start character must be a number (or alphabet)
-		if len(patternNodes) > 0 {
-			if _, ok := patternNodes[0].(MetaVariableNode); ok {
-				if !isIdentifierChar(subject[i]) {
-					continue
-				}
-			}
-		}
-		if ok, end, captures := matcher(patternNodes, 0, subject, i, map[string]string{}); ok {
-			return true, i, end, captures
+// isNumeric returns true if s is non-empty and every character is a digit.
+func isNumeric(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if !isDigit(s[i]) {
+			return false
 		}
 	}
-	return false, 0, 0, nil
+	return true
 }
 
 func copyCaptures(captures map[string]string) map[string]string {
