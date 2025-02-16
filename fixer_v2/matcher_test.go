@@ -201,3 +201,90 @@ func TestMatcher(t *testing.T) {
 		})
 	}
 }
+
+// TestEllipsisMetaVariable checks if Ellipsis metavariables match freely
+// across multiple lines, whether they appear as middle nodes or last nodes.
+func TestEllipsisMetaVariable(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		patternStr string
+		subjectStr string
+		wantMatch  bool
+		wantCaps   map[string]string
+	}{
+		{
+			name: "ellipsis as last node (multiple lines)",
+			patternStr: `func :[name]() {
+    :[body...]
+}`,
+			subjectStr: `func test() {
+    line1;
+    line2;
+    line3;
+}`,
+			wantMatch: true,
+			wantCaps: map[string]string{
+				"name": "test",
+				// body should include all middle lines
+				"body": `line1;
+    line2;
+    line3;`,
+			},
+		},
+		{
+			name: "ellipsis in the middle (capture code block until next literal)",
+			patternStr: `if :[cond] {
+    :[body...]
+} else {
+    :[elseBody]
+}`,
+			subjectStr: `if x > 0 {
+    x++;
+    y++;
+} else {
+    doSomething();
+}`,
+			wantMatch: true,
+			wantCaps: map[string]string{
+				"cond": "x > 0",
+				"body": `x++;
+    y++;`,
+				"elseBody": `doSomething();`,
+			},
+		},
+		{
+			name:       "no ellipsis match if next literal can't be found",
+			patternStr: `:[head...]END:[tail]`,
+			subjectStr: `123 456 789`, // "END" not found
+			wantMatch:  false,
+			wantCaps:   nil,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			patternTokens, err := Lex(tt.patternStr)
+			if err != nil {
+				t.Fatalf("pattern lex error: %v", err)
+			}
+			patternNodes, err := Parse(patternTokens)
+			if err != nil {
+				t.Fatalf("pattern parse error: %v", err)
+			}
+			match, captures := Match(patternNodes, tt.subjectStr)
+			if match != tt.wantMatch {
+				t.Errorf("Match() got match = %v, want %v", match, tt.wantMatch)
+			}
+			if match && tt.wantCaps != nil {
+				for k, wantVal := range tt.wantCaps {
+					gotVal := captures[k]
+					if gotVal != wantVal {
+						t.Errorf("captures[%q] = %q, want %q", k, gotVal, wantVal)
+					}
+				}
+			}
+		})
+	}
+}
