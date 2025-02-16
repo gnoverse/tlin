@@ -1,15 +1,15 @@
 run:
   concurrency: 8
   timeout: 10m
-  issue-exit-code: 1
   tests: true
-  skip-dirs-use-default: true
   modules-download-mode: readonly
   allow-parallel-runners: false
   go: ""
+  skip-dirs:
+    - vendor
+    - third_party
 
 output:
-  uniq-by-line: false
   path-prefix: ""
   sort-results: true
 
