@@ -1,6 +1,9 @@
 package fixerv2
 
+import "maps"
+
 // TODO: Refactor this
+// TODO: Needs to be created whitespace-characters-free in the pattern and subject.
 
 // Match checks if the entire subject matches the pattern
 func Match(nodes []Node, subject string) (bool, map[string]string) {
@@ -204,10 +207,10 @@ func isNumeric(s string) bool {
 	return true
 }
 
+// copyCaptures creates a shallow copy of the captures map
 func copyCaptures(captures map[string]string) map[string]string {
-	newMap := make(map[string]string)
-	for k, v := range captures {
-		newMap[k] = v
+	if len(captures) == 0 {
+		return make(map[string]string)
 	}
-	return newMap
+	return maps.Clone(captures)
 }

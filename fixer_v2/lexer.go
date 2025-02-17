@@ -2,9 +2,15 @@ package fixerv2
 
 import (
 	"fmt"
+	"strings"
 	"unicode"
 )
 
+// TODO: refactor lexer after finishing basic implementation
+// TODO: add TokenWhiteSpace type to store identation and dedentation
+// TODO: add TokenNewLine type to store newlines
+
+// TokenType defines the type of a token
 type TokenType int
 
 const (
@@ -26,6 +32,7 @@ func (t TokenType) String() string {
 	}
 }
 
+// Token represents a lexical token
 type Token struct {
 	Type     TokenType
 	Value    string
@@ -34,20 +41,35 @@ type Token struct {
 	Col      int
 }
 
+// Lex performs lexical analysis on the input string
+// and returns a sequence of tokens.
 func Lex(input string) ([]Token, error) {
 	var tokens []Token
-	currentLiteral := ""
+	var currentLiteral strings.Builder
+
 	line, col := 1, 1
 	i := 0
+
+	flushLiteral := func() {
+		if currentLiteral.Len() > 0 {
+			tokens = append(tokens, Token{
+				Type:  TokenLiteral,
+				Value: currentLiteral.String(),
+				Line:  line,
+				Col:   col - currentLiteral.Len(),
+			})
+			currentLiteral.Reset()
+		}
+	}
 
 	for i < len(input) {
 		c := input[i]
 
-		// Handle escape: e.g., output "\:[" as literal characters
+		// Handle escape characters (e.g., "\:")
 		if c == '\\' {
 			if i+1 < len(input) {
 				next := input[i+1]
-				currentLiteral += string(next)
+				currentLiteral.WriteByte(next)
 				if next == '\n' {
 					line++
 					col = 1
@@ -63,16 +85,7 @@ func Lex(input string) ([]Token, error) {
 
 		// Start of metavariable ":["
 		if c == ':' && i+1 < len(input) && input[i+1] == '[' {
-			// Flush accumulated literal
-			if currentLiteral != "" {
-				tokens = append(tokens, Token{
-					Type:  TokenLiteral,
-					Value: currentLiteral,
-					Line:  line,
-					Col:   col - len(currentLiteral),
-				})
-				currentLiteral = ""
-			}
+			flushLiteral() // Flush any accumulated literal before processing metavariable
 			i += 2
 			col += 2
 
@@ -94,15 +107,18 @@ func Lex(input string) ([]Token, error) {
 			if !isIdentifierStart(input[i]) {
 				return nil, fmt.Errorf("line %d col %d: metavariable identifier must start with alphabet or '_'", line, col)
 			}
-			metaName := ""
-			metaName += string(input[i])
+
+			var metaName strings.Builder
+			metaName.WriteByte(input[i])
 			i++
 			col++
+
 			for i < len(input) && isIdentifierChar(input[i]) {
-				metaName += string(input[i])
+				metaName.WriteByte(input[i])
 				i++
 				col++
 			}
+
 			// Ignore whitespace between identifier and closing ']'
 			for i < len(input) && isWhitespace(input[i]) {
 				if input[i] == '\n' {
@@ -113,11 +129,14 @@ func Lex(input string) ([]Token, error) {
 				}
 				i++
 			}
+
+			// Check for ellipsis "..."
 			ellipsis := false
 			if i+2 < len(input) && input[i] == '.' && input[i+1] == '.' && input[i+2] == '.' {
 				ellipsis = true
 				i += 3
 				col += 3
+				// Ignore trailing whitespace
 				for i < len(input) && isWhitespace(input[i]) {
 					if input[i] == '\n' {
 						line++
@@ -128,54 +147,53 @@ func Lex(input string) ([]Token, error) {
 					i++
 				}
 			}
+
+			// Ensure closing bracket "]"
 			if i >= len(input) || input[i] != ']' {
 				return nil, fmt.Errorf("line %d col %d: metavariable termination ']' is missing", line, col)
 			}
 			i++ // Skip ']'
 			col++
+
+			// Append metavariable token
 			tokens = append(tokens, Token{
 				Type:     TokenMeta,
-				Value:    metaName,
+				Value:    metaName.String(),
 				Ellipsis: ellipsis,
 				Line:     line,
 				Col:      col,
 			})
 			continue
-		} else {
-			currentLiteral += string(c)
-			if c == '\n' {
-				line++
-				col = 1
-			} else {
-				col++
-			}
-			i++
 		}
+
+		// Collect characters for literals
+		currentLiteral.WriteByte(c)
+		if c == '\n' {
+			flushLiteral() // Ensure line information is properly updated
+			line++
+			col = 1
+		} else {
+			col++
+		}
+		i++
 	}
 
-	if currentLiteral != "" {
-		tokens = append(tokens, Token{
-			Type:  TokenLiteral,
-			Value: currentLiteral,
-			Line:  line,
-			Col:   col - len(currentLiteral),
-		})
-	}
+	// Flush remaining literal
+	flushLiteral()
+
+	// Append EOF token
 	tokens = append(tokens, Token{
 		Type:  TokenEOF,
 		Value: "",
 		Line:  line,
 		Col:   col,
 	})
+
 	return tokens, nil
 }
 
-func isDigit(c byte) bool {
-	return unicode.IsDigit(rune(c))
-}
-
 func isIdentifierStart(c byte) bool {
-	return unicode.IsLetter(rune(c)) || c == '_' // Use unicode.IsLetter for better i18n support
+	return unicode.IsLetter(rune(c)) || c == '_'
 }
 
 func isIdentifierChar(c byte) bool {
@@ -184,4 +202,8 @@ func isIdentifierChar(c byte) bool {
 
 func isWhitespace(c byte) bool {
 	return unicode.IsSpace(rune(c))
+}
+
+func isDigit(c byte) bool {
+	return unicode.IsDigit(rune(c))
 }
