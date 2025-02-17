@@ -5,6 +5,10 @@ import (
 	"unicode"
 )
 
+// TODO: refactor lexer after finishing basic implementation
+// TODO: add TokenWhiteSpace type to store identation and dedentation
+// TODO: add TokenNewLine type to store newlines
+
 // TokenType defines the type of a token
 type TokenType int
 

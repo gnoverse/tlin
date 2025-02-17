@@ -34,6 +34,8 @@ func (m MetaVariableNode) String() string {
 // Parse converts a sequence of tokens into a slice of Nodes.
 // It processes each token and creates corresponding LiteralNode or MetaVariableNode.
 // Returns an error if an unexpected token type is encountered.
+//
+// TODO: add TokenWhiteSpace after those types are implemented
 func Parse(tokens []Token) ([]Node, error) {
 	var nodes []Node
 	pos := 0
