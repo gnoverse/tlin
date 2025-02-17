@@ -14,6 +14,19 @@ const (
 	TokenMeta
 )
 
+func (t TokenType) String() string {
+	switch t {
+	case TokenEOF:
+		return "EOF"
+	case TokenLiteral:
+		return "Literal"
+	case TokenMeta:
+		return "Meta"
+	default:
+		return "Unknown"
+	}
+}
+
 // Token represents a lexical token
 type Token struct {
 	Type     TokenType
