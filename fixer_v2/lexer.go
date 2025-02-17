@@ -2,6 +2,7 @@ package fixerv2
 
 import (
 	"fmt"
+	"strings"
 	"unicode"
 )
 
@@ -44,19 +45,20 @@ type Token struct {
 // and returns a sequence of tokens.
 func Lex(input string) ([]Token, error) {
 	var tokens []Token
-	currentLiteral := ""
+	var currentLiteral strings.Builder
+
 	line, col := 1, 1
 	i := 0
 
 	flushLiteral := func() {
-		if currentLiteral != "" {
+		if currentLiteral.Len() > 0 {
 			tokens = append(tokens, Token{
 				Type:  TokenLiteral,
-				Value: currentLiteral,
+				Value: currentLiteral.String(),
 				Line:  line,
-				Col:   col - len(currentLiteral),
+				Col:   col - currentLiteral.Len(),
 			})
-			currentLiteral = ""
+			currentLiteral.Reset()
 		}
 	}
 
@@ -67,7 +69,7 @@ func Lex(input string) ([]Token, error) {
 		if c == '\\' {
 			if i+1 < len(input) {
 				next := input[i+1]
-				currentLiteral += string(next)
+				currentLiteral.WriteByte(next)
 				if next == '\n' {
 					line++
 					col = 1
@@ -105,12 +107,14 @@ func Lex(input string) ([]Token, error) {
 			if !isIdentifierStart(input[i]) {
 				return nil, fmt.Errorf("line %d col %d: metavariable identifier must start with alphabet or '_'", line, col)
 			}
-			metaName := string(input[i])
+
+			var metaName strings.Builder
+			metaName.WriteByte(input[i])
 			i++
 			col++
 
 			for i < len(input) && isIdentifierChar(input[i]) {
-				metaName += string(input[i])
+				metaName.WriteByte(input[i])
 				i++
 				col++
 			}
@@ -154,7 +158,7 @@ func Lex(input string) ([]Token, error) {
 			// Append metavariable token
 			tokens = append(tokens, Token{
 				Type:     TokenMeta,
-				Value:    metaName,
+				Value:    metaName.String(),
 				Ellipsis: ellipsis,
 				Line:     line,
 				Col:      col,
@@ -163,7 +167,7 @@ func Lex(input string) ([]Token, error) {
 		}
 
 		// Collect characters for literals
-		currentLiteral += string(c)
+		currentLiteral.WriteByte(c)
 		if c == '\n' {
 			flushLiteral() // Ensure line information is properly updated
 			line++
