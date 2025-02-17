@@ -3,6 +3,7 @@ package fixerv2
 import "maps"
 
 // TODO: Refactor this
+// TODO: Needs to be created whitespace-characters-free in the pattern and subject.
 
 // Match checks if the entire subject matches the pattern
 func Match(nodes []Node, subject string) (bool, map[string]string) {
