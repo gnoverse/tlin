@@ -1,6 +1,7 @@
 package lints
 
 import (
+	"go/token"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -69,11 +70,12 @@ func TestRunLinter(t *testing.T) {
 		tt := tt
 		t.Run(filepath.Base(tt.filename), func(t *testing.T) {
 			t.Parallel()
+			fset := token.NewFileSet()
 			file, deps, err := analyzeFile(tt.filename)
 			require.NoError(t, err)
 			require.NotNil(t, file)
 
-			issues := runGnoPackageLinter(file, deps, types.SeverityError)
+			issues := runGnoPackageLinter(file, fset, deps, types.SeverityError)
 
 			assert.Equal(t, len(tt.expectedIssues), len(issues), "Number of issues doesn't match expected for %s", tt.filename)
 

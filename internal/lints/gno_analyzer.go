@@ -21,17 +21,19 @@ type Dependency struct {
 	IsGno      bool
 	IsUsed     bool
 	IsIgnored  bool // aliased as `_`
+	Line       token.Pos
+	Column     token.Pos
 }
 
 type Dependencies map[string]*Dependency
 
-func DetectGnoPackageImports(filename string, _ *ast.File, _ *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
+func DetectGnoPackageImports(filename string, _ *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	file, deps, err := analyzeFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("error analyzing file: %w", err)
 	}
 
-	issues := runGnoPackageLinter(file, deps, severity)
+	issues := runGnoPackageLinter(file, fset, deps, severity)
 
 	for i := range issues {
 		issues[i].Filename = filename
@@ -60,6 +62,8 @@ func analyzeFile(filename string) (*ast.File, Dependencies, error) {
 			IsGno:      isGnoPackage(impPath),
 			IsUsed:     false,
 			IsIgnored:  imp.Name != nil && imp.Name.Name == "_",
+			Line:       imp.Pos(),
+			Column:     imp.End(),
 		}
 	}
 
@@ -83,15 +87,20 @@ func analyzeFile(filename string) (*ast.File, Dependencies, error) {
 	return file, deps, nil
 }
 
-func runGnoPackageLinter(_ *ast.File, deps Dependencies, severity tt.Severity) []tt.Issue {
+func runGnoPackageLinter(_ *ast.File, fset *token.FileSet, deps Dependencies, severity tt.Severity) []tt.Issue {
 	var issues []tt.Issue
 
-	for impPath, dep := range deps {
+	for imp, dep := range deps {
 		if !dep.IsUsed && !dep.IsIgnored {
+			startPos := fset.Position(dep.Line)
+			endPos := fset.Position(dep.Column)
 			issue := tt.Issue{
-				Rule:     "unused-import",
-				Message:  fmt.Sprintf("unused import: %s", impPath),
-				Severity: severity,
+				Rule:       "unused-import",
+				Message:    fmt.Sprintf("unused import: %s", imp),
+				Severity:   severity,
+				Start:      startPos,
+				End:        endPos,
+				Confidence: 1.0,
 			}
 			issues = append(issues, issue)
 		}
