@@ -92,8 +92,8 @@ func runGnoPackageLinter(_ *ast.File, fset *token.FileSet, deps Dependencies, se
 
 	for imp, dep := range deps {
 		if !dep.IsUsed && !dep.IsIgnored {
-			startPos := fset.Position(token.Pos(dep.Line))
-			endPos := fset.Position(token.Pos(dep.Line))
+			startPos := fset.Position(dep.Line)
+			endPos := fset.Position(dep.Column)
 			issue := tt.Issue{
 				Rule:       "unused-import",
 				Message:    fmt.Sprintf("unused import: %s", imp),
