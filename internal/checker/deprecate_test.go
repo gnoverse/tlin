@@ -260,3 +260,226 @@ func assertDeprecatedFuncEqual(t *testing.T, expected, actual DeprecatedFunc) {
 	assert.Greater(t, actual.Start.Line, 0)
 	assert.Greater(t, actual.Start.Column, 0)
 }
+
+func TestRegisterDeprecatedMethods(t *testing.T) {
+	t.Parallel()
+	checker := NewDeprecatedFuncChecker()
+
+	checker.Register("std", "GetOrigCaller", "std.OriginCaller")
+	checker.RegisterMethod("std", "Address", "Addr", "std.Address.Address")
+
+	expectedFuncs := PkgFuncMap{
+		"std": {"GetOrigCaller": "std.OriginCaller"},
+	}
+
+	expectedMethods := PkgTypeMethodMap{
+		"std": {
+			"Address": {"Addr": "std.Address.Address"},
+		},
+	}
+
+	assert.Equal(t, expectedFuncs, checker.deprecatedFuncs)
+	assert.Equal(t, expectedMethods, checker.deprecatedMethods)
+}
+
+func TestCheckDeprecatedMethod(t *testing.T) {
+	t.Parallel()
+	src := `
+package main
+
+import (
+	"std"
+)
+
+func main() {
+	address := std.NewAddress()
+	address.Addr()
+
+	// call by chaining method
+	std.NewAddress().Addr()
+	
+	// other method (not deprecated)
+	// should detect only Address.Addr() calls
+	address.IsValid()
+}
+`
+
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, "example.go", src, 0)
+	if err != nil {
+		t.Fatalf("Failed to parse file: %v", err)
+	}
+
+	checker := NewDeprecatedFuncChecker()
+	checker.RegisterMethod("std", "Address", "Addr", "std.Address.Address")
+
+	deprecated, err := checker.Check("example.go", node, fset)
+	if err != nil {
+		t.Fatalf("Check failed with error: %v", err)
+	}
+
+	// must detect two Addr() calls
+	assert.Equal(t, 2, len(deprecated))
+
+	for _, df := range deprecated {
+		assert.Equal(t, "std", df.Package)
+		assert.Equal(t, "Address.Addr", df.Function)
+		assert.Equal(t, "std.Address.Address", df.Alternative)
+	}
+}
+
+func TestCheckMethodWithPackageAlias(t *testing.T) {
+	t.Parallel()
+	src := `
+package main
+
+import (
+	mystd "std"
+)
+
+func main() {
+	addr := mystd.NewAddress()
+	addr.Addr()
+
+	// inline creation and method call
+	mystd.NewAddress().Addr()
+}
+`
+
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, "example.go", src, 0)
+	if err != nil {
+		t.Fatalf("Failed to parse file: %v", err)
+	}
+
+	checker := NewDeprecatedFuncChecker()
+	checker.RegisterMethod("std", "Address", "Addr", "std.Address.Address")
+
+	deprecated, err := checker.Check("example.go", node, fset)
+	if err != nil {
+		t.Fatalf("Check failed with error: %v", err)
+	}
+
+	assert.Equal(t, 2, len(deprecated))
+
+	for _, df := range deprecated {
+		assert.Equal(t, "std", df.Package)
+		assert.Equal(t, "Address.Addr", df.Function)
+		assert.Equal(t, "std.Address.Address", df.Alternative)
+	}
+}
+
+func TestComplexMethodCalls(t *testing.T) {
+	t.Parallel()
+	src := `
+package main
+
+import (
+	"std"
+)
+
+func getAddress() std.Address {
+	return std.NewAddress()
+}
+
+func main() {
+	(getAddress()).Addr()
+	
+	var addresses []std.Address
+	addresses[0].Addr()
+	
+	m := map[string]std.Address{"key": std.NewAddress()}
+	m["key"].Addr()
+
+	// nested call
+	getAddress().Addr()
+
+	// conditional expression
+	addr := std.Address{}
+	if true {
+		addr = std.NewAddress()
+	}
+	addr.Addr()
+}
+`
+
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, "example.go", src, 0)
+	if err != nil {
+		t.Fatalf("Failed to parse file: %v", err)
+	}
+
+	checker := NewDeprecatedFuncChecker()
+	checker.RegisterMethod("std", "Address", "Addr", "std.Address.Address")
+
+	deprecated, err := checker.Check("example.go", node, fset)
+	if err != nil {
+		t.Fatalf("Check failed with error: %v", err)
+	}
+
+	// need to detect all 5 Addr() calls
+	assert.Equal(t, 5, len(deprecated))
+
+	for _, df := range deprecated {
+		assert.Equal(t, "std", df.Package)
+		assert.Equal(t, "Address.Addr", df.Function)
+		assert.Equal(t, "std.Address.Address", df.Alternative)
+	}
+}
+
+func TestMixedFunctionAndMethodDeprecation(t *testing.T) {
+	t.Parallel()
+	src := `
+package main
+
+import (
+	"std"
+)
+
+func main() {
+	// call deprecated function
+	caller := std.GetOrigCaller()
+
+	// call deprecated method
+	addr := std.NewAddress()
+	addr.Addr()
+
+	// using both deprecated function and method via chaining
+	std.GetOrigCaller().Something()
+	std.NewAddress().Addr()
+}
+`
+
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, "example.go", src, 0)
+	if err != nil {
+		t.Fatalf("Failed to parse file: %v", err)
+	}
+
+	checker := NewDeprecatedFuncChecker()
+	checker.Register("std", "GetOrigCaller", "std.OriginCaller")
+	checker.RegisterMethod("std", "Address", "Addr", "std.Address.Address")
+
+	deprecated, err := checker.Check("example.go", node, fset)
+	if err != nil {
+		t.Fatalf("Check failed with error: %v", err)
+	}
+
+	// total 4 deprecated calls (2 functions, 2 methods)
+	assert.Equal(t, 4, len(deprecated))
+
+	var foundFuncs, foundMethods int
+	for _, df := range deprecated {
+		assert.Equal(t, "std", df.Package)
+		if df.Function == "GetOrigCaller" {
+			foundFuncs++
+			assert.Equal(t, "std.OriginCaller", df.Alternative)
+		} else if df.Function == "Address.Addr" {
+			foundMethods++
+			assert.Equal(t, "std.Address.Address", df.Alternative)
+		}
+	}
+
+	assert.Equal(t, 2, foundFuncs)
+	assert.Equal(t, 2, foundMethods)
+}

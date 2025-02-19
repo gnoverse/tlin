@@ -8,8 +8,13 @@ import (
 	"strings"
 )
 
+// TODO: refactor this codebase
+
 // PkgFuncMap maps package paths to function names and their alternatives
 type PkgFuncMap map[string]map[string]string
+
+// PkgTypeMethodMap maps package paths to types and their methods with alternatives
+type PkgTypeMethodMap map[string]map[string]map[string]string
 
 // DeprecatedFunc represents a deprecated function
 type DeprecatedFunc struct {
@@ -22,13 +27,15 @@ type DeprecatedFunc struct {
 
 // DeprecatedFuncChecker checks for deprecated functions
 type DeprecatedFuncChecker struct {
-	deprecatedFuncs PkgFuncMap
+	deprecatedFuncs   PkgFuncMap
+	deprecatedMethods PkgTypeMethodMap
 }
 
 // NewDeprecatedFuncChecker creates a new DeprecatedFuncChecker
 func NewDeprecatedFuncChecker() *DeprecatedFuncChecker {
 	return &DeprecatedFuncChecker{
-		deprecatedFuncs: make(PkgFuncMap),
+		deprecatedFuncs:   make(PkgFuncMap),
+		deprecatedMethods: make(PkgTypeMethodMap),
 	}
 }
 
@@ -49,6 +56,19 @@ func (d *DeprecatedFuncChecker) Register(pkgName, funcName, alternative string) 
 		d.deprecatedFuncs[pkgName] = make(map[string]string)
 	}
 	d.deprecatedFuncs[pkgName][funcName] = alternative
+}
+
+// RegisterMethod adds a deprecated method to the checker
+func (d *DeprecatedFuncChecker) RegisterMethod(pkgName, typeName, methodName, alternative string) {
+	if _, ok := d.deprecatedMethods[pkgName]; !ok {
+		d.deprecatedMethods[pkgName] = make(map[string]map[string]string)
+	}
+
+	if _, ok := d.deprecatedMethods[pkgName][typeName]; !ok {
+		d.deprecatedMethods[pkgName][typeName] = make(map[string]string)
+	}
+
+	d.deprecatedMethods[pkgName][typeName][methodName] = alternative
 }
 
 // Check checks an AST node for deprecated functions
@@ -105,17 +125,82 @@ func (d *DeprecatedFuncChecker) checkCall(call *ast.CallExpr, packageAliases map
 func (d *DeprecatedFuncChecker) checkSelectorExpr(fun *ast.SelectorExpr, packageAliases map[string]string, fset *token.FileSet, call *ast.CallExpr) *DeprecatedFunc {
 	ident, ok := fun.X.(*ast.Ident)
 	if !ok {
-		return nil
+		// This could be a method call on a non-identifier expression
+		// For example: obj.Method() or expr().Method()
+		return d.checkMethodCall(fun, packageAliases, fset, call)
 	}
+
 	pkgAlias := ident.Name
-	funcName := fun.Sel.Name
+	methodName := fun.Sel.Name
 
+	// Check if it's a package function call (pkg.Func())
 	pkgPath, ok := packageAliases[pkgAlias]
-	if !ok {
-		return nil // Not a package alias, possibly a method call
+	if ok {
+		return d.createDeprecatedFuncIfFound(pkgPath, methodName, fset, call)
 	}
 
-	return d.createDeprecatedFuncIfFound(pkgPath, funcName, fset, call)
+	// It might be a method call on a variable
+	return d.checkMethodCall(fun, packageAliases, fset, call)
+}
+
+func (d *DeprecatedFuncChecker) checkMethodCall(fun *ast.SelectorExpr, packageAliases map[string]string, fset *token.FileSet, call *ast.CallExpr) *DeprecatedFunc {
+	methodName := fun.Sel.Name
+
+	// Try to determine the type of the expression this method is called on
+	exprType := d.inferExpressionType(fun.X, packageAliases)
+	if exprType != "" {
+		// Split the type into package and type parts if it contains a dot
+		var pkgPath, typeName string
+		if parts := strings.Split(exprType, "."); len(parts) > 1 {
+			pkgPath = parts[0]
+			typeName = parts[1]
+		} else {
+			// If no dot, assume it's a local type
+			typeName = exprType
+		}
+
+		// Check if the type is in the current package or in an imported package
+		for alias, importPath := range packageAliases {
+			// For alias matches, use the actual import path
+			if pkgPath == alias {
+				pkgPath = importPath
+				break
+			}
+		}
+
+		// Now check if this type+method is deprecated
+		if typeMap, ok := d.deprecatedMethods[pkgPath]; ok {
+			if methodMap, ok := typeMap[typeName]; ok {
+				if alt, ok := methodMap[methodName]; ok {
+					return &DeprecatedFunc{
+						Package:     pkgPath,
+						Function:    fmt.Sprintf("%s.%s", typeName, methodName),
+						Alternative: alt,
+						Start:       fset.Position(call.Pos()),
+						End:         fset.Position(call.End()),
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback: check all deprecated methods across all packages and types
+	// This is less precise but catches cases where we couldn't infer the type
+	for pkgPath, typeMap := range d.deprecatedMethods {
+		for typeName, methodMap := range typeMap {
+			if alt, ok := methodMap[methodName]; ok {
+				return &DeprecatedFunc{
+					Package:     pkgPath,
+					Function:    fmt.Sprintf("%s.%s", typeName, methodName),
+					Alternative: alt,
+					Start:       fset.Position(call.Pos()),
+					End:         fset.Position(call.End()),
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (d *DeprecatedFuncChecker) checkIdent(fun *ast.Ident, packageAliases map[string]string, fset *token.FileSet, call *ast.CallExpr) *DeprecatedFunc {
@@ -145,4 +230,104 @@ func (d *DeprecatedFuncChecker) createDeprecatedFuncIfFound(pkgPath, funcName st
 		}
 	}
 	return nil
+}
+
+// inferExpressionType attempts to determine the type of an expression
+func (d *DeprecatedFuncChecker) inferExpressionType(expr ast.Expr, packageAliases map[string]string) string {
+	switch e := expr.(type) {
+	case *ast.Ident:
+		// Simple identifier - variable name or type name
+		return e.Name
+
+	case *ast.SelectorExpr:
+		// pkg.Type or obj.Field format
+		if pkg, ok := e.X.(*ast.Ident); ok {
+			// If it's a package alias, convert to actual package path
+			if pkgPath, exists := packageAliases[pkg.Name]; exists {
+				return pkgPath + "." + e.Sel.Name
+			}
+			return pkg.Name + "." + e.Sel.Name
+		}
+		// Handle chained selectors (a.b.c format)
+		baseType := d.inferExpressionType(e.X, packageAliases)
+		if baseType != "" {
+			return baseType + "." + e.Sel.Name
+		}
+
+	case *ast.CallExpr:
+		// Function call - infer return type when possible
+		if sel, ok := e.Fun.(*ast.SelectorExpr); ok {
+			if pkg, ok := sel.X.(*ast.Ident); ok {
+				funcName := sel.Sel.Name
+				pkgName := pkg.Name
+
+				// Handle package aliases
+				if pkgPath, exists := packageAliases[pkgName]; exists {
+					pkgName = pkgPath
+				}
+
+				// Heuristic 1: NewXxx() pattern is assumed to return Xxx type
+				if strings.HasPrefix(funcName, "New") {
+					typeName := strings.TrimPrefix(funcName, "New")
+					return pkgName + "." + typeName
+				}
+
+				// Heuristic 2: xxxFrom() pattern is assumed to return xxx type
+				if strings.HasSuffix(funcName, "From") {
+					typeName := strings.TrimSuffix(funcName, "From")
+					return pkgName + "." + typeName
+				}
+
+				// Heuristic 3: ParseXxx() is assumed to return Xxx type
+				if strings.HasPrefix(funcName, "Parse") {
+					typeName := strings.TrimPrefix(funcName, "Parse")
+					return pkgName + "." + typeName
+				}
+			}
+		}
+
+	case *ast.UnaryExpr:
+		// Unary operator (*x, &x, etc.)
+		if e.Op == token.MUL {
+			return "*" + d.inferExpressionType(e.X, packageAliases)
+		}
+
+	case *ast.StarExpr:
+		// Pointer type (*T) or dereference (*x)
+		return d.inferExpressionType(e.X, packageAliases)
+
+	case *ast.ParenExpr:
+		// Parenthesized expression (x)
+		return d.inferExpressionType(e.X, packageAliases)
+
+	case *ast.TypeAssertExpr:
+		// Type assertion (x.(Type))
+		if ident, ok := e.Type.(*ast.Ident); ok {
+			return ident.Name
+		} else if sel, ok := e.Type.(*ast.SelectorExpr); ok {
+			if pkg, ok := sel.X.(*ast.Ident); ok {
+				if pkgPath, exists := packageAliases[pkg.Name]; exists {
+					return pkgPath + "." + sel.Sel.Name
+				}
+				return pkg.Name + "." + sel.Sel.Name
+			}
+		}
+
+	case *ast.CompositeLit:
+		// Composite literal (Type{...})
+		return d.inferExpressionType(e.Type, packageAliases)
+
+	case *ast.IndexExpr:
+		// Index expression (arr[idx])
+		// Difficult to infer element types of maps or slices
+		// Do not handle complex cases
+		return ""
+
+	case *ast.FuncLit:
+		// Function literal (func(...){...})
+		// Return type inference required but complex
+		return ""
+	}
+
+	return ""
 }
