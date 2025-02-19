@@ -1,0 +1,17 @@
+# deprecated functions
+functions:
+  std:
+    GetCallerAt: std.CallerAt
+    GetOrigSend: std.OriginSend
+    GetOrigCaller: std.OriginCaller
+    GetChainID: std.ChainID
+    GetBanker: std.NewBanker
+    GetChainDomain: std.ChainDomain
+    GetHeight: std.Height
+    PrevRealm: std.PreviousRealm
+
+# deprecated methods which are chaining methods
+methods:
+  std:
+    Address:
+      Addr: std.Address.Address
