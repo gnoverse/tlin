@@ -12,9 +12,18 @@ import (
 func register() *checker.DeprecatedFuncChecker {
 	deprecated := checker.NewDeprecatedFuncChecker()
 
-	deprecated.Register("std", "SetOrigCaller", "std.PrevRealm")
-	deprecated.Register("std", "GetOrigCaller", "std.PrevRealm")
-	deprecated.Register("std", "TestSetOrigCaller", "")
+	// functions
+	deprecated.Register("std", "GetCallerAt", "std.CallerAt")
+	deprecated.Register("std", "GetOrigSend", "std.OriginSend")
+	deprecated.Register("std", "GetOrigCaller", "std.OriginCaller")
+	deprecated.Register("std", "PrevRealm", "std.PreviousRealm")
+	deprecated.Register("std", "GetChainID", "std.ChainID")
+	deprecated.Register("std", "GetBanker", "std.NewBanker")
+	deprecated.Register("std", "GetChainDomain", "std.ChainDomain")
+	deprecated.Register("std", "GetHeight", "std.Height")
+
+	// chaining methods
+	deprecated.RegisterMethod("std", "Address", "Addr", "Address")
 
 	return deprecated
 }

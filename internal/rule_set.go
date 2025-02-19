@@ -42,6 +42,7 @@ var (
 	DeferRule                    = LintRule{severity: tt.SeverityWarning, check: lints.DetectDeferIssues}
 	ConstErrorDeclarationRule    = LintRule{severity: tt.SeverityError, check: lints.DetectConstErrorDeclaration}
 	RepeatedRegexCompilationRule = LintRule{severity: tt.SeverityWarning, check: lints.DetectRepeatedRegexCompilation}
+	DeprecatedFuncRule           = LintRule{severity: tt.SeverityError, check: lints.DetectDeprecatedFunctions}
 	GnoSpecificRule              = LintRule{severity: tt.SeverityWarning, check: lints.DetectGnoPackageImports}
 )
 
@@ -60,5 +61,6 @@ var allRules = ruleMap{
 	"defer-issues":                DeferRule,
 	"const-error-declaration":     ConstErrorDeclarationRule,
 	"repeated-regex-compilation":  RepeatedRegexCompilationRule,
+	"deprecated":                  DeprecatedFuncRule,
 	"unused-package":              GnoSpecificRule,
 }
