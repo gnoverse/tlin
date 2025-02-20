@@ -4,22 +4,28 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"log"
-	"os"
 
 	"github.com/gnolang/tlin/internal/checker"
 	tt "github.com/gnolang/tlin/internal/types"
-
-	"gopkg.in/yaml.v3"
 )
 
 func register() *checker.DeprecatedFuncChecker {
-	chck, err := loadDeprecatedFunctionsFromYAML("internal/lints/data/deprecated_functions.yml")
-	if err != nil {
-		log.Printf("Warning: Failed to load deprecated functions: %v", err)
-		return checker.NewDeprecatedFuncChecker()
-	}
-	return chck
+	deprecated := checker.NewDeprecatedFuncChecker()
+
+	// functions
+	deprecated.Register("std", "GetCallerAt", "std.CallerAt")
+	deprecated.Register("std", "GetOrigSend", "std.OriginSend")
+	deprecated.Register("std", "GetOrigCaller", "std.OriginCaller")
+	deprecated.Register("std", "PrevRealm", "std.PreviousRealm")
+	deprecated.Register("std", "GetChainID", "std.ChainID")
+	deprecated.Register("std", "GetBanker", "std.NewBanker")
+	deprecated.Register("std", "GetChainDomain", "std.ChainDomain")
+	deprecated.Register("std", "GetHeight", "std.Height")
+
+	// chaining methods
+	deprecated.RegisterMethod("std", "Address", "Addr", "Address")
+
+	return deprecated
 }
 
 func DetectDeprecatedFunctions(
@@ -99,40 +105,4 @@ func extractImports[T any](node *ast.File, valueFunc func(string) T) map[string]
 	}
 
 	return imports
-}
-
-func loadDeprecatedFunctionsFromYAML(filepath string) (*checker.DeprecatedFuncChecker, error) {
-	checker := checker.NewDeprecatedFuncChecker()
-
-	data, err := os.ReadFile(filepath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read YAML file: %w", err)
-	}
-
-	var config struct {
-		Functions map[string]map[string]string            `yaml:"functions"`
-		Methods   map[string]map[string]map[string]string `yaml:"methods"`
-	}
-
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse YAML: %w", err)
-	}
-
-	// Register functions
-	for pkg, funcs := range config.Functions {
-		for funcName, alternative := range funcs {
-			checker.Register(pkg, funcName, alternative)
-		}
-	}
-
-	// Register methods
-	for pkg, types := range config.Methods {
-		for typeName, methods := range types {
-			for methodName, alternative := range methods {
-				checker.RegisterMethod(pkg, typeName, methodName, alternative)
-			}
-		}
-	}
-
-	return checker, nil
 }
