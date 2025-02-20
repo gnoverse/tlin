@@ -16,11 +16,14 @@ func register() *checker.DeprecatedFuncChecker {
 	deprecated.Register("std", "GetCallerAt", "std.CallerAt")
 	deprecated.Register("std", "GetOrigSend", "std.OriginSend")
 	deprecated.Register("std", "GetOrigCaller", "std.OriginCaller")
+	deprecated.Register("std", "TestSetOrigCaller", "std.TestSetOriginCaller")
+	deprecated.Register("std", "TestSetOrigSend", "std.TestSetOriginSend")
+	deprecated.Register("std", "TestSetOrigPkgAddr", "std.TestSetOriginPkgAddress")
 	deprecated.Register("std", "PrevRealm", "std.PreviousRealm")
 	deprecated.Register("std", "GetChainID", "std.ChainID")
 	deprecated.Register("std", "GetBanker", "std.NewBanker")
 	deprecated.Register("std", "GetChainDomain", "std.ChainDomain")
-	deprecated.Register("std", "GetHeight", "std.Height")
+	deprecated.Register("std", "GetHeight", "std.ChainHeight")
 
 	// chaining methods
 	deprecated.RegisterMethod("std", "Address", "Addr", "Address")
