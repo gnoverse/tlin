@@ -27,6 +27,7 @@ func register() *checker.DeprecatedFuncChecker {
 
 	// chaining methods
 	deprecated.RegisterMethod("std", "Address", "Addr", "Address")
+	deprecated.RegisterMethod("std", "Realm", "Addr", "Address")
 
 	return deprecated
 }
