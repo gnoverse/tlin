@@ -9,6 +9,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -222,6 +223,42 @@ func runAutoFix(ctx context.Context, logger *zap.Logger, engine lint.LintEngine,
 	fix := fixer.New(dryRun, confidenceThreshold)
 
 	for _, path := range paths {
+		fileInfo, err := os.Stat(path)
+		if err != nil {
+			logger.Error("error getting file info", zap.String("path", path), zap.Error(err))
+			continue
+		}
+
+		if fileInfo.IsDir() {
+			err := filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if info.IsDir() {
+					return nil
+				}
+				if !strings.HasSuffix(filePath, ".gno") {
+					return nil
+				}
+
+				issues, err := lint.ProcessPath(ctx, logger, engine, filePath, lint.ProcessFile)
+				if err != nil {
+					logger.Error("error processing path", zap.String("path", filePath), zap.Error(err))
+					return nil
+				}
+
+				err = fix.Fix(filePath, issues)
+				if err != nil {
+					logger.Error("error fixing issues", zap.String("path", filePath), zap.Error(err))
+				}
+				return nil
+			})
+			if err != nil {
+				logger.Error("error walking directory", zap.String("path", path), zap.Error(err))
+			}
+			continue
+		}
+
 		issues, err := lint.ProcessPath(ctx, logger, engine, path, lint.ProcessFile)
 		if err != nil {
 			logger.Error("error processing path", zap.String("path", path), zap.Error(err))
