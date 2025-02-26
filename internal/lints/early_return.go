@@ -1,5 +1,9 @@
 package lints
 
+//! TODO: Dangerous and inefficient rule.
+//! TODO: Need to change the logic to be more accurate.
+//! TODO: Until then, disable the auto fix for a while.
+
 import (
 	"bytes"
 	"go/ast"
@@ -47,7 +51,8 @@ func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token
 				End:        fset.Position(ifStmt.End()),
 				Message:    "this if-else chain can be simplified using early returns",
 				Suggestion: suggestion,
-				Confidence: 0.8,
+				// not stable for now. increase confidence after fixer_v2 implementation has been done.
+				Confidence: 0.2,
 				Severity:   severity,
 			}
 			issues = append(issues, issue)
@@ -96,6 +101,10 @@ func canUseEarlyReturn(chain branch.Chain) bool {
 }
 
 func RemoveUnnecessaryElse(snippet string) (string, error) {
+	// NOTE: The current implementation uses go/parser directly,
+	// so it requires creating files with complete code structures for the parser to recognize tokens.
+	// This is why this implementation was chosen, but once the fixer (v2) is applied and query-based searching becomes possible,
+	// this method can be completely removed.
 	wrappedSnippet := "package main\nfunc main() {\n" + snippet + "\n}"
 
 	fset := token.NewFileSet()

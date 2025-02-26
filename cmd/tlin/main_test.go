@@ -1,5 +1,7 @@
 package main
 
+// TODO: refactor the test code to be more readable and use testdata directory directly.
+
 import (
 	"bytes"
 	"context"
@@ -400,4 +402,75 @@ func captureOutput(t *testing.T, f func()) string {
 	var buf bytes.Buffer
 	io.Copy(&buf, r)
 	return buf.String()
+}
+
+func TestRunAutoFixOnDirectory(t *testing.T) {
+	t.Parallel()
+	logger, _ := zap.NewProduction()
+	ctx := context.Background()
+
+	tempDir, err := os.MkdirTemp("", "autofix-dir-test")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	files := map[string]string{
+		"file1.gno": sliceRangeIssueExample,
+		"sub/file2.gno": `package main
+func main() {
+	slice := []int{1, 2, 3}
+	_ = slice[:len(slice)]
+}`,
+		"file3.txt": "This should be ignored",
+		"sub/file4.go": `package main
+func main() {
+	slice := []int{1, 2, 3}
+	_ = slice[:len(slice)]
+}`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tempDir, path)
+		err := os.MkdirAll(filepath.Dir(fullPath), 0o755)
+		assert.NoError(t, err)
+		err = os.WriteFile(fullPath, []byte(content), 0o644)
+		assert.NoError(t, err)
+	}
+
+	mockEngine := new(mockLintEngine)
+	mockEngine.On("Run", mock.MatchedBy(func(path string) bool {
+		return strings.HasSuffix(path, ".gno")
+	})).Return([]tt.Issue{
+		{
+			Rule:       "simplify-slice-range",
+			Message:    "unnecessary use of len() in slice expression, can be simplified",
+			Start:      token.Position{Line: 4, Column: 5},
+			End:        token.Position{Line: 4, Column: 24},
+			Suggestion: "_ = slice[:]",
+			Confidence: 0.9,
+		},
+	}, nil)
+
+	output := captureOutput(t, func() {
+		runAutoFix(ctx, logger, mockEngine, []string{tempDir}, false, 0.8)
+	})
+
+	content1, err := os.ReadFile(filepath.Join(tempDir, "file1.gno"))
+	assert.NoError(t, err)
+	assert.Contains(t, string(content1), "_ = slice[:]")
+
+	content2, err := os.ReadFile(filepath.Join(tempDir, "sub/file2.gno"))
+	assert.NoError(t, err)
+	assert.Contains(t, string(content2), "_ = slice[:]")
+
+	// do not modify non .gno files
+	content3, err := os.ReadFile(filepath.Join(tempDir, "file3.txt"))
+	assert.NoError(t, err)
+	assert.Equal(t, "This should be ignored", string(content3))
+
+	content4, err := os.ReadFile(filepath.Join(tempDir, "sub/file4.go"))
+	assert.NoError(t, err)
+	assert.Contains(t, string(content4), "_ = slice[:len(slice)]")
+
+	assert.Contains(t, output, "Fixed issues in")
+	mockEngine.AssertExpectations(t)
 }

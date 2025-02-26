@@ -3,11 +3,13 @@ package main
 import "std"
 
 func main() {
-    std.Emit(
+
+	anotherOwner := anotherOwner.String()
+	std.Emit(
 		"OwnershipChange",
 		"newOwner", newOwner.String(),
-		"oldOwner", 
-		oldOwner.String(),
-		"anotherOwner", anotherOwner.String(),
+		"oldOwner", oldOwner.String(),
+		"anotherOwner",
+		anotherOwner,
 	)
 }
