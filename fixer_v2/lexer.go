@@ -197,6 +197,9 @@ func isIdentifierStart(c byte) bool {
 }
 
 func isIdentifierChar(c byte) bool {
+	if c == ':' {
+		return true
+	}
 	return isIdentifierStart(c) || isDigit(c)
 }
 
