@@ -1,9 +1,12 @@
 package types
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go/ast"
+	"go/printer"
 	"go/token"
 )
 
@@ -125,6 +128,13 @@ func (s *Severity) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Rule represents an individual rule with an ID and severity.
 type ConfigRule struct {
-	Severity Severity    `yaml:"severity"`
-	Data     interface{} `yaml:"data"` // Data can be anything
+	Severity Severity `yaml:"severity"`
+	Data     any      `yaml:"data"` // Data can be anything
+}
+
+// NodeToString converts an AST node to its string representation
+func Node2String(node ast.Node) string {
+	var buf bytes.Buffer
+	printer.Fprint(&buf, token.NewFileSet(), node)
+	return buf.String()
 }
