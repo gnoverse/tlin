@@ -44,6 +44,7 @@ var (
 	RepeatedRegexCompilationRule = LintRule{severity: tt.SeverityWarning, check: lints.DetectRepeatedRegexCompilation}
 	DeprecatedFuncRule           = LintRule{severity: tt.SeverityError, check: lints.DetectDeprecatedFunctions}
 	GnoSpecificRule              = LintRule{severity: tt.SeverityWarning, check: lints.DetectGnoPackageImports}
+	SimplifyForRangeRule         = LintRule{severity: tt.SeverityWarning, check: lints.DetectSimplifiableForLoops}
 )
 
 // Define the ruleMap type
@@ -63,4 +64,5 @@ var allRules = ruleMap{
 	"repeated-regex-compilation":  RepeatedRegexCompilationRule,
 	"deprecated":                  DeprecatedFuncRule,
 	"unused-package":              GnoSpecificRule,
+	"simplify-for-range":          SimplifyForRangeRule,
 }
