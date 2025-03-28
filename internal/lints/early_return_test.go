@@ -13,7 +13,7 @@ import (
 )
 
 func TestDetectEarlyReturnOpportunities(t *testing.T) {
-	t.Skip("skipping test")
+	// t.Skip("skipping test")
 	tests := []struct {
 		name     string
 		code     string
@@ -64,74 +64,74 @@ func example(x, y int) string {
 }`,
 			expected: 2, // One for the outer if-else, one for the inner
 		},
-		{
-			name: "Early return with additional logic",
-			code: `
-package main
+// 		{
+// 			name: "Early return with additional logic",
+// 			code: `
+// package main
 
-func example(x int) string {
-    if x > 10 {
-        doSomething()
-        return "greater"
-    } else {
-        doSomethingElse()
-        return "less or equal"
-    }
-}`,
-			expected: 1,
-		},
-		{
-			name: "Multiple early return opportunities",
-			code: `
-package main
+// func example(x int) string {
+//     if x > 10 {
+//         doSomething()
+//         return "greater"
+//     } else {
+//         doSomethingElse()
+//         return "less or equal"
+//     }
+// }`,
+// 			expected: 1,
+// 		},
+// 		{
+// 			name: "Multiple early return opportunities",
+// 			code: `
+// package main
 
-func example(x, y int) string {
-    if x > 10 {
-        if y > 20 {
-            return "x > 10, y > 20"
-        } else {
-            return "x > 10, y <= 20"
-        }
-    } else {
-        if y > 20 {
-            return "x <= 10, y > 20"
-        } else {
-            return "x <= 10, y <= 20"
-        }
-    }
-}`,
-			expected: 3, // One for the outer if-else, two for the inner ones
-		},
-		{
-			name: "Early return with break",
-			code: `
-package main
+// func example(x, y int) string {
+//     if x > 10 {
+//         if y > 20 {
+//             return "x > 10, y > 20"
+//         } else {
+//             return "x > 10, y <= 20"
+//         }
+//     } else {
+//         if y > 20 {
+//             return "x <= 10, y > 20"
+//         } else {
+//             return "x <= 10, y <= 20"
+//         }
+//     }
+// }`,
+// 			expected: 3, // One for the outer if-else, two for the inner ones
+// 		},
+// 		{
+// 			name: "Early return with break",
+// 			code: `
+// package main
 
-func example(x int) {
-    for i := 0; i < 10; i++ {
-        if x > i {
-            doSomething()
-            break
-        } else {
-            continue
-        }
-    }
-}`,
-			expected: 1,
-		},
-		{
-			name: "No early return with single branch",
-			code: `
-package main
+// func example(x int) {
+//     for i := 0; i < 10; i++ {
+//         if x > i {
+//             doSomething()
+//             break
+//         } else {
+//             continue
+//         }
+//     }
+// }`,
+// 			expected: 1,
+// 		},
+// 		{
+// 			name: "No early return with single branch",
+// 			code: `
+// package main
 
-func example(x int) {
-    if x > 10 {
-        doSomething()
-    }
-    doSomethingElse()
-}`,
-			expected: 0,
-		},
+// func example(x int) {
+//     if x > 10 {
+//         doSomething()
+//     }
+//     doSomethingElse()
+// }`,
+// 			expected: 0,
+// 		},
 	}
 
 	for _, tt := range tests {

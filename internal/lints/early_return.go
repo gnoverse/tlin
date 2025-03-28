@@ -1,11 +1,8 @@
 package lints
 
-//! TODO: Dangerous and inefficient rule.
-//! TODO: Need to change the logic to be more accurate.
-//! TODO: Until then, disable the auto fix for a while.
-
 import (
 	"bytes"
+	"errors"
 	"go/ast"
 	"go/format"
 	"go/parser"
@@ -13,13 +10,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gnolang/tlin/internal/branch"
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
 // DetectEarlyReturnOpportunities detects if-else chains that can be simplified using early returns.
-// This rule considers an else block unnecessary if the if block ends with a return statement.
-// In such cases, the else block can be removed and the code can be flattened to improve readability.
+// If a parent node is already a suggestion target, nested if-else chains will not generate a separate suggestion
+// and will only generate a suggestion for the top-level chain.
 func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	var issues []tt.Issue
 
@@ -28,85 +24,101 @@ func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token
 		return nil, err
 	}
 
-	var inspectNode func(n ast.Node) bool
-	inspectNode = func(n ast.Node) bool {
-		ifStmt, ok := n.(*ast.IfStmt)
-		if !ok {
-			return true
-		}
-
-		chain := analyzeIfElseChain(ifStmt)
-		if canUseEarlyReturn(chain) {
-			snippet := extractSnippet(ifStmt, fset, content)
-
-			suggestion, err := generateEarlyReturnSuggestion(snippet)
-			if err != nil {
-				return false
+	// a helper function to traverse the function body recursively
+	// inQualified is true if an early-return improvement has already been detected in a parent node
+	var traverseBlock func(block *ast.BlockStmt, inQualified bool)
+	traverseBlock = func(block *ast.BlockStmt, inQualified bool) {
+		for _, stmt := range block.List {
+			switch s := stmt.(type) {
+			case *ast.IfStmt:
+				qualifies := s.Else != nil && blockAlwaysTerminates(s.Body)
+				currentQualified := inQualified
+				if qualifies && !inQualified {
+					snippet := extractSnippet(s, fset, content)
+					suggestion, err := generateEarlyReturnSuggestion(snippet)
+					if err == nil {
+						issue := tt.Issue{
+							Rule:       "early-return",
+							Filename:   filename,
+							Start:      fset.Position(s.Pos()),
+							End:        fset.Position(s.End()),
+							Message:    "this if-else chain can be simplified using early returns",
+							Suggestion: suggestion,
+							Confidence: 0.2,
+							Severity:   severity,
+						}
+						issues = append(issues, issue)
+					}
+					// do not generate a separate suggestion for child nodes
+					currentQualified = true
+				}
+				traverseBlock(s.Body, currentQualified)
+				if s.Else != nil {
+					switch elseNode := s.Else.(type) {
+					case *ast.BlockStmt:
+						traverseBlock(elseNode, currentQualified)
+					case *ast.IfStmt:
+						// even if the if-else is a single if statement, wrap it in a block
+						traverseBlock(&ast.BlockStmt{List: []ast.Stmt{elseNode}}, currentQualified)
+					}
+				}
+			case *ast.BlockStmt:
+				traverseBlock(s, inQualified)
 			}
-
-			issue := tt.Issue{
-				Rule:       "early-return",
-				Filename:   filename,
-				Start:      fset.Position(ifStmt.Pos()),
-				End:        fset.Position(ifStmt.End()),
-				Message:    "this if-else chain can be simplified using early returns",
-				Suggestion: suggestion,
-				// not stable for now. increase confidence after fixer_v2 implementation has been done.
-				Confidence: 0.2,
-				Severity:   severity,
-			}
-			issues = append(issues, issue)
 		}
-
-		// recursively check the body of the if statement
-		ast.Inspect(ifStmt.Body, inspectNode)
-
-		if ifStmt.Else != nil {
-			if elseIf, ok := ifStmt.Else.(*ast.IfStmt); ok {
-				inspectNode(elseIf)
-			} else {
-				ast.Inspect(ifStmt.Else, inspectNode)
-			}
-		}
-
-		return false
 	}
 
-	ast.Inspect(node, inspectNode)
+	// traverse the body of every function declaration in the file
+	for _, decl := range node.Decls {
+		if funcDecl, ok := decl.(*ast.FuncDecl); ok && funcDecl.Body != nil {
+			traverseBlock(funcDecl.Body, false)
+		}
+	}
 
 	return issues, nil
 }
 
-func analyzeIfElseChain(ifStmt *ast.IfStmt) branch.Chain {
-	chain := branch.Chain{
-		If:   branch.BlockBranch(ifStmt.Body),
-		Else: branch.Branch{BranchKind: branch.Empty},
+// blockAlwaysTerminates returns true if the block's last statement always terminates.
+func blockAlwaysTerminates(block *ast.BlockStmt) bool {
+	if block == nil || len(block.List) == 0 {
+		return false
 	}
+	return stmtAlwaysTerminates(block.List[len(block.List)-1])
+}
 
-	if ifStmt.Else != nil {
-		if elseIfStmt, ok := ifStmt.Else.(*ast.IfStmt); ok {
-			chain.Else = analyzeIfElseChain(elseIfStmt).If
-		} else if elseBlock, ok := ifStmt.Else.(*ast.BlockStmt); ok {
-			chain.Else = branch.BlockBranch(elseBlock)
+// stmtAlwaysTerminates checks if a statement is guaranteed to terminate control flow.
+func stmtAlwaysTerminates(stmt ast.Stmt) bool {
+	switch s := stmt.(type) {
+	case *ast.ReturnStmt:
+		return true
+	case *ast.BranchStmt:
+		// consider break or continue as terminating control flow
+		if s.Tok == token.BREAK || s.Tok == token.CONTINUE {
+			return true
 		}
+		return false
+	case *ast.IfStmt:
+		// if all branches terminate, consider the if statement itself as terminating
+		thenTerm := blockAlwaysTerminates(s.Body)
+		elseTerm := false
+		if s.Else != nil {
+			switch elseNode := s.Else.(type) {
+			case *ast.BlockStmt:
+				elseTerm = blockAlwaysTerminates(elseNode)
+			case *ast.IfStmt:
+				elseTerm = stmtAlwaysTerminates(elseNode)
+			}
+		}
+		return thenTerm && elseTerm
+	default:
+		return false
 	}
-
-	return chain
 }
 
-func canUseEarlyReturn(chain branch.Chain) bool {
-	// If the 'if' branch deviates (returns, breaks, etc.) and there's an else branch,
-	// we might be able to use an early return
-	return chain.If.BranchKind.Deviates() && !chain.Else.BranchKind.IsEmpty()
-}
-
+// RemoveUnnecessaryElse applies the AST transformation to remove unnecessary else blocks.
 func RemoveUnnecessaryElse(snippet string) (string, error) {
-	// NOTE: The current implementation uses go/parser directly,
-	// so it requires creating files with complete code structures for the parser to recognize tokens.
-	// This is why this implementation was chosen, but once the fixer (v2) is applied and query-based searching becomes possible,
-	// this method can be completely removed.
+	// wrap the snippet with a valid Go file
 	wrappedSnippet := "package main\nfunc main() {\n" + snippet + "\n}"
-
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "", wrappedSnippet, parser.ParseComments)
 	if err != nil {
@@ -121,54 +133,66 @@ func RemoveUnnecessaryElse(snippet string) (string, error) {
 		}
 		return true
 	})
+	if funcBody == nil {
+		return "", errors.New("function body not found")
+	}
 
-	removeUnnecessaryElseAndEarlyReturnRecursive(funcBody)
+	// perform the AST transformation
+	transformBlock(funcBody)
 
-	var buf strings.Builder
+	var buf bytes.Buffer
 	err = format.Node(&buf, fset, funcBody)
 	if err != nil {
 		return "", err
 	}
 
 	result := cleanUpResult(buf.String())
-
 	return result, nil
 }
 
-func removeUnnecessaryElseAndEarlyReturnRecursive(node ast.Node) {
-	ast.Inspect(node, func(n ast.Node) bool {
-		if ifStmt, ok := n.(*ast.IfStmt); ok {
-			processIfStmt(ifStmt, node)
-			removeUnnecessaryElseAndEarlyReturnRecursive(ifStmt.Body)
-			if ifStmt.Else != nil {
-				removeUnnecessaryElseAndEarlyReturnRecursive(ifStmt.Else)
-			}
-			return false
-		}
-		return true
-	})
-}
-
-func processIfStmt(ifStmt *ast.IfStmt, node ast.Node) {
-	if ifStmt.Else != nil {
-		ifBranch := branch.BlockBranch(ifStmt.Body)
-		if ifBranch.BranchKind.Deviates() {
-			parent := findParentBlockStmt(node, ifStmt)
-			if parent != nil {
-				switch elseBody := ifStmt.Else.(type) {
+// transformBlock processes each statement in the block and applies transformation to if-statements.
+func transformBlock(block *ast.BlockStmt) {
+	for i := 0; i < len(block.List); i++ {
+		switch stmt := block.List[i].(type) {
+		case *ast.IfStmt:
+			transformIfStmt(stmt)
+			// inline the else block's statements if the then block terminates and there is an else block
+			if stmt.Else != nil && blockAlwaysTerminates(stmt.Body) {
+				var elseStmts []ast.Stmt
+				switch elseNode := stmt.Else.(type) {
 				case *ast.BlockStmt:
-					insertStatementsAfter(parent, ifStmt, elseBody.List)
+					elseStmts = elseNode.List
 				case *ast.IfStmt:
-					insertStatementsAfter(parent, ifStmt, []ast.Stmt{elseBody})
+					elseStmts = []ast.Stmt{elseNode}
 				}
-				ifStmt.Else = nil
+				stmt.Else = nil
+				newList := make([]ast.Stmt, 0, len(block.List)+len(elseStmts))
+				newList = append(newList, block.List[:i+1]...)
+				newList = append(newList, elseStmts...)
+				newList = append(newList, block.List[i+1:]...)
+				block.List = newList
+				i += len(elseStmts)
 			}
-		} else if elseIfStmt, ok := ifStmt.Else.(*ast.IfStmt); ok {
-			processIfStmt(elseIfStmt, ifStmt)
 		}
 	}
 }
 
+// transformIfStmt applies transformation recursively to the if-statement and its children.
+func transformIfStmt(ifStmt *ast.IfStmt) {
+	if ifStmt.Body != nil {
+		transformBlock(ifStmt.Body)
+	}
+	if ifStmt.Else != nil {
+		switch elseNode := ifStmt.Else.(type) {
+		case *ast.BlockStmt:
+			transformBlock(elseNode)
+		case *ast.IfStmt:
+			transformIfStmt(elseNode)
+		}
+	}
+}
+
+// cleanUpResult trims extra braces and fixes indentation.
 func cleanUpResult(result string) string {
 	result = strings.TrimSpace(result)
 	result = strings.TrimPrefix(result, "{")
@@ -182,62 +206,27 @@ func cleanUpResult(result string) string {
 	return strings.Join(lines, "\n")
 }
 
-func findParentBlockStmt(root ast.Node, child ast.Node) *ast.BlockStmt {
-	var parent *ast.BlockStmt
-	ast.Inspect(root, func(n ast.Node) bool {
-		if n == child {
-			return false
-		}
-		if block, ok := n.(*ast.BlockStmt); ok {
-			for _, stmt := range block.List {
-				if stmt == child {
-					parent = block
-					return false
-				}
-			}
-		}
-		return true
-	})
-	return parent
-}
-
-func insertStatementsAfter(block *ast.BlockStmt, target ast.Stmt, stmts []ast.Stmt) {
-	for i, stmt := range block.List {
-		if stmt == target {
-			// insert new statements after the target statement
-			block.List = append(block.List[:i+1], append(stmts, block.List[i+1:]...)...)
-
-			for j := i + 1; j < len(block.List); j++ {
-				if newIfStmt, ok := block.List[j].(*ast.IfStmt); ok {
-					processIfStmt(newIfStmt, block)
-				}
-			}
-			break
-		}
-	}
-}
-
+// extractSnippet extracts the code corresponding to the node from the file content.
 func extractSnippet(node ast.Node, fset *token.FileSet, fileContent []byte) string {
 	startPos := fset.Position(node.Pos())
 	endPos := fset.Position(node.End())
 
-	// extract the relevant portion of the file content
 	snippet := fileContent[startPos.Offset:endPos.Offset]
 	snippet = bytes.TrimLeft(snippet, " \t\n")
 
-	// ensure we include the entire first line
+	// include the first line
 	if startPos.Column > 1 {
 		lineStart := bytes.LastIndex(fileContent[:startPos.Offset], []byte{'\n'})
 		if lineStart == -1 {
 			lineStart = 0
 		} else {
-			lineStart++ // Move past the newline
+			lineStart++
 		}
 		prefix := fileContent[lineStart:startPos.Offset]
 		snippet = append(bytes.TrimLeft(prefix, " \t"), snippet...)
 	}
 
-	// ensure we include any closing brace on its own line
+	// include the line with the closing brace
 	if endPos.Column > 1 {
 		nextNewline := bytes.Index(fileContent[endPos.Offset:], []byte{'\n'})
 		if nextNewline != -1 {
@@ -250,10 +239,10 @@ func extractSnippet(node ast.Node, fset *token.FileSet, fileContent []byte) stri
 	}
 
 	snippet = bytes.TrimRight(snippet, " \t\n")
-
 	return string(snippet)
 }
 
+// generateEarlyReturnSuggestion applies the transformation to produce a suggestion.
 func generateEarlyReturnSuggestion(snippet string) (string, error) {
 	improved, err := RemoveUnnecessaryElse(snippet)
 	if err != nil {
