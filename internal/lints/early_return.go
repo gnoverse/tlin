@@ -13,9 +13,7 @@ import (
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-var (
-	errNoFunctionBody = errors.New("function body not found")
-)
+var errNoFunctionBody = errors.New("function body not found")
 
 // TraversalContext holds shared data for AST traversal
 type traversalContext struct {
@@ -152,7 +150,6 @@ func traverseIfStatement(ifStmt *ast.IfStmt, ctx *traversalContext, inChain bool
 func processQualifiedChain(chain *ifChain, ctx *traversalContext) {
 	snippet := extractSnippet(chain.root, ctx.fset, ctx.content)
 	suggestion, err := generateEarlyReturnSuggestion(snippet)
-
 	if err != nil {
 		return
 	}
