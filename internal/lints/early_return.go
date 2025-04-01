@@ -205,6 +205,8 @@ var alwaysTerminates = map[token.Token]bool{
 }
 
 // stmtAlwaysTerminates determines if a statement terminates control flow
+//
+// TODO: Consider using branch.StmtBranch(stmt).Deviates() to determine if a statement terminates control flow
 func stmtAlwaysTerminates(stmt ast.Stmt) bool {
 	switch s := stmt.(type) {
 	case *ast.ReturnStmt:
@@ -363,41 +365,37 @@ func generateEarlyReturnSuggestion(snippet string) (string, error) {
 
 // RemoveUnnecessaryElse removes unnecessary else blocks from the given code snippet
 func RemoveUnnecessaryElse(snippet string) (string, error) {
-	wrappedSnippet := "package main\nfunc main() {\n" + snippet + "\n}"
-
 	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "", wrappedSnippet, parser.ParseComments)
+	// We need to wrap the snippet in a minimal valid program structure
+	// because go/parser.ParseFile requires a complete Go source file.
+	// Using "package p" (any valid name) and an anonymous function "_"
+	// provides the minimal context needed to parse the statement block
+	// while keeping the wrapping overhead as small as possible.
+	file, err := parser.ParseFile(fset, "", "package p; func _() { "+snippet+" }", parser.ParseComments)
 	if err != nil {
 		return "", err
 	}
 
-	funcBody := findFunctionBody(file)
-	if funcBody == nil {
-		return "", errNoFunctionBody
-	}
-
-	transformBlock(funcBody)
-
-	var buf bytes.Buffer
-	err = format.Node(&buf, fset, funcBody)
-	if err != nil {
-		return "", err
-	}
-
-	return cleanUpResult(buf.String()), nil
-}
-
-// findFunctionBody locates the main function body in the parsed file
-func findFunctionBody(file *ast.File) *ast.BlockStmt {
-	var funcBody *ast.BlockStmt
-
+	var block *ast.BlockStmt
 	ast.Inspect(file, func(n ast.Node) bool {
 		if fd, ok := n.(*ast.FuncDecl); ok {
-			funcBody = fd.Body
+			block = fd.Body
 			return false
 		}
 		return true
 	})
 
-	return funcBody
+	if block == nil {
+		return "", errNoFunctionBody
+	}
+
+	transformBlock(block)
+
+	var buf bytes.Buffer
+	err = format.Node(&buf, fset, block)
+	if err != nil {
+		return "", err
+	}
+
+	return cleanUpResult(buf.String()), nil
 }

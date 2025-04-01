@@ -213,6 +213,39 @@ if z {
 
 }`,
 		},
+		{
+			name: "Partially returning nested if-else",
+			input: `if x {
+	if y {
+		return 1
+	} else {
+		doSomething()
+	}
+} else {
+	return 2
+}`,
+			expected: `if x {
+	if y {
+		return 1
+	}
+	doSomething()
+
+} else {
+	return 2
+}`,
+		},
+		{
+			name: "Loop control statements",
+			input: `if x {
+	break
+} else {
+	continue
+}`,
+			expected: `if x {
+	break
+}
+continue`,
+		},
 	}
 
 	for _, tt := range tests {
