@@ -8,10 +8,6 @@ import (
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-/*
-* Implement each lint rule as a a new LintRule struct.
- */
-
 // LintRule defines the struct for all lint rules.
 type LintRule struct {
 	severity tt.Severity
