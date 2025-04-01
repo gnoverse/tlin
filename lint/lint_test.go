@@ -206,10 +206,10 @@ func TestProcessSources(t *testing.T) {
 
 func TestHasDesiredExtension(t *testing.T) {
 	t.Parallel()
-	assert.True(t, isGno("test.go"))
-	assert.True(t, isGno("test.gno"))
-	assert.False(t, isGno("test.txt"))
-	assert.False(t, isGno("test"))
+	assert.True(t, hasDesiredExtension("test.go"))
+	assert.True(t, hasDesiredExtension("test.gno"))
+	assert.False(t, hasDesiredExtension("test.txt"))
+	assert.False(t, hasDesiredExtension("test"))
 }
 
 func createTempFiles(t *testing.T, dir string, fileNames ...string) []string {

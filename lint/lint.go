@@ -95,7 +95,7 @@ func ProcessPath(
 	if info.IsDir() {
 		var files []string
 		filepath.Walk(path, func(filePath string, fileInfo os.FileInfo, err error) error {
-			if !fileInfo.IsDir() && isGno(filePath) {
+			if !fileInfo.IsDir() && hasDesiredExtension(filePath) {
 				files = append(files, filePath)
 			}
 			return nil
@@ -199,7 +199,7 @@ func ProcessPath(
 
 		fmt.Println()
 		return issues, nil
-	} else if isGno(path) {
+	} else if hasDesiredExtension(path) {
 		fileIssues, err := processor(engine, path)
 		if err != nil {
 			return nil, err
@@ -222,8 +222,13 @@ func ProcessSource(engine LintEngine, source []byte) ([]tt.Issue, error) {
 	return engine.RunSource(source)
 }
 
-func isGno(path string) bool {
-	return filepath.Ext(path) == ".gno"
+var desiredExtensions = map[string]bool{
+	".go":  true,
+	".gno": true,
+}
+
+func hasDesiredExtension(path string) bool {
+	return desiredExtensions[filepath.Ext(path)]
 }
 
 // Config represents the overall configuration with a name and a slice of rules.
