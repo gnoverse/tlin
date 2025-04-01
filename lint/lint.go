@@ -5,13 +5,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 
 	"github.com/gnolang/tlin/internal"
 	"github.com/gnolang/tlin/internal/lints"
 	tt "github.com/gnolang/tlin/internal/types"
+	"github.com/schollz/progressbar/v3"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
+
+const maxShowRecentFiles = 25
 
 type LintEngine interface {
 	Run(filePath string) ([]tt.Issue, error)
@@ -22,7 +27,10 @@ type LintEngine interface {
 
 // export the function NewEngine to be used in other packages
 func New(rootDir string, source []byte, configurationPath string) (*internal.Engine, error) {
-	config, _ := parseConfigurationFile(configurationPath)
+	config, err := parseConfigurationFile(configurationPath)
+	if err != nil {
+		return nil, err
+	}
 
 	return internal.NewEngine(rootDir, source, config.Rules)
 }
@@ -72,7 +80,7 @@ func ProcessFiles(
 }
 
 func ProcessPath(
-	_ context.Context,
+	ctx context.Context,
 	logger *zap.Logger,
 	engine LintEngine,
 	path string,
@@ -85,24 +93,113 @@ func ProcessPath(
 
 	var issues []tt.Issue
 	if info.IsDir() {
-		err = filepath.Walk(path, func(filePath string, fileInfo os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if !fileInfo.IsDir() && hasDesiredExtension(filePath) {
-				fileIssues, err := processor(engine, filePath)
-				if err != nil && logger != nil {
-					logger.Error("Error processing file", zap.String("file", filePath), zap.Error(err))
-				} else {
-					issues = append(issues, fileIssues...)
-				}
+		var files []string
+		filepath.Walk(path, func(filePath string, fileInfo os.FileInfo, err error) error {
+			if !fileInfo.IsDir() && isGno(filePath) {
+				files = append(files, filePath)
 			}
 			return nil
 		})
-		if err != nil {
-			return nil, fmt.Errorf("error walking directory %s: %w", path, err)
+
+		// mutex for recent files
+		var recentFilesMutex sync.Mutex
+		recentFiles := make([]string, maxShowRecentFiles)
+
+		// make space for recent files
+		for range maxShowRecentFiles + 1 {
+			fmt.Println()
 		}
-	} else if hasDesiredExtension(path) {
+		fmt.Printf("\033[%dA", maxShowRecentFiles+1)
+
+		// channels for results and errors
+		resultChan := make(chan []tt.Issue, len(files))
+		errorChan := make(chan error, len(files))
+
+		// limit the number of workers
+		maxWorkers := runtime.NumCPU()
+		sem := make(chan struct{}, maxWorkers)
+
+		bar := progressbar.NewOptions(len(files),
+			progressbar.OptionSetDescription(path),
+			progressbar.OptionEnableColorCodes(true),
+			progressbar.OptionSetWidth(40),
+			progressbar.OptionShowCount(),
+			progressbar.OptionSetTheme(progressbar.Theme{
+				Saucer:        "[green]=[reset]",
+				SaucerHead:    "[green]>[reset]",
+				SaucerPadding: " ",
+				BarStart:      "[",
+				BarEnd:        "]",
+			}))
+
+		// update recent files
+		updateRecentFiles := func(filename string) {
+			recentFilesMutex.Lock()
+			defer recentFilesMutex.Unlock()
+
+			// update the list
+			for j := maxShowRecentFiles - 1; j > 0; j-- {
+				recentFiles[j] = recentFiles[j-1]
+			}
+			recentFiles[0] = filename
+
+			// move the cursor up
+			fmt.Printf("\033[%dA", maxShowRecentFiles)
+
+			// print the list
+			for j := range recentFiles {
+				if recentFiles[j] != "" {
+					// \033[2k: clear the line
+					// \r: move the cursor to the beginning of the line
+					fmt.Printf("\033[2K\r%s\n", recentFiles[j])
+				} else {
+					fmt.Printf("\033[2K\r\n")
+				}
+			}
+		}
+
+		// for each file, run a goroutine
+		for _, filePath := range files {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			default:
+				sem <- struct{}{}
+				go func(fp string) {
+					defer func() { <-sem }()
+
+					// show the start of file processing
+					updateRecentFiles(filepath.Base(fp))
+
+					fileIssues, err := processor(engine, fp)
+					if err != nil {
+						if logger != nil {
+							logger.Error("Error processing file", zap.String("file", fp), zap.Error(err))
+						}
+						errorChan <- err
+						resultChan <- nil
+					} else {
+						resultChan <- fileIssues
+						errorChan <- nil
+					}
+					bar.Add(1)
+				}(filePath)
+			}
+		}
+
+		// collect all results
+		for range files {
+			if err := <-errorChan; err != nil {
+				continue
+			}
+			if result := <-resultChan; result != nil {
+				issues = append(issues, result...)
+			}
+		}
+
+		fmt.Println()
+		return issues, nil
+	} else if isGno(path) {
 		fileIssues, err := processor(engine, path)
 		if err != nil {
 			return nil, err
@@ -125,8 +222,8 @@ func ProcessSource(engine LintEngine, source []byte) ([]tt.Issue, error) {
 	return engine.RunSource(source)
 }
 
-func hasDesiredExtension(path string) bool {
-	return filepath.Ext(path) == ".go" || filepath.Ext(path) == ".gno"
+func isGno(path string) bool {
+	return filepath.Ext(path) == ".gno"
 }
 
 // Config represents the overall configuration with a name and a slice of rules.
