@@ -27,11 +27,8 @@ type LintEngine interface {
 
 // export the function NewEngine to be used in other packages
 func New(rootDir string, source []byte, configurationPath string) (*internal.Engine, error) {
-	config, err := parseConfigurationFile(configurationPath)
-	if err != nil {
-		return nil, err
-	}
-
+	// Do not return error here, because we want to continue the program
+	config, _ := parseConfigurationFile(configurationPath)
 	return internal.NewEngine(rootDir, source, config.Rules)
 }
 
