@@ -1,11 +1,8 @@
 package lints
 
-//! TODO: Dangerous and inefficient rule.
-//! TODO: Need to change the logic to be more accurate.
-//! TODO: Until then, disable the auto fix for a while.
-
 import (
 	"bytes"
+	"errors"
 	"go/ast"
 	"go/format"
 	"go/parser"
@@ -13,162 +10,304 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gnolang/tlin/internal/branch"
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-// DetectEarlyReturnOpportunities detects if-else chains that can be simplified using early returns.
-// This rule considers an else block unnecessary if the if block ends with a return statement.
-// In such cases, the else block can be removed and the code can be flattened to improve readability.
-func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
-	var issues []tt.Issue
+var errNoFunctionBody = errors.New("function body not found")
 
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	var inspectNode func(n ast.Node) bool
-	inspectNode = func(n ast.Node) bool {
-		ifStmt, ok := n.(*ast.IfStmt)
-		if !ok {
-			return true
-		}
-
-		chain := analyzeIfElseChain(ifStmt)
-		if canUseEarlyReturn(chain) {
-			snippet := extractSnippet(ifStmt, fset, content)
-
-			suggestion, err := generateEarlyReturnSuggestion(snippet)
-			if err != nil {
-				return false
-			}
-
-			issue := tt.Issue{
-				Rule:       "early-return",
-				Filename:   filename,
-				Start:      fset.Position(ifStmt.Pos()),
-				End:        fset.Position(ifStmt.End()),
-				Message:    "this if-else chain can be simplified using early returns",
-				Suggestion: suggestion,
-				// not stable for now. increase confidence after fixer_v2 implementation has been done.
-				Confidence: 0.2,
-				Severity:   severity,
-			}
-			issues = append(issues, issue)
-		}
-
-		// recursively check the body of the if statement
-		ast.Inspect(ifStmt.Body, inspectNode)
-
-		if ifStmt.Else != nil {
-			if elseIf, ok := ifStmt.Else.(*ast.IfStmt); ok {
-				inspectNode(elseIf)
-			} else {
-				ast.Inspect(ifStmt.Else, inspectNode)
-			}
-		}
-
-		return false
-	}
-
-	ast.Inspect(node, inspectNode)
-
-	return issues, nil
+// TraversalContext holds shared data for AST traversal
+type traversalContext struct {
+	processed map[*ast.IfStmt]bool
+	fset      *token.FileSet
+	filename  string
+	content   []byte
+	severity  tt.Severity
+	issues    *[]tt.Issue
 }
 
-func analyzeIfElseChain(ifStmt *ast.IfStmt) branch.Chain {
-	chain := branch.Chain{
-		If:   branch.BlockBranch(ifStmt.Body),
-		Else: branch.Branch{BranchKind: branch.Empty},
+// IfChain represents if-else chains as a binary tree structure
+type ifChain struct {
+	root      *ast.IfStmt    // Current if statement
+	child     *ifChain       // Child chain when else branch is an if statement
+	elseBlock *ast.BlockStmt // Simple block for else branch
+}
+
+// newIfChain creates a new if chain with the given root if statement
+func newIfChain(root *ast.IfStmt) *ifChain {
+	return &ifChain{root: root}
+}
+
+// buildIfChain recursively constructs a chain from the given if statement
+func buildIfChain(ifStmt *ast.IfStmt) *ifChain {
+	chain := newIfChain(ifStmt)
+
+	if ifStmt.Else == nil {
+		return chain
 	}
 
-	if ifStmt.Else != nil {
-		if elseIfStmt, ok := ifStmt.Else.(*ast.IfStmt); ok {
-			chain.Else = analyzeIfElseChain(elseIfStmt).If
-		} else if elseBlock, ok := ifStmt.Else.(*ast.BlockStmt); ok {
-			chain.Else = branch.BlockBranch(elseBlock)
-		}
+	switch elseNode := ifStmt.Else.(type) {
+	case *ast.IfStmt:
+		chain.child = buildIfChain(elseNode)
+	case *ast.BlockStmt:
+		chain.elseBlock = elseNode
 	}
 
 	return chain
 }
 
-func canUseEarlyReturn(chain branch.Chain) bool {
-	// If the 'if' branch deviates (returns, breaks, etc.) and there's an else branch,
-	// we might be able to use an early return
-	return chain.If.BranchKind.Deviates() && !chain.Else.BranchKind.IsEmpty()
+// markChain registers all if statements in the chain to the processed map
+func markChain(chain *ifChain, processed map[*ast.IfStmt]bool) {
+	processed[chain.root] = true
+	if chain.child != nil {
+		markChain(chain.child, processed)
+	}
 }
 
-func RemoveUnnecessaryElse(snippet string) (string, error) {
-	// NOTE: The current implementation uses go/parser directly,
-	// so it requires creating files with complete code structures for the parser to recognize tokens.
-	// This is why this implementation was chosen, but once the fixer (v2) is applied and query-based searching becomes possible,
-	// this method can be completely removed.
-	wrappedSnippet := "package main\nfunc main() {\n" + snippet + "\n}"
+// isQualifiedChain returns true if the top-level if statement of the chain
+// always terminates and has an else branch
+func isQualifiedChain(chain *ifChain) bool {
+	return chain.root.Else != nil && blockAlwaysTerminates(chain.root.Body)
+}
 
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "", wrappedSnippet, parser.ParseComments)
+// DetectEarlyReturnOpportunities traverses the AST of functions in the file,
+// constructs if-else chains as binary tree models, and generates early-return suggestions
+// only for the top-level chains.
+func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
+	content, err := os.ReadFile(filename)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	var funcBody *ast.BlockStmt
-	ast.Inspect(file, func(n ast.Node) bool {
-		if fd, ok := n.(*ast.FuncDecl); ok {
-			funcBody = fd.Body
-			return false
-		}
-		return true
-	})
-
-	removeUnnecessaryElseAndEarlyReturnRecursive(funcBody)
-
-	var buf strings.Builder
-	err = format.Node(&buf, fset, funcBody)
-	if err != nil {
-		return "", err
+	var issues []tt.Issue
+	ctx := &traversalContext{
+		processed: make(map[*ast.IfStmt]bool),
+		fset:      fset,
+		filename:  filename,
+		content:   content,
+		severity:  severity,
+		issues:    &issues,
 	}
 
-	result := cleanUpResult(buf.String())
-
-	return result, nil
-}
-
-func removeUnnecessaryElseAndEarlyReturnRecursive(node ast.Node) {
-	ast.Inspect(node, func(n ast.Node) bool {
-		if ifStmt, ok := n.(*ast.IfStmt); ok {
-			processIfStmt(ifStmt, node)
-			removeUnnecessaryElseAndEarlyReturnRecursive(ifStmt.Body)
-			if ifStmt.Else != nil {
-				removeUnnecessaryElseAndEarlyReturnRecursive(ifStmt.Else)
-			}
-			return false
+	// Traverse the body of all function declarations in the file
+	for _, decl := range node.Decls {
+		funcDecl, ok := decl.(*ast.FuncDecl)
+		if !ok || funcDecl.Body == nil {
+			continue
 		}
-		return true
-	})
+
+		traverseBlock(funcDecl.Body, ctx, false)
+	}
+
+	return issues, nil
 }
 
-func processIfStmt(ifStmt *ast.IfStmt, node ast.Node) {
+// traverseBlock traverses if statements in the given block.
+// If inChain is true, the block is considered as part of a parent chain
+func traverseBlock(block *ast.BlockStmt, ctx *traversalContext, inChain bool) {
+	for _, stmt := range block.List {
+		traverseStatement(stmt, ctx, inChain)
+	}
+}
+
+// traverseStatement processes a statement and its children for early return opportunities
+func traverseStatement(stmt ast.Stmt, ctx *traversalContext, inChain bool) {
+	switch s := stmt.(type) {
+	case *ast.IfStmt:
+		traverseIfStatement(s, ctx, inChain)
+	case *ast.BlockStmt:
+		traverseBlock(s, ctx, inChain)
+	}
+}
+
+// traverseIfStatement handles the traversal of if statements specifically
+func traverseIfStatement(ifStmt *ast.IfStmt, ctx *traversalContext, inChain bool) {
+	// Skip already processed if statements
+	if ctx.processed[ifStmt] {
+		return
+	}
+
+	if !inChain {
+		chain := buildIfChain(ifStmt)
+
+		if isQualifiedChain(chain) {
+			processQualifiedChain(chain, ctx)
+
+			// Continue traversal inside the chain elements
+			traverseIfChainBlocks(chain, ctx)
+			return
+		}
+	}
+
+	// Continue with normal traversal
+	traverseBlock(ifStmt.Body, ctx, inChain)
+
 	if ifStmt.Else != nil {
-		ifBranch := branch.BlockBranch(ifStmt.Body)
-		if ifBranch.BranchKind.Deviates() {
-			parent := findParentBlockStmt(node, ifStmt)
-			if parent != nil {
-				switch elseBody := ifStmt.Else.(type) {
-				case *ast.BlockStmt:
-					insertStatementsAfter(parent, ifStmt, elseBody.List)
-				case *ast.IfStmt:
-					insertStatementsAfter(parent, ifStmt, []ast.Stmt{elseBody})
-				}
-				ifStmt.Else = nil
-			}
-		} else if elseIfStmt, ok := ifStmt.Else.(*ast.IfStmt); ok {
-			processIfStmt(elseIfStmt, ifStmt)
-		}
+		traverseElseBranch(ifStmt.Else, ctx, inChain)
 	}
 }
 
+// processQualifiedChain creates an issue for a qualified if-chain
+func processQualifiedChain(chain *ifChain, ctx *traversalContext) {
+	snippet := extractSnippet(chain.root, ctx.fset, ctx.content)
+	suggestion, err := generateEarlyReturnSuggestion(snippet)
+	if err != nil {
+		return
+	}
+
+	issue := tt.Issue{
+		Rule:       "early-return",
+		Filename:   ctx.filename,
+		Start:      ctx.fset.Position(chain.root.Pos()),
+		End:        ctx.fset.Position(chain.root.End()),
+		Message:    "this if-else chain can be simplified using early returns",
+		Suggestion: suggestion,
+		Confidence: 0.45,
+		Severity:   ctx.severity,
+	}
+
+	*ctx.issues = append(*ctx.issues, issue)
+	markChain(chain, ctx.processed)
+}
+
+// traverseIfChainBlocks traverses all blocks within a processed chain
+func traverseIfChainBlocks(chain *ifChain, ctx *traversalContext) {
+	traverseBlock(chain.root.Body, ctx, true)
+
+	if chain.root.Else != nil {
+		traverseElseBranch(chain.root.Else, ctx, true)
+	}
+}
+
+// traverseElseBranch handles traversal of else branches (either block or if-statement)
+func traverseElseBranch(elseBranch ast.Stmt, ctx *traversalContext, inChain bool) {
+	switch node := elseBranch.(type) {
+	case *ast.BlockStmt:
+		traverseBlock(node, ctx, inChain)
+	case *ast.IfStmt:
+		// Wrap the if statement in a block to fit our traversal model
+		traverseBlock(&ast.BlockStmt{List: []ast.Stmt{node}}, ctx, inChain)
+	}
+}
+
+// blockAlwaysTerminates determines if the last statement in the given block always terminates (return, break, etc.)
+func blockAlwaysTerminates(block *ast.BlockStmt) bool {
+	if block == nil || len(block.List) == 0 {
+		return false
+	}
+
+	return stmtAlwaysTerminates(block.List[len(block.List)-1])
+}
+
+var alwaysTerminates = map[token.Token]bool{
+	token.BREAK:    true,
+	token.CONTINUE: true,
+	token.RETURN:   true,
+}
+
+// stmtAlwaysTerminates determines if a statement terminates control flow
+//
+// TODO: Consider using branch.StmtBranch(stmt).Deviates() to determine if a statement terminates control flow
+func stmtAlwaysTerminates(stmt ast.Stmt) bool {
+	switch s := stmt.(type) {
+	case *ast.ReturnStmt:
+		return true
+	case *ast.BranchStmt:
+		return alwaysTerminates[s.Tok]
+	case *ast.IfStmt:
+		if !blockAlwaysTerminates(s.Body) {
+			return false
+		}
+
+		if s.Else == nil {
+			return false
+		}
+
+		switch elseNode := s.Else.(type) {
+		case *ast.BlockStmt:
+			return blockAlwaysTerminates(elseNode)
+		case *ast.IfStmt:
+			return stmtAlwaysTerminates(elseNode)
+		}
+	}
+
+	return false
+}
+
+// flattenIfChain recursively flattens if-else (including else-if) chains.
+//
+// Example:
+//
+//	if x > 10 { return "1" } else if x > 5 { return "2" } else { return "3" }
+//
+// becomes:
+//
+//	if x > 10 { return "1" }
+//	if x > 5 { return "2" }
+//	return "3"
+func flattenIfChain(ifStmt *ast.IfStmt) []ast.Stmt {
+	// Create copy without Else branch
+	newIf := *ifStmt
+	newIf.Else = nil
+
+	result := []ast.Stmt{&newIf}
+
+	if ifStmt.Else == nil {
+		return result
+	}
+
+	switch elseNode := ifStmt.Else.(type) {
+	case *ast.IfStmt:
+		result = append(result, flattenIfChain(elseNode)...)
+	case *ast.BlockStmt:
+		result = append(result, elseNode.List...)
+	}
+
+	return result
+}
+
+// transformBlock checks if statements in the block and applies flattenIfChain if conditions are met
+func transformBlock(block *ast.BlockStmt) {
+	var newList []ast.Stmt
+
+	for _, stmt := range block.List {
+		switch s := stmt.(type) {
+		case *ast.IfStmt:
+			transformIfStmt(s)
+
+			if s.Else != nil && blockAlwaysTerminates(s.Body) {
+				flattened := flattenIfChain(s)
+				newList = append(newList, flattened...)
+				continue
+			}
+
+			newList = append(newList, s)
+		default:
+			newList = append(newList, s)
+		}
+	}
+
+	block.List = newList
+}
+
+// transformIfStmt recursively transforms if statements and their branches
+func transformIfStmt(ifStmt *ast.IfStmt) {
+	if ifStmt.Body != nil {
+		transformBlock(ifStmt.Body)
+	}
+
+	if ifStmt.Else == nil {
+		return
+	}
+
+	switch elseNode := ifStmt.Else.(type) {
+	case *ast.BlockStmt:
+		transformBlock(elseNode)
+	case *ast.IfStmt:
+		transformIfStmt(elseNode)
+	}
+}
+
+// cleanUpResult cleans up unnecessary braces and indentation in the final code
 func cleanUpResult(result string) string {
 	result = strings.TrimSpace(result)
 	result = strings.TrimPrefix(result, "{")
@@ -179,65 +318,32 @@ func cleanUpResult(result string) string {
 	for i, line := range lines {
 		lines[i] = strings.TrimPrefix(line, "\t")
 	}
+
 	return strings.Join(lines, "\n")
 }
 
-func findParentBlockStmt(root ast.Node, child ast.Node) *ast.BlockStmt {
-	var parent *ast.BlockStmt
-	ast.Inspect(root, func(n ast.Node) bool {
-		if n == child {
-			return false
-		}
-		if block, ok := n.(*ast.BlockStmt); ok {
-			for _, stmt := range block.List {
-				if stmt == child {
-					parent = block
-					return false
-				}
-			}
-		}
-		return true
-	})
-	return parent
-}
-
-func insertStatementsAfter(block *ast.BlockStmt, target ast.Stmt, stmts []ast.Stmt) {
-	for i, stmt := range block.List {
-		if stmt == target {
-			// insert new statements after the target statement
-			block.List = append(block.List[:i+1], append(stmts, block.List[i+1:]...)...)
-
-			for j := i + 1; j < len(block.List); j++ {
-				if newIfStmt, ok := block.List[j].(*ast.IfStmt); ok {
-					processIfStmt(newIfStmt, block)
-				}
-			}
-			break
-		}
-	}
-}
-
+// extractSnippet extracts code area corresponding to the AST node from file content
 func extractSnippet(node ast.Node, fset *token.FileSet, fileContent []byte) string {
 	startPos := fset.Position(node.Pos())
 	endPos := fset.Position(node.End())
 
-	// extract the relevant portion of the file content
 	snippet := fileContent[startPos.Offset:endPos.Offset]
 	snippet = bytes.TrimLeft(snippet, " \t\n")
 
-	// ensure we include the entire first line
+	// Include leading indentation
 	if startPos.Column > 1 {
 		lineStart := bytes.LastIndex(fileContent[:startPos.Offset], []byte{'\n'})
 		if lineStart == -1 {
 			lineStart = 0
 		} else {
-			lineStart++ // Move past the newline
+			lineStart++
 		}
+
 		prefix := fileContent[lineStart:startPos.Offset]
 		snippet = append(bytes.TrimLeft(prefix, " \t"), snippet...)
 	}
 
-	// ensure we include any closing brace on its own line
+	// Include trailing brace if it's on the next line
 	if endPos.Column > 1 {
 		nextNewline := bytes.Index(fileContent[endPos.Offset:], []byte{'\n'})
 		if nextNewline != -1 {
@@ -249,15 +355,47 @@ func extractSnippet(node ast.Node, fset *token.FileSet, fileContent []byte) stri
 		}
 	}
 
-	snippet = bytes.TrimRight(snippet, " \t\n")
-
-	return string(snippet)
+	return string(bytes.TrimRight(snippet, " \t\n"))
 }
 
+// generateEarlyReturnSuggestion generates refactored code with early returns
 func generateEarlyReturnSuggestion(snippet string) (string, error) {
-	improved, err := RemoveUnnecessaryElse(snippet)
+	return RemoveUnnecessaryElse(snippet)
+}
+
+// RemoveUnnecessaryElse removes unnecessary else blocks from the given code snippet
+func RemoveUnnecessaryElse(snippet string) (string, error) {
+	fset := token.NewFileSet()
+	// We need to wrap the snippet in a minimal valid program structure
+	// because go/parser.ParseFile requires a complete Go source file.
+	// Using "package p" (any valid name) and an anonymous function "_"
+	// provides the minimal context needed to parse the statement block
+	// while keeping the wrapping overhead as small as possible.
+	file, err := parser.ParseFile(fset, "", "package p; func _() { "+snippet+" }", parser.ParseComments)
 	if err != nil {
 		return "", err
 	}
-	return improved, nil
+
+	var block *ast.BlockStmt
+	ast.Inspect(file, func(n ast.Node) bool {
+		if fd, ok := n.(*ast.FuncDecl); ok {
+			block = fd.Body
+			return false
+		}
+		return true
+	})
+
+	if block == nil {
+		return "", errNoFunctionBody
+	}
+
+	transformBlock(block)
+
+	var buf bytes.Buffer
+	err = format.Node(&buf, fset, block)
+	if err != nil {
+		return "", err
+	}
+
+	return cleanUpResult(buf.String()), nil
 }
