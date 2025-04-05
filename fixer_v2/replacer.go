@@ -1,17 +1,32 @@
 package fixerv2
 
-import "strings"
+import (
+	"go/ast"
+	"go/token"
+	"go/types"
+	"strings"
+)
+
+// Config holds configuration for AST-aware matching
+type Config struct {
+	TypeInfo *types.Info
+	FileSet  *token.FileSet
+	File     *ast.File
+	Pkg      *types.Package
+}
 
 type Replacer struct {
 	patternNodes     []Node
 	replacementNodes []Node
 	baseIndent       string
+	config           *Config
 }
 
 func NewReplacer(pattern, replacement []Node) *Replacer {
 	return &Replacer{
 		patternNodes:     pattern,
 		replacementNodes: replacement,
+		config:           nil,
 	}
 }
 
