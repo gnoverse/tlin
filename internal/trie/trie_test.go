@@ -5,7 +5,7 @@ import (
 )
 
 func TestEqCorrectness(t *testing.T) {
-	testCases := []struct {
+	tests := []struct {
 		name     string
 		setup    func() (*Trie, *Trie)
 		expectEq bool
@@ -78,13 +78,13 @@ func TestEqCorrectness(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t1, t2 := tc.setup()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t1, t2 := tt.setup()
 
 			structResult := t1.Eq(t2)
-			if structResult != tc.expectEq {
-				t.Errorf("StructEq returned %v, expected %v", structResult, tc.expectEq)
+			if structResult != tt.expectEq {
+				t.Errorf("StructEq returned %v, expected %v", structResult, tt.expectEq)
 			}
 		})
 	}
@@ -99,7 +99,7 @@ func buildSpecificTrie(paths [][]string) *Trie {
 }
 
 func TestSpecificStructures(t *testing.T) {
-	testCases := []struct {
+	tests := []struct {
 		name     string
 		paths1   [][]string
 		paths2   [][]string
@@ -145,14 +145,14 @@ func TestSpecificStructures(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t1 := buildSpecificTrie(tc.paths1)
-			t2 := buildSpecificTrie(tc.paths2)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t1 := buildSpecificTrie(tt.paths1)
+			t2 := buildSpecificTrie(tt.paths2)
 
 			hashResult := t1.Eq(t2)
-			if hashResult != tc.expectEq {
-				t.Errorf("HashEq got %v, want %v", hashResult, tc.expectEq)
+			if hashResult != tt.expectEq {
+				t.Errorf("HashEq got %v, want %v", hashResult, tt.expectEq)
 			}
 		})
 	}
