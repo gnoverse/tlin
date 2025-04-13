@@ -35,8 +35,8 @@ and reduce garbage collection overhead in the trie data structure. Here's how it
 // NodeIndex represents the index of a trie node.
 type NodeIndex int
 
-// Arena is a memory pool that stores all trie nodes.
-type Arena struct {
+// arena is a memory pool that stores all trie nodes.
+type arena struct {
 	// nodes is a slice that stores all trie nodes.
 	nodes []arenaNode
 }
@@ -49,9 +49,9 @@ type arenaNode struct {
 	isEnd bool
 }
 
-// NewArena creates a new arena.
-func NewArena() *Arena {
-	arena := &Arena{
+// newArena creates a new arena.
+func newArena() *arena {
+	arena := &arena{
 		nodes: make([]arenaNode, 0, 1024), // Set initial capacity
 	}
 	// root node (index 0)
@@ -63,7 +63,7 @@ func NewArena() *Arena {
 }
 
 // newNode adds a new node to the arena and returns its index.
-func (a *Arena) newNode() NodeIndex {
+func (a *arena) newNode() NodeIndex {
 	idx := NodeIndex(len(a.nodes))
 	a.nodes = append(a.nodes, arenaNode{
 		children: make(map[string]NodeIndex),
@@ -72,8 +72,8 @@ func (a *Arena) newNode() NodeIndex {
 	return idx
 }
 
-// Insert inserts a sequence of strings (representing a path) into the trie.
-func (a *Arena) Insert(sequence []string) {
+// insert inserts a sequence of strings (representing a path) into the trie.
+func (a *arena) insert(sequence []string) {
 	current := NodeIndex(0) // root node
 
 	for _, part := range sequence {
@@ -91,8 +91,8 @@ func (a *Arena) Insert(sequence []string) {
 	a.nodes[current].isEnd = true
 }
 
-// Equal checks whether two tries are identical in structure and content.
-func (a *Arena) Equal(b *Arena) bool {
+// eq checks whether two tries are identical in structure and content.
+func (a *arena) eq(b *arena) bool {
 	if len(a.nodes) != len(b.nodes) {
 		return false
 	}
@@ -101,7 +101,7 @@ func (a *Arena) Equal(b *Arena) bool {
 }
 
 // equalNodes recursively checks whether two nodes (and their subtrees) are identical.
-func (a *Arena) equalNodes(aIdx NodeIndex, b *Arena, bIdx NodeIndex) bool {
+func (a *arena) equalNodes(aIdx NodeIndex, b *arena, bIdx NodeIndex) bool {
 	nodeA := a.nodes[aIdx]
 	nodeB := b.nodes[bIdx]
 
@@ -129,13 +129,13 @@ func (a *Arena) equalNodes(aIdx NodeIndex, b *Arena, bIdx NodeIndex) bool {
 	return true
 }
 
-// DebugString returns a string representation of the trie for debugging purposes.
-func (a *Arena) DebugString() string {
+// string returns a string representation of the trie for debugging purposes.
+func (a *arena) string() string {
 	return a.debugStringNode(NodeIndex(0))
 }
 
 // debugStringNode recursively generates a string representation of a specific node (and its subtree).
-func (a *Arena) debugStringNode(idx NodeIndex) string {
+func (a *arena) debugStringNode(idx NodeIndex) string {
 	node := a.nodes[idx]
 	var sb strings.Builder
 
@@ -162,27 +162,27 @@ func (a *Arena) debugStringNode(idx NodeIndex) string {
 
 // Trie is a wrapper for compatibility with existing API.
 type Trie struct {
-	arena *Arena
+	arena *arena
 }
 
 // New returns an initialized Trie.
 func New() *Trie {
 	return &Trie{
-		arena: NewArena(),
+		arena: newArena(),
 	}
 }
 
 // Insert inserts a sequence of strings (representing a path) into the trie.
 func (t *Trie) Insert(sequence []string) {
-	t.arena.Insert(sequence)
+	t.arena.insert(sequence)
 }
 
-// Equal checks whether two tries are identical in structure and content.
-func (t *Trie) Equal(other *Trie) bool {
-	return t.arena.Equal(other.arena)
+// Eq checks whether two tries are identical in structure and content.
+func (t *Trie) Eq(other *Trie) bool {
+	return t.arena.eq(other.arena)
 }
 
-// DebugString returns a string representation of the trie for debugging purposes.
-func (t *Trie) DebugString() string {
-	return t.arena.DebugString()
+// String returns a string representation of the trie for debugging purposes.
+func (t *Trie) String() string {
+	return t.arena.string()
 }

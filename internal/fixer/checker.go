@@ -53,7 +53,7 @@ func (c *ContentBasedCFGChecker) CheckEquivalence(originalCode, modifiedCode str
 		return false, "", fmt.Errorf("failed to parse modified file: %w", err)
 	}
 
-	// Extract and compare functions.
+	// extract and compare functions
 	origFuncs := extractFuncs(astFileOrig)
 	modifiedFuncs := extractFuncs(astFileModified)
 	if len(origFuncs) != len(modifiedFuncs) {
@@ -61,7 +61,7 @@ func (c *ContentBasedCFGChecker) CheckEquivalence(originalCode, modifiedCode str
 		return false, c.reportBuffer.String(), nil
 	}
 
-	// Compare each function.
+	// compare each function
 	isEquivalent := true
 	for funcName, origFunc := range origFuncs {
 		modifiedFunc, exists := modifiedFuncs[funcName]
@@ -71,11 +71,10 @@ func (c *ContentBasedCFGChecker) CheckEquivalence(originalCode, modifiedCode str
 			continue
 		}
 
-		// Generate CFGs.
 		origCFG := cfg.FromFunc(origFunc)
 		modifiedCFG := cfg.FromFunc(modifiedFunc)
 
-		// Compare CFGs.
+		// CFG equivalence check
 		funcEquiv, reason := c.areCFGsEquivalent(origCFG, modifiedCFG, origFunc, modifiedFunc)
 		if !funcEquiv {
 			c.logf("Function '%s' CFGs are not equivalent: %s", funcName, reason)
@@ -93,7 +92,7 @@ func (c *ContentBasedCFGChecker) areCFGsEquivalent(
 	origCFG, modifiedCFG *cfg.CFG,
 	origFunc, modifiedFunc *ast.FuncDecl,
 ) (bool, string) {
-	// 1. Basic structure check.
+	// 1. Basic structure check
 	origBlocks := origCFG.Blocks()
 	modifiedBlocks := modifiedCFG.Blocks()
 	if len(origBlocks) != len(modifiedBlocks) {
@@ -101,20 +100,20 @@ func (c *ContentBasedCFGChecker) areCFGsEquivalent(
 			len(origBlocks), len(modifiedBlocks))
 	}
 
-	// 2. Node type distribution check.
+	// 2. Node type distribution check
 	origNodeTypes := getNodeTypeDistribution(origBlocks)
 	modifiedNodeTypes := getNodeTypeDistribution(modifiedBlocks)
 	if !areNodeTypesEqual(origNodeTypes, modifiedNodeTypes) {
 		return false, "Node type distribution mismatch"
 	}
 
-	// 3. Path structure check.
+	// 3. Path structure check
 	pathsEqual, reason := c.comparePathStructures(origCFG, modifiedCFG)
 	if !pathsEqual {
 		return false, fmt.Sprintf("Path structure mismatch: %s", reason)
 	}
 
-	// 4. Content-based checks.
+	// 4. Content-based checks
 	contentEqual, reason := c.compareNodeContents(origFunc, modifiedFunc)
 	if !contentEqual {
 		return false, fmt.Sprintf("Node content mismatch: %s", reason)
@@ -231,12 +230,12 @@ func (c *ContentBasedCFGChecker) comparePathStructuresTrie(origCFG, fixedCFG *cf
 	fixedTrie := buildTrieFromSequences(fixedSequences)
 
 	if c.DetailedReport {
-		c.logf("Original Trie: %s", origTrie.DebugString())
-		c.logf("Modified Trie: %s", fixedTrie.DebugString())
+		c.logf("Original Trie: %s", origTrie.String())
+		c.logf("Modified Trie: %s", fixedTrie.String())
 	}
 
 	// once the trie structure is equal, the path structure is also equal.
-	if !origTrie.Equal(fixedTrie) {
+	if !origTrie.Eq(fixedTrie) {
 		return false, "Trie-based path structure mismatch"
 	}
 	return true, ""
@@ -293,21 +292,24 @@ func extractConditions(funcDecl *ast.FuncDecl) []ast.Expr {
 	ast.Inspect(funcDecl, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.IfStmt:
-			conditions = append(conditions, node.Cond)
+			conditions = appendConds(conditions, node.Cond)
 		case *ast.ForStmt:
-			if node.Cond != nil {
-				conditions = append(conditions, node.Cond)
-			}
+			conditions = appendConds(conditions, node.Cond)
 		case *ast.SwitchStmt:
-			if node.Tag != nil {
-				conditions = append(conditions, node.Tag)
-			}
+			conditions = appendConds(conditions, node.Tag)
 		case *ast.TypeSwitchStmt:
-			// Skip comparison for TypeSwitchStmt.
+			// do nothing
 		}
 		return true
 	})
 	return conditions
+}
+
+func appendConds(conds []ast.Expr, expr ast.Expr) []ast.Expr {
+	if expr != nil {
+		conds = append(conds, expr)
+	}
+	return conds
 }
 
 // extractLoops collects all loop statements from a function.
@@ -343,23 +345,18 @@ func compareNodePair(fset *token.FileSet, name string, orig, modified ast.Node) 
 
 // compareLoopBody compares the bodies of two loop statements
 func compareLoopBody(fset *token.FileSet, orig, modified ast.Stmt) (bool, string) {
-	var origBody, modifiedBody *ast.BlockStmt
+	return compareNodePair(fset, "Loop body", loopBody(orig), loopBody(modified))
+}
 
-	switch loop := orig.(type) {
+func loopBody(stmt ast.Stmt) *ast.BlockStmt {
+	switch loop := stmt.(type) {
 	case *ast.ForStmt:
-		origBody = loop.Body
+		return loop.Body
 	case *ast.RangeStmt:
-		origBody = loop.Body
+		return loop.Body
+	default:
+		return nil
 	}
-
-	switch loop := modified.(type) {
-	case *ast.ForStmt:
-		modifiedBody = loop.Body
-	case *ast.RangeStmt:
-		modifiedBody = loop.Body
-	}
-
-	return compareNodePair(fset, "Loop body", origBody, modifiedBody)
 }
 
 // compareLoops checks if two loop statements are equivalent
@@ -482,13 +479,13 @@ func areNodeTypesEqual(orig, fixed map[string]int) bool {
 
 // convertPathsToSequences converts a list of paths (slice of ast.Stmt slices)
 // into a slice of string sequences where each string represents the node type.
+// e.g., "*ast.IfStmt" -> "IfStmt"
 func convertPathsToSequences(paths [][]ast.Stmt) [][]string {
 	sequences := make([][]string, len(paths))
 	for i, path := range paths {
 		var seq []string
 		for _, node := range path {
 			nodeType := fmt.Sprintf("%T", node)
-			// e.g., "*ast.IfStmt" -> "IfStmt"
 			nodeType = strings.TrimPrefix(nodeType, "*ast.")
 			seq = append(seq, nodeType)
 		}

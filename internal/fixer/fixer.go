@@ -43,6 +43,11 @@ func (f *Fixer) Fix(filename string, issues []tt.Issue) error {
 	sortIssuesByEndOffset(issues)
 
 	for _, issue := range issues {
+		// TODO: Ultimately, we should not rely on this confidence threshold.
+		// auto fix is fine to apply if static analysis confirms that the sementic are equivalent.
+		// If we base our decision on some arbitary level, as we doing here,
+		// it's inflexible and could result in incorrect suggestion being applied.
+		// Therefore, I think we should remove this check to improve the reliability of the auto-fix.
 		if issue.Confidence < f.MinConfidence {
 			continue
 		}
@@ -77,7 +82,32 @@ func (f *Fixer) applyFix(lines []string, issue tt.Issue) []string {
 	indent := extractIndent(lines[startLine])
 	suggestion := applyIndent(issue.Suggestion, indent, issue.Start)
 
-	return append(lines[:startLine], append([]string{suggestion}, lines[endLine+1:]...)...)
+	// split suggestion inti individual lines.
+	// this way, each line of the suggestion is correctly inserted
+	// into the overall file content, preserving the proper line breaks and formatting.
+	fixedLines := strings.Split(suggestion, "\n")
+	// create a new slice here to replacing the affected lines with the suggestion
+	// TODO: maybe there is a better way to do this
+	modified := append(lines[:startLine], append(fixedLines, lines[endLine+1:]...)...)
+
+	original := strings.Join(lines, "\n")
+	fixed := strings.Join(modified, "\n")
+
+	// do not apply the fix if the AST equivalence check fails
+	// this is to ensure that the fix does not change the meaning of the code
+	checker := NewContentBasedCFGChecker(f.MinConfidence, false)
+	eq, report, err := checker.CheckEquivalence(original, fixed)
+	if err != nil {
+		fmt.Printf("AST equivalence check error at line %d: %v\n", issue.Start.Line, err)
+		return lines
+	}
+
+	if !eq {
+		fmt.Printf("AST equivalence check failed at line %d: %s\n", issue.Start.Line, report)
+		return lines
+	}
+
+	return modified
 }
 
 func (f *Fixer) writeFixedContent(filename string, lines []string) error {

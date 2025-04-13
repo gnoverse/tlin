@@ -10,7 +10,7 @@ func generateRandomSequences(count, maxLength int) [][]string {
 	for i := range count {
 		length := rand.Intn(maxLength) + 1
 		sequence := make([]string, length)
-		for j := 0; j < length; j++ {
+		for j := range length {
 			sequence[j] = string(rune('a' + rand.Intn(26)))
 		}
 		sequences[i] = sequence
@@ -89,7 +89,7 @@ func BenchmarkEqual(b *testing.B) {
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				trie1.Equal(trie2)
+				trie1.Eq(trie2)
 			}
 		})
 	}
@@ -122,7 +122,7 @@ func BenchmarkEqualDifferent(b *testing.B) {
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				trie1.Equal(trie2)
+				trie1.Eq(trie2)
 			}
 		})
 	}
@@ -149,7 +149,7 @@ func BenchmarkDebugString(b *testing.B) {
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				trie.DebugString()
+				trie.String()
 			}
 		})
 	}
