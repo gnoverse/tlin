@@ -45,7 +45,7 @@ func (f *Fixer) Fix(filename string, issues []tt.Issue) error {
 	for _, issue := range issues {
 		// TODO: Ultimately, we should not rely on this confidence threshold.
 		// auto fix is fine to apply if static analysis confirms that the sementic are equivalent.
-		// If we base our decision on some arbitary level, as we doing here,
+		// If we base our decision on some arbitrary level, as we doing here,
 		// it's inflexible and could result in incorrect suggestion being applied.
 		// Therefore, I think we should remove this check to improve the reliability of the auto-fix.
 		if issue.Confidence < f.MinConfidence {
