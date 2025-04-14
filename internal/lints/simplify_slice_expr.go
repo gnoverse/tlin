@@ -44,7 +44,7 @@ func DetectUnnecessarySliceLength(filename string, node *ast.File, fset *token.F
 
 // processAssignStmt processes assignment statements to find unnecessary len() calls.
 func processAssignStmt(stmt *ast.AssignStmt, filename string, fset *token.FileSet, severity tt.Severity) []tt.Issue {
-	var issues []tt.Issue
+	issues := make([]tt.Issue, 0, len(stmt.Rhs))
 
 	for i, rhs := range stmt.Rhs {
 		sliceExpr, ok := rhs.(*ast.SliceExpr)
@@ -73,7 +73,7 @@ func processAssignStmt(stmt *ast.AssignStmt, filename string, fset *token.FileSe
 
 // processValueSpec processes variable declarations to find unnecessary len() calls.
 func processValueSpec(stmt *ast.ValueSpec, filename string, fset *token.FileSet, severity tt.Severity) []tt.Issue {
-	var issues []tt.Issue
+	issues := make([]tt.Issue, 0, len(stmt.Values))
 
 	for i, value := range stmt.Values {
 		sliceExpr, ok := value.(*ast.SliceExpr)
@@ -86,7 +86,7 @@ func processValueSpec(stmt *ast.ValueSpec, filename string, fset *token.FileSet,
 			continue
 		}
 
-		// Only process if there's a corresponding name
+		// only process if there's a corresponding name
 		if i < len(stmt.Names) {
 			name := stmt.Names[i].Name
 			issue.Suggestion = formatSuggestion(name, getOperator(name, token.DEFINE), issue.Suggestion)
@@ -119,7 +119,7 @@ func formatSuggestion(name string, operator string, suggestion string) string {
 
 // checkUnnecessaryLenInSliceExpr checks a slice expression for unnecessary len() calls.
 func checkUnnecessaryLenInSliceExpr(sliceExpr *ast.SliceExpr, filename string, fset *token.FileSet, severity tt.Severity) (tt.Issue, bool) {
-	// Skip 3-index slices as they always require the 2nd and 3rd index
+	// skip 3-index slices as they always require the 2nd and 3rd index
 	if sliceExpr.Max != nil {
 		return tt.Issue{}, false
 	}
