@@ -103,7 +103,7 @@ func (c *ContentBasedCFGChecker) areCFGsEquivalent(
 	// 2. Node type distribution check
 	origNodeTypes := getNodeTypeDistribution(origBlocks)
 	modifiedNodeTypes := getNodeTypeDistribution(modifiedBlocks)
-	if !areNodeTypesEqual(origNodeTypes, modifiedNodeTypes) {
+	if !maps.Equal(origNodeTypes, modifiedNodeTypes) {
 		return false, "Node type distribution mismatch"
 	}
 
@@ -470,11 +470,6 @@ func getNodeTypeDistribution(blocks []ast.Stmt) map[string]int {
 		distribution[typeStr]++
 	}
 	return distribution
-}
-
-// areNodeTypesEqual checks if two node type distributions are identical.
-func areNodeTypesEqual(orig, fixed map[string]int) bool {
-	return maps.Equal(orig, fixed)
 }
 
 // convertPathsToSequences converts a list of paths (slice of ast.Stmt slices)

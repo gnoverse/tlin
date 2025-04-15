@@ -34,7 +34,6 @@ func DetectEmitFormat(filename string, node *ast.File, fset *token.FileSet, seve
 						End:        fset.Position(call.End()),
 						Message:    "consider formatting std.Emit call for better readability",
 						Suggestion: formatEmitCall(call),
-						Confidence: 1.0,
 						Severity:   severity,
 					}
 					issues = append(issues, issue)

@@ -161,7 +161,6 @@ func processQualifiedChain(chain *ifChain, ctx *traversalContext) {
 		End:        ctx.fset.Position(chain.root.End()),
 		Message:    "this if-else chain can be simplified using early returns",
 		Suggestion: suggestion,
-		Confidence: 0.45,
 		Severity:   ctx.severity,
 	}
 

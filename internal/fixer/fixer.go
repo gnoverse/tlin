@@ -43,15 +43,6 @@ func (f *Fixer) Fix(filename string, issues []tt.Issue) error {
 	sortIssuesByEndOffset(issues)
 
 	for _, issue := range issues {
-		// TODO: Ultimately, we should not rely on this confidence threshold.
-		// auto fix is fine to apply if static analysis confirms that the sementic are equivalent.
-		// If we base our decision on some arbitrary level, as we doing here,
-		// it's inflexible and could result in incorrect suggestion being applied.
-		// Therefore, I think we should remove this check to improve the reliability of the auto-fix.
-		if issue.Confidence < f.MinConfidence {
-			continue
-		}
-
 		if f.DryRun {
 			f.printDryRunInfo(filename, issue)
 			continue
@@ -77,24 +68,22 @@ func (f *Fixer) printDryRunInfo(filename string, issue tt.Issue) {
 
 func (f *Fixer) applyFix(lines []string, issue tt.Issue) []string {
 	startLine := issue.Start.Line - 1
-	endLine := issue.End.Line - 1
+	endLine := issue.End.Line
 
 	indent := extractIndent(lines[startLine])
-	suggestion := applyIndent(issue.Suggestion, indent, issue.Start)
+	suggestion := applyIndent(issue.Suggestion, indent)
 
-	// split suggestion inti individual lines.
-	// this way, each line of the suggestion is correctly inserted
-	// into the overall file content, preserving the proper line breaks and formatting.
 	fixedLines := strings.Split(suggestion, "\n")
-	// create a new slice here to replacing the affected lines with the suggestion
-	// TODO: maybe there is a better way to do this
-	modified := append(lines[:startLine], append(fixedLines, lines[endLine+1:]...)...)
+
+	modified := make([]string, 0, len(lines[:startLine])+len(fixedLines)+len(lines[endLine:]))
+	modified = append(modified, lines[:startLine]...)
+	modified = append(modified, fixedLines...)
+	modified = append(modified, lines[endLine:]...)
 
 	original := strings.Join(lines, "\n")
 	fixed := strings.Join(modified, "\n")
 
 	// do not apply the fix if the AST equivalence check fails
-	// this is to ensure that the fix does not change the meaning of the code
 	checker := NewContentBasedCFGChecker(f.MinConfidence, false)
 	eq, report, err := checker.CheckEquivalence(original, fixed)
 	if err != nil {
@@ -150,27 +139,19 @@ func extractIndent(line string) string {
 	return line[:len(line)-len(strings.TrimLeft(line, " \t"))]
 }
 
-// applyIndent applies the indentation to the suggestion.
-func applyIndent(content, indent string, start token.Position) string {
+// applyIndent applies the indentation to each line of the content.
+// It splits the content into lines, prepends the given indent to each line,
+// and then joins them back together with newlines.
+func applyIndent(content, indent string) string {
+	if content == "" {
+		return ""
+	}
+
 	lines := strings.Split(content, "\n")
-	sugLines := strings.Split(indent, "\n")
-	offset := getOffset(lines, start.Line-1)
-
-	for i := range sugLines {
-		sugLines[i] = strings.Repeat(" ", offset) + sugLines[i]
+	for i := range lines {
+		if lines[i] != "" {
+			lines[i] = indent + lines[i]
+		}
 	}
-
-	for i := 0; i < len(sugLines) && start.Line-1+i < len(lines); i++ {
-		lines[start.Line-1+i] = sugLines[i]
-	}
-
 	return strings.Join(lines, "\n")
-}
-
-// getOffset calculates the offset of the indentation from the first line of the issue.
-func getOffset(lines []string, lineIndex int) int {
-	if lineIndex < 0 || lineIndex >= len(lines) {
-		return 0
-	}
-	return len(lines[lineIndex]) - len(strings.TrimLeft(lines[lineIndex], " \t"))
 }
