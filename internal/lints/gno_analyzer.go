@@ -61,7 +61,7 @@ func analyzeFile(filename string) (*ast.File, Dependencies, error) {
 			ImportPath: impPath,
 			IsGno:      isGnoPackage(impPath),
 			IsUsed:     false,
-			IsIgnored:  imp.Name != nil && imp.Name.Name == "_",
+			IsIgnored:  imp.Name != nil && imp.Name.Name == blankIdentifier,
 			Line:       imp.Pos(),
 			Column:     imp.End(),
 		}

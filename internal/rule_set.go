@@ -35,7 +35,6 @@ var (
 	EmitFormatRule               = LintRule{severity: tt.SeverityInfo, check: lints.DetectEmitFormat}
 	UselessBreakRule             = LintRule{severity: tt.SeverityError, check: lints.DetectUselessBreak}
 	EarlyReturnOpportunityRule   = LintRule{severity: tt.SeverityInfo, check: lints.DetectEarlyReturnOpportunities}
-	DeferRule                    = LintRule{severity: tt.SeverityWarning, check: lints.DetectDeferIssues}
 	ConstErrorDeclarationRule    = LintRule{severity: tt.SeverityError, check: lints.DetectConstErrorDeclaration}
 	RepeatedRegexCompilationRule = LintRule{severity: tt.SeverityWarning, check: lints.DetectRepeatedRegexCompilation}
 	DeprecatedFuncRule           = LintRule{severity: tt.SeverityError, check: lints.DetectDeprecatedFunctions}
@@ -55,7 +54,6 @@ var allRules = ruleMap{
 	"emit-format":                 EmitFormatRule,
 	"useless-break":               UselessBreakRule,
 	"early-return-opportunity":    EarlyReturnOpportunityRule,
-	"defer-issues":                DeferRule,
 	"const-error-declaration":     ConstErrorDeclarationRule,
 	"repeated-regex-compilation":  RepeatedRegexCompilationRule,
 	"deprecated":                  DeprecatedFuncRule,
