@@ -95,12 +95,11 @@ func runGnoPackageLinter(_ *ast.File, fset *token.FileSet, deps Dependencies, se
 			startPos := fset.Position(dep.Line)
 			endPos := fset.Position(dep.Column)
 			issue := tt.Issue{
-				Rule:       "unused-import",
-				Message:    fmt.Sprintf("unused import: %s", imp),
-				Severity:   severity,
-				Start:      startPos,
-				End:        endPos,
-				Confidence: 1.0,
+				Rule:     "unused-import",
+				Message:  fmt.Sprintf("unused import: %s", imp),
+				Severity: severity,
+				Start:    startPos,
+				End:      endPos,
 			}
 			issues = append(issues, issue)
 		}

@@ -267,7 +267,6 @@ func TestRunAutoFix(t *testing.T) {
 			Start:      token.Position{Line: 5, Column: 5},
 			End:        token.Position{Line: 5, Column: 24},
 			Suggestion: "_ = slice[:]",
-			Confidence: 0.9,
 		},
 	}
 
@@ -330,7 +329,6 @@ func TestRunJsonOutput(t *testing.T) {
 				assert.Equal(t, "simplify-slice-range", issue.Rule)
 				assert.Equal(t, "unnecessary use of len() in slice expression, can be simplified", issue.Message)
 				assert.Equal(t, "_ = slice[:]", issue.Suggestion)
-				assert.Equal(t, 0.9, issue.Confidence)
 				assert.Equal(t, 5, issue.Start.Line)
 				assert.Equal(t, 5, issue.Start.Column)
 				assert.Equal(t, 5, issue.End.Line)
@@ -362,7 +360,6 @@ func TestRunJsonOutput(t *testing.T) {
 			Start:      token.Position{Line: 5, Column: 5},
 			End:        token.Position{Line: 5, Column: 24},
 			Suggestion: "_ = slice[:]",
-			Confidence: 0.9,
 		},
 	}
 
@@ -446,7 +443,6 @@ func main() {
 			Start:      token.Position{Line: 4, Column: 5},
 			End:        token.Position{Line: 4, Column: 24},
 			Suggestion: "_ = slice[:]",
-			Confidence: 0.9,
 		},
 	}, nil)
 

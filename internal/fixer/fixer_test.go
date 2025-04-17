@@ -36,7 +36,6 @@ func main() {
 					Start:      token.Position{Line: 5, Column: 5},
 					End:        token.Position{Line: 5, Column: 24},
 					Suggestion: "_ = slice[:]",
-					Confidence: 0.9,
 				},
 			},
 			expected: `package main
@@ -44,32 +43,6 @@ func main() {
 func main() {
 	slice := []int{1, 2, 3}
 	_ = slice[:]
-}
-`,
-		},
-		{
-			name: "Don't Fix - Not enough confidence",
-			input: `package main
-
-func main() {
-    slice := []int{1, 2, 3}
-    _ = slice[:len(slice)]
-}`,
-			issues: []tt.Issue{
-				{
-					Rule:       "simplify-slice-range",
-					Message:    "unnecessary use of len() in slice expression, can be simplified",
-					Start:      token.Position{Line: 5, Column: 5},
-					End:        token.Position{Line: 5, Column: 24},
-					Suggestion: "_ = slice[:]",
-					Confidence: 0.3,
-				},
-			},
-			expected: `package main
-
-func main() {
-	slice := []int{1, 2, 3}
-	_ = slice[:len(slice)]
 }
 `,
 		},
@@ -91,7 +64,6 @@ func main() {
 					Start:      token.Position{Line: 5, Column: 5},
 					End:        token.Position{Line: 5, Column: 26},
 					Suggestion: "_ = slice1[:]",
-					Confidence: 0.9,
 				},
 				{
 					Rule:       "simplify-slice-range",
@@ -99,7 +71,6 @@ func main() {
 					Start:      token.Position{Line: 8, Column: 5},
 					End:        token.Position{Line: 8, Column: 26},
 					Suggestion: "_ = slice2[:]",
-					Confidence: 0.9,
 				},
 			},
 			expected: `package main
@@ -130,7 +101,6 @@ func main() {
 					Start:      token.Position{Line: 6, Column: 3},
 					End:        token.Position{Line: 6, Column: 22},
 					Suggestion: "_ = slice[:]",
-					Confidence: 0.9,
 				},
 			},
 			expected: `package main
@@ -158,7 +128,6 @@ func main() {
 					Start:      token.Position{Line: 5, Column: 5},
 					End:        token.Position{Line: 5, Column: 24},
 					Suggestion: "_ = slice[:]",
-					Confidence: 0.9,
 				},
 			},
 			expected: `package main
@@ -192,7 +161,6 @@ func main() {
     "newOwner", newOwner,
     "oldOwner", oldOwner,
 )`,
-					Confidence: 0.9,
 				},
 			},
 			expected: `package main
@@ -275,7 +243,6 @@ func main() {
 					Start:      token.Position{Line: 5, Column: 5},
 					End:        token.Position{Line: 5, Column: 24},
 					Suggestion: "_ = slice[:]",
-					Confidence: 0.9,
 				},
 			},
 		},
@@ -297,7 +264,6 @@ func main() {
 					Start:      token.Position{Line: 5, Column: 5},
 					End:        token.Position{Line: 5, Column: 26},
 					Suggestion: "_ = slice1[:]",
-					Confidence: 0.9,
 				},
 				{
 					Rule:       "simplify-slice-range",
@@ -305,7 +271,6 @@ func main() {
 					Start:      token.Position{Line: 8, Column: 5},
 					End:        token.Position{Line: 8, Column: 26},
 					Suggestion: "_ = slice2[:]",
-					Confidence: 0.9,
 				},
 			},
 		},
@@ -332,10 +297,57 @@ func main() {
 				err := fixer.Fix(testFile, bm.issues)
 				require.NoError(b, err)
 
-				// Reset the file content for the next iteration
+				// reset the file content for the next iteration
 				err = os.WriteFile(testFile, []byte(bm.input), 0o644)
 				require.NoError(b, err)
 			}
+		})
+	}
+}
+
+func TestApplyIndent(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		indent   string
+		expected string
+	}{
+		{
+			name:     "Single line with basic indent",
+			content:  "line1",
+			indent:   "    ",
+			expected: "    line1",
+		},
+		{
+			name:     "Multiple lines with basic indent",
+			content:  "line1\nline2",
+			indent:   "    ",
+			expected: "    line1\n    line2",
+		},
+		{
+			name:     "Empty content",
+			content:  "",
+			indent:   "    ",
+			expected: "",
+		},
+		{
+			name:     "Multiple lines with tab indent",
+			content:  "line1\nline2",
+			indent:   "\t",
+			expected: "\tline1\n\tline2",
+		},
+		{
+			name:     "Content with trailing newline",
+			content:  "line1\nline2\n",
+			indent:   "    ",
+			expected: "    line1\n    line2\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := applyIndent(tt.content, tt.indent)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

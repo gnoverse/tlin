@@ -175,7 +175,6 @@ func DetectSimplifiableForLoops(filename string, node *ast.File, fset *token.Fil
 			End:        end,
 			Severity:   severity,
 			Suggestion: suggestion,
-			Confidence: 0.9,
 		})
 
 		return true

@@ -20,14 +20,13 @@ type Issue struct {
 	Note       string         `json:"note"`
 	Start      token.Position `json:"start"`
 	End        token.Position `json:"end"`
-	Confidence float64        `json:"confidence"` // 0.0 to 1.0
 	Severity   Severity       `json:"severity"`
 }
 
 func (i Issue) String() string {
 	return fmt.Sprintf(
-		"rule: %s, filename: %s, message: %s, start: %s, end: %s, confidence: %.2f, severity: %s",
-		i.Rule, i.Filename, i.Message, i.Start, i.End, i.Confidence, i.Severity)
+		"rule: %s, filename: %s, message: %s, start: %s, end: %s, severity: %s",
+		i.Rule, i.Filename, i.Message, i.Start, i.End, i.Severity)
 }
 
 // PositionWithoutFilename represents a position in the code base without the filename to simplify json marsheling.
@@ -45,7 +44,6 @@ type IssueWithoutFilename struct {
 	Note       string                  `json:"note"`
 	Start      PositionWithoutFilename `json:"start"`
 	End        PositionWithoutFilename `json:"end"`
-	Confidence float64                 `json:"confidence"`
 	Severity   Severity                `json:"severity"`
 }
 
@@ -58,7 +56,6 @@ func (i *Issue) MarshalJSON() ([]byte, error) {
 		Note:       i.Note,
 		Start:      PositionWithoutFilename{Offset: i.Start.Offset, Line: i.Start.Line, Column: i.Start.Column},
 		End:        PositionWithoutFilename{Offset: i.End.Offset, Line: i.End.Line, Column: i.End.Column},
-		Confidence: i.Confidence,
 		Severity:   i.Severity,
 	})
 }

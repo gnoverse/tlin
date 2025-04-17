@@ -43,10 +43,6 @@ func (f *Fixer) Fix(filename string, issues []tt.Issue) error {
 	sortIssuesByEndOffset(issues)
 
 	for _, issue := range issues {
-		if issue.Confidence < f.MinConfidence {
-			continue
-		}
-
 		if f.DryRun {
 			f.printDryRunInfo(filename, issue)
 			continue
@@ -72,12 +68,41 @@ func (f *Fixer) printDryRunInfo(filename string, issue tt.Issue) {
 
 func (f *Fixer) applyFix(lines []string, issue tt.Issue) []string {
 	startLine := issue.Start.Line - 1
-	endLine := issue.End.Line - 1
+	endLine := issue.End.Line
 
 	indent := extractIndent(lines[startLine])
-	suggestion := applyIndent(issue.Suggestion, indent, issue.Start)
+	suggestion := applyIndent(issue.Suggestion, indent)
 
-	return append(lines[:startLine], append([]string{suggestion}, lines[endLine+1:]...)...)
+	fixedLines := strings.Split(suggestion, "\n")
+
+	modified := make([]string, 0, len(lines[:startLine])+len(fixedLines)+len(lines[endLine:]))
+	modified = append(modified, lines[:startLine]...)
+	modified = append(modified, fixedLines...)
+	modified = append(modified, lines[endLine:]...)
+
+	original := strings.Join(lines, "\n")
+	fixed := strings.Join(modified, "\n")
+
+	// XXX (@notJoon): hack to ignore "simplify_for_range" rule
+	// need to support semantic check for this
+	if issue.Rule == "simplify_for_range" {
+		return modified
+	}
+
+	// do not apply the fix if the AST equivalence check fails
+	checker := NewContentBasedCFGChecker(f.MinConfidence, false)
+	eq, report, err := checker.CheckEquivalence(original, fixed)
+	if err != nil {
+		fmt.Printf("AST equivalence check error at line %d: %v\n", issue.Start.Line, err)
+		return lines
+	}
+
+	if !eq {
+		fmt.Printf("AST equivalence check failed at line %d: %s\n", issue.Start.Line, report)
+		return lines
+	}
+
+	return modified
 }
 
 func (f *Fixer) writeFixedContent(filename string, lines []string) error {
@@ -120,27 +145,19 @@ func extractIndent(line string) string {
 	return line[:len(line)-len(strings.TrimLeft(line, " \t"))]
 }
 
-// applyIndent applies the indentation to the suggestion.
-func applyIndent(content, indent string, start token.Position) string {
+// applyIndent applies the indentation to each line of the content.
+// It splits the content into lines, prepends the given indent to each line,
+// and then joins them back together with newlines.
+func applyIndent(content, indent string) string {
+	if content == "" {
+		return ""
+	}
+
 	lines := strings.Split(content, "\n")
-	sugLines := strings.Split(indent, "\n")
-	offset := getOffset(lines, start.Line-1)
-
-	for i := range sugLines {
-		sugLines[i] = strings.Repeat(" ", offset) + sugLines[i]
+	for i := range lines {
+		if lines[i] != "" {
+			lines[i] = indent + lines[i]
+		}
 	}
-
-	for i := 0; i < len(sugLines) && start.Line-1+i < len(lines); i++ {
-		lines[start.Line-1+i] = sugLines[i]
-	}
-
 	return strings.Join(lines, "\n")
-}
-
-// getOffset calculates the offset of the indentation from the first line of the issue.
-func getOffset(lines []string, lineIndex int) int {
-	if lineIndex < 0 || lineIndex >= len(lines) {
-		return 0
-	}
-	return len(lines[lineIndex]) - len(strings.TrimLeft(lines[lineIndex], " \t"))
 }
