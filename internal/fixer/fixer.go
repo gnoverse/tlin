@@ -83,6 +83,12 @@ func (f *Fixer) applyFix(lines []string, issue tt.Issue) []string {
 	original := strings.Join(lines, "\n")
 	fixed := strings.Join(modified, "\n")
 
+	// XXX (@notJoon): hack to ignore "simplify_for_range" rule
+	// need to support semantic check for this
+	if issue.Rule == "simplify_for_range" {
+		return modified
+	}
+
 	// do not apply the fix if the AST equivalence check fails
 	checker := NewContentBasedCFGChecker(f.MinConfidence, false)
 	eq, report, err := checker.CheckEquivalence(original, fixed)
