@@ -2,11 +2,13 @@ package lints
 
 import (
 	"encoding/json"
-	_ "fmt"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
 	"os/exec"
+	"path/filepath"
 
 	tt "github.com/gnolang/tlin/internal/types"
 )
@@ -40,20 +42,37 @@ type golangciOutput struct {
 }
 
 func RunGolangciLint(filename string, _ *ast.File, _ *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
-	cmd := exec.Command("golangci-lint", "run", "--config=./.golangci.yml", "--out-format=json", filename)
-	output, _ := cmd.CombinedOutput()
+	// find config file in current working directory
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get working directory: %v", err)
+	}
+
+	configPath := filepath.Join(wd, ".golangci.yml")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("failed to find .golangci.yml file: %v", err)
+	}
+
+	cmd := exec.Command("golangci-lint", "run", "--out-format=json", "--config="+configPath, filename)
+	output, err := cmd.CombinedOutput()
+
+	// If golangci-lint finds issues, it returns a non-zero exit code,
+	// so we ignore the error if there is json output.
+	if err != nil && len(output) == 0 {
+		return nil, fmt.Errorf("failed to run golangci-lint: %v", err)
+	}
 
 	var golangciResult golangciOutput
-
-	// @notJoon: Ignore Unmarshal error. We cannot unmarshal the output of golangci-lint
-	// when source code contains gno package imports (i.e. p/demo, r/demo, std). [07/25/24]
-	json.Unmarshal(output, &golangciResult)
+	err = json.Unmarshal(output, &golangciResult)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse golangci-lint output: %v", err)
+	}
 
 	issues := make([]tt.Issue, 0, len(golangciResult.Issues))
 	for _, gi := range golangciResult.Issues {
 		issues = append(issues, tt.Issue{
 			Rule:     gi.FromLinter,
-			Filename: gi.Pos.Filename, // Use the filename from golangci-lint output
+			Filename: gi.Pos.Filename,
 			Start:    token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
 			End:      token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1},
 			Message:  gi.Text,

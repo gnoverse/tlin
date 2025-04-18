@@ -15,13 +15,8 @@ type LintRule struct {
 	name     string
 }
 
-func (r LintRule) Severity() tt.Severity {
-	return r.severity
-}
-
-func (r LintRule) Name() string {
-	return r.name
-}
+func (r LintRule) Severity() tt.Severity { return r.severity }
+func (r LintRule) Name() string          { return r.name }
 
 func (r LintRule) Check(filename string, node *ast.File, fset *token.FileSet) ([]tt.Issue, error) {
 	return r.check(filename, node, fset, r.severity)
