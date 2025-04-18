@@ -22,7 +22,7 @@ Inspired by Rust's [clippy](https://github.com/rust-lang/rust-clippy), tlin aims
 ## Installation
 
 - Requirements:
-  - Go: 1.22 or higher
+  - Go: 1.24 or higher
   - latest version of gno
   - GNU Make 3.81 or higher (for building)
 
