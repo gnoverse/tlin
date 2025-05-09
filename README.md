@@ -3,6 +3,7 @@
 Advance Linter for go-like grammar languages.
 
 [![CodeQL](https://github.com/gnoverse/tlin/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/gnoverse/tlin/actions)
+[![Release](https://img.shields.io/github/v/release/gnoverse/tlin)](https://github.com/gnoverse/tlin/releases)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/gnoverse/tlin/blob/main/LICENSE)
 
 ## Introduction
