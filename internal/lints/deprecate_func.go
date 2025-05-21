@@ -6,6 +6,7 @@ import (
 	"go/token"
 
 	"github.com/gnolang/tlin/internal/checker"
+	"github.com/gnolang/tlin/internal/lints/utils"
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
@@ -95,18 +96,7 @@ var deprecatedPackages = pkgContainsDeprecatedMap{
 }
 
 func extractDeprecatedImports(node *ast.File) pkgContainsDeprecatedMap {
-	return extractImports(node, func(path string) bool {
+	return utils.ExtractImports(node, func(path string) bool {
 		return true
 	})
-}
-
-func extractImports[T any](node *ast.File, valueFunc func(string) T) map[string]T {
-	imports := make(map[string]T)
-
-	for _, imp := range node.Imports {
-		path := imp.Path.Value[1 : len(imp.Path.Value)-1]
-		imports[path] = valueFunc(path)
-	}
-
-	return imports
 }
