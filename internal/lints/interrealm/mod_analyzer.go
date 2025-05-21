@@ -18,6 +18,13 @@ const (
 	TypeRealm               // Realm packages (r/)
 )
 
+// function type for getting package context
+// by doing so, we can mock the function in tests
+type PackageContextGetter func(filePath string) (*PackageContext, error)
+
+// actual function to get package context
+var GetPackageContextForFile PackageContextGetter = getPackageContextForFileImpl
+
 func (pt PackageType) String() string {
 	switch pt {
 	case TypePackage:
@@ -46,16 +53,16 @@ type PackageContext struct {
 }
 
 // DeterminePackageTypeFromDir analyzes a directory to determine if it's a p or r package
-// by looking for a `gno.mod` file and parsing its contents.
+// by looking for a gno.mod file and parsing its contents.
 func DeterminePackageTypeFromDir(dirPath string) (*PackageContext, error) {
 	gnoModPath := filepath.Join(dirPath, "gno.mod")
 
-	// Check if `gno.mod` exists
+	// Check if gno.mod exists
 	if _, err := os.Stat(gnoModPath); os.IsNotExist(err) {
 		return nil, ErrNoGnoModFile
 	}
 
-	// Open and read `gno.mod` file
+	// Open and read gno.mod file
 	file, err := os.Open(gnoModPath)
 	if err != nil {
 		return nil, err
@@ -66,12 +73,12 @@ func DeterminePackageTypeFromDir(dirPath string) (*PackageContext, error) {
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
-		// skip empty lines and comments
-		if line == "" || strings.HasPrefix(line, "#") {
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") { // XXX: should we handle comments?
 			continue
 		}
 
-		// look for module declaration
+		// Look for module declaration
 		matches := moduleRegex.FindStringSubmatch(line)
 		if len(matches) == 3 {
 			pkgType := TypeUnknown
@@ -83,7 +90,6 @@ func DeterminePackageTypeFromDir(dirPath string) (*PackageContext, error) {
 
 			return &PackageContext{
 				Type:       pkgType,
-				// TODO: make prefix (chain-ID) configurable
 				ModulePath: "gno.land/" + matches[1] + "/" + matches[2],
 				Name:       filepath.Base(matches[2]),
 			}, nil
@@ -97,9 +103,9 @@ func DeterminePackageTypeFromDir(dirPath string) (*PackageContext, error) {
 	return nil, ErrInvalidGnoMod
 }
 
-// getPackageContextForFile determines the package context for a given file
+// getPackageContextForFileImpl determines the package context for a given file
 // by finding the nearest gno.mod file in parent directories
-func GetPackageContextForFile(filePath string) (*PackageContext, error) {
+func getPackageContextForFileImpl(filePath string) (*PackageContext, error) {
 	dir := filepath.Dir(filePath)
 
 	// Walk up directories until we find a gno.mod file or reach the root
@@ -113,10 +119,10 @@ func GetPackageContextForFile(filePath string) (*PackageContext, error) {
 			return nil, err
 		}
 
-		// move up one directory
+		// Move up one directory
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			// reached the root directory without finding gno.mod
+			// We've reached the root directory without finding gno.mod
 			return nil, ErrNoGnoModFile
 		}
 		dir = parent
