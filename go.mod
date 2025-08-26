@@ -7,7 +7,7 @@ require (
 	github.com/fzipp/gocyclo v0.6.0
 	github.com/goccy/go-graphviz v0.2.9
 	github.com/schollz/progressbar/v3 v3.18.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.0
 	golang.org/x/tools v0.35.0
 )
 
