@@ -40,6 +40,7 @@ var (
 	DeprecatedFuncRule           = LintRule{severity: tt.SeverityError, check: lints.DetectDeprecatedFunctions}
 	GnoSpecificRule              = LintRule{severity: tt.SeverityWarning, check: lints.DetectGnoPackageImports}
 	SimplifyForRangeRule         = LintRule{severity: tt.SeverityWarning, check: lints.DetectSimplifiableForLoops}
+	FormatWithoutVerbRule        = LintRule{severity: tt.SeverityWarning, check: lints.DetectFormatWithoutVerb}
 )
 
 // Define the ruleMap type
@@ -59,4 +60,5 @@ var allRules = ruleMap{
 	"deprecated":                  DeprecatedFuncRule,
 	"unused-package":              GnoSpecificRule,
 	"simplify-for-range":          SimplifyForRangeRule,
+	"format-without-verb":         FormatWithoutVerbRule,
 }
