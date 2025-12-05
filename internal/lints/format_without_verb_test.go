@@ -1,11 +1,10 @@
 package lints
 
 import (
-	"path/filepath"
-	"testing"
-
 	"go/parser"
 	"go/token"
+	"path/filepath"
+	"testing"
 
 	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
