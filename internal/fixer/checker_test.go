@@ -92,21 +92,21 @@ func getSlice() []int {
 			name: "Reformat emit function - equivalent",
 			originalCode: `package main
 
-import "std"
+import "runtime/chain"
 
 func emitEvent() {
 	newOwner := "Alice"
 	oldOwner := "Bob"
-	std.Emit("OwnershipChange", "newOwner", newOwner, "oldOwner", oldOwner)
+	chain.Emit("OwnershipChange", "newOwner", newOwner, "oldOwner", oldOwner)
 }`,
 			modifiedCode: `package main
 
-import "std"
+import "runtime/chain"
 
 func emitEvent() {
 	newOwner := "Alice"
 	oldOwner := "Bob"
-	std.Emit(
+	chain.Emit(
 		"OwnershipChange",
 		"newOwner", newOwner,
 		"oldOwner", oldOwner,
@@ -381,21 +381,21 @@ func main() {
 			name: "Reformat emit function - should maintain CFG equivalence",
 			input: `package main
 
-import "std"
+import "runtime/chain"
 
 func main() {
 	newOwner := "Alice"
 	oldOwner := "Bob"
-	std.Emit("OwnershipChange",
+	chain.Emit("OwnershipChange",
 	"newOwner", newOwner, "oldOwner", oldOwner)
 }`,
 			issues: []tt.Issue{
 				{
 					Rule:    "emit-format",
-					Message: "Consider formatting std.Emit call for better readability",
+					Message: "Consider formatting chain.Emit call for better readability",
 					Start:   token.Position{Line: 8, Column: 5},
 					End:     token.Position{Line: 9, Column: 44},
-					Suggestion: `std.Emit(
+					Suggestion: `chain.Emit(
     "OwnershipChange",
     "newOwner", newOwner,
     "oldOwner", oldOwner,

@@ -37,7 +37,6 @@ var (
 	EarlyReturnOpportunityRule   = LintRule{severity: tt.SeverityInfo, check: lints.DetectEarlyReturnOpportunities}
 	ConstErrorDeclarationRule    = LintRule{severity: tt.SeverityError, check: lints.DetectConstErrorDeclaration}
 	RepeatedRegexCompilationRule = LintRule{severity: tt.SeverityWarning, check: lints.DetectRepeatedRegexCompilation}
-	DeprecatedFuncRule           = LintRule{severity: tt.SeverityError, check: lints.DetectDeprecatedFunctions}
 	GnoSpecificRule              = LintRule{severity: tt.SeverityWarning, check: lints.DetectGnoPackageImports}
 	SimplifyForRangeRule         = LintRule{severity: tt.SeverityWarning, check: lints.DetectSimplifiableForLoops}
 	FormatWithoutVerbRule        = LintRule{severity: tt.SeverityWarning, check: lints.DetectFormatWithoutVerb}
@@ -57,7 +56,6 @@ var allRules = ruleMap{
 	"early-return-opportunity":    EarlyReturnOpportunityRule,
 	"const-error-declaration":     ConstErrorDeclarationRule,
 	"repeated-regex-compilation":  RepeatedRegexCompilationRule,
-	"deprecated":                  DeprecatedFuncRule,
 	"unused-package":              GnoSpecificRule,
 	"simplify-for-range":          SimplifyForRangeRule,
 	"format-without-verb":         FormatWithoutVerbRule,

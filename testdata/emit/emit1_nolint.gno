@@ -1,8 +1,8 @@
 package main
 
-import "std"
+import "runtime/chain"
 
 func main() {
 	//nolint:emit-format
-    std.Emit("OwnershipChange", "newOwner", newOwner.String(), "oldOwner", oldOwner.String())
+    chain.Emit("OwnershipChange", "newOwner", newOwner.String(), "oldOwner", oldOwner.String())
 }

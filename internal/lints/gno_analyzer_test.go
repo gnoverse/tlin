@@ -46,7 +46,7 @@ func TestRunLinter(t *testing.T) {
 				"fmt":                  {false, true, false},
 				"gno.land/p/demo/ufmt": {true, true, false},
 				"strings":              {false, false, false},
-				"std":                  {true, true, false},
+				"runtime/chain":        {false, true, false},
 				"gno.land/p/demo/diff": {true, false, true},
 			},
 		},

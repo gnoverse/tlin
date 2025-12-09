@@ -9,11 +9,13 @@ import (
 )
 
 func DetectEmitFormat(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
+	// Check for both old "chain" and new "runtime/chain" import paths
 	imports := extractImports(node, func(path string) bool {
-		return path == "std"
+		return path == "chain" || path == "runtime/chain"
 	})
 
-	if !imports["std"] {
+	hasChainImport := imports["chain"] || imports["runtime/chain"]
+	if !hasChainImport {
 		return nil, nil
 	}
 
@@ -25,14 +27,14 @@ func DetectEmitFormat(filename string, node *ast.File, fset *token.FileSet, seve
 		}
 
 		if fun, ok := call.Fun.(*ast.SelectorExpr); ok {
-			if x, ok := fun.X.(*ast.Ident); ok && x.Name == "std" && fun.Sel.Name == "Emit" {
+			if x, ok := fun.X.(*ast.Ident); ok && x.Name == "chain" && fun.Sel.Name == "Emit" {
 				if len(call.Args) > 3 && !isEmitCorrectlyFormatted(call, fset) {
 					issue := tt.Issue{
 						Rule:       "emit-format",
 						Filename:   filename,
 						Start:      fset.Position(call.Pos()),
 						End:        fset.Position(call.End()),
-						Message:    "consider formatting std.Emit call for better readability",
+						Message:    "consider formatting chain.Emit call for better readability",
 						Suggestion: formatEmitCall(call),
 						Severity:   severity,
 					}
@@ -75,7 +77,7 @@ func isEmitCorrectlyFormatted(call *ast.CallExpr, fset *token.FileSet) bool {
 
 func formatEmitCall(call *ast.CallExpr) string {
 	var sb strings.Builder
-	sb.WriteString("std.Emit(\n")
+	sb.WriteString("chain.Emit(\n")
 
 	// event type
 	if len(call.Args) > 0 {
