@@ -1,9 +1,9 @@
 package main
 
-import "std"
+import "runtime/chain"
 
 func main() {
-    std.Emit(
+    chain.Emit(
 		"OwnershipChange",
 		"newOwner", newOwner.String(),
 		"oldOwner", oldOwner.String(),

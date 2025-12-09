@@ -282,7 +282,7 @@ func TestDetectEmitFormat(t *testing.T) {
 
 			if len(issues) > 0 {
 				assert.Equal(t, "emit-format", issues[0].Rule)
-				assert.Contains(t, issues[0].Message, "consider formatting std.Emit call for better readability")
+				assert.Contains(t, issues[0].Message, "consider formatting chain.Emit call for better readability")
 			}
 		})
 	}
@@ -297,16 +297,16 @@ func TestFormatEmitCall(t *testing.T) {
 	}{
 		{
 			name:  "Simple Emit call",
-			input: `std.Emit("OwnershipChange", "newOwner", newOwner.String())`,
-			expected: `std.Emit(
+			input: `chain.Emit("OwnershipChange", "newOwner", newOwner.String())`,
+			expected: `chain.Emit(
     "OwnershipChange",
     "newOwner", newOwner.String(),
 )`,
 		},
 		{
 			name:  "Emit call with multiple key-value pairs",
-			input: `std.Emit("OwnershipChange", "newOwner", newOwner.String(), "oldOwner", oldOwner.String())`,
-			expected: `std.Emit(
+			input: `chain.Emit("OwnershipChange", "newOwner", newOwner.String(), "oldOwner", oldOwner.String())`,
+			expected: `chain.Emit(
     "OwnershipChange",
     "newOwner", newOwner.String(),
     "oldOwner", oldOwner.String(),
@@ -314,8 +314,8 @@ func TestFormatEmitCall(t *testing.T) {
 		},
 		{
 			name:  "Emit call with function calls as values",
-			input: `std.Emit("Transfer", "from", sender.Address(), "to", recipient.Address(), "amount", token.Format(amount))`,
-			expected: `std.Emit(
+			input: `chain.Emit("Transfer", "from", sender.Address(), "to", recipient.Address(), "amount", token.Format(amount))`,
+			expected: `chain.Emit(
     "Transfer",
     "from", sender.Address(),
     "to", recipient.Address(),

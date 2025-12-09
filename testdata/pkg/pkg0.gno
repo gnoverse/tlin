@@ -2,7 +2,7 @@ package main
 
 import (
     "fmt"
-    "std"
+    "runtime/chain"
     "strings" // unused import
     _ "gno.land/p/demo/diff" // unused import but ignored
 
@@ -13,7 +13,7 @@ func main() {
     fmt.Println("Hello, World!")
     ufmt.Printf("Formatted: %s\n", "test")
 
-    std.Emit(
+    chain.Emit(
         "foo",
         "1", "2",
     )
