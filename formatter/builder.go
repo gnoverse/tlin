@@ -17,10 +17,9 @@ const tabWidth = 8
 
 // rule set
 const (
-	CycloComplexity   = "high-cyclomatic-complexity"
-	SliceBound        = "slice-bounds-check"
-	MissingModPackage = "gno-mod-tidy"
-	DeprecatedFunc    = "deprecated"
+	CycloComplexity = "high-cyclomatic-complexity"
+	SliceBound      = "slice-bounds-check"
+	DeprecatedFunc  = "deprecated"
 )
 
 var (
@@ -41,9 +40,8 @@ type issueFormatter interface {
 }
 
 var formatterCache = map[string]issueFormatter{
-	CycloComplexity:   &CyclomaticComplexityFormatter{},
-	SliceBound:        &SliceBoundsCheckFormatter{},
-	MissingModPackage: &MissingModPackageFormatter{},
+	CycloComplexity: &CyclomaticComplexityFormatter{},
+	SliceBound:      &SliceBoundsCheckFormatter{},
 }
 
 // getIssueFormatter is a factory function that returns the appropriate IssueFormatter
@@ -94,7 +92,6 @@ var funcMap = template.FuncMap{
 	"note":                note,
 	"snippet":             codeSnippet,
 	"underlineAndMessage": underlineAndMessage,
-	"message":             message,
 	"warning":             warning,
 	"complexityInfo":      complexityInfo,
 }
