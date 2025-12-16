@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"go/ast"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -14,12 +15,22 @@ import (
 )
 
 // Engine manages the linting process.
+//
 // TODO: use symbol table
 type Engine struct {
-	ignoredPaths []string
-	ignoredRules map[string]bool
-	nolintMgr    *nolint.Manager
-	rules        map[string]LintRule
+	ignoredPaths []string            // Readonly
+	ignoredRules map[string]bool     // Readonly
+	rules        map[string]LintRule // Readonly
+}
+
+// runContext holds per-run state to ensure thread safety during concurrent linting.
+// Each call to Run or RunSource creates its own context.
+type runContext struct {
+	originalPath string          // Original filename (.gno or .go)
+	tempPath     string          // Temporary file path if converted from .gno
+	node         *ast.File       // Parsed AST
+	fset         *token.FileSet  // Token file set
+	nolintMgr    *nolint.Manager // Nolint manager for this specific run
 }
 
 // NewEngine creates a new lint engine.
@@ -72,91 +83,26 @@ func (e *Engine) findRule(name string) (LintRule, bool) {
 
 // Run applies all lint rules to the given file and returns a slice of Issues.
 func (e *Engine) Run(filename string) ([]tt.Issue, error) {
-	tempFile, err := e.prepareFile(filename)
+	// Create run context for this specific run
+	ctx, err := e.createRunContext(filename)
 	if err != nil {
 		return nil, err
 	}
-	defer e.cleanupTemp(tempFile)
+	defer e.cleanupContext(ctx)
 
-	node, fset, err := lints.ParseFile(tempFile, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing file: %w", err)
-	}
-
-	e.nolintMgr = nolint.ParseComments(node, fset)
-
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-
-	var allIssues []tt.Issue
-	for _, rule := range e.rules {
-		wg.Add(1)
-		go func(r LintRule) {
-			defer wg.Done()
-			if e.ignoredRules[r.Name()] {
-				return
-			}
-			issues, err := r.Check(tempFile, node, fset)
-			if err != nil {
-				return
-			}
-
-			nolinted := e.filterNolintIssues(issues)
-			noIgnoredPaths := e.filterIgnoredPaths(nolinted)
-
-			mu.Lock()
-			allIssues = append(allIssues, noIgnoredPaths...)
-			mu.Unlock()
-		}(rule)
-	}
-	wg.Wait()
-
-	// map issues back to .gno file if necessary
-	if strings.HasSuffix(filename, ".gno") {
-		for i := range allIssues {
-			allIssues[i].Filename = filename
-		}
-	}
-
-	return allIssues, nil
+	return e.runWithContext(ctx)
 }
 
-// Run applies all lint rules to the given source and returns a slice of Issues.
+// RunSource applies all lint rules to the given source and returns a slice of Issues.
 func (e *Engine) RunSource(source []byte) ([]tt.Issue, error) {
-	node, fset, err := lints.ParseFile("", source)
+	// Create run context for source
+	ctx, err := e.createRunContextFromSource(source)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing content: %w", err)
+		return nil, err
 	}
+	// No cleanup needed for source-based runs
 
-	e.nolintMgr = nolint.ParseComments(node, fset)
-
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-
-	var allIssues []tt.Issue
-	for _, rule := range e.rules {
-		wg.Add(1)
-		go func(r LintRule) {
-			defer wg.Done()
-			if e.ignoredRules[r.Name()] {
-				return
-			}
-			issues, err := r.Check("", node, fset)
-			if err != nil {
-				return
-			}
-
-			nolinted := e.filterNolintIssues(issues)
-			noIgnoredPaths := e.filterIgnoredPaths(nolinted)
-
-			mu.Lock()
-			allIssues = append(allIssues, noIgnoredPaths...)
-			mu.Unlock()
-		}(rule)
-	}
-	wg.Wait()
-
-	return allIssues, nil
+	return e.runWithContext(ctx)
 }
 
 func (e *Engine) IgnoreRule(rule string) {
@@ -183,10 +129,114 @@ func (e *Engine) cleanupTemp(temp string) {
 	}
 }
 
-func (e *Engine) filterIgnoredPaths(issues []tt.Issue) []tt.Issue {
+// createRunContext creates a new run context for a file.
+func (e *Engine) createRunContext(filename string) (*runContext, error) {
+	ctx := &runContext{
+		originalPath: filename,
+	}
+
+	// Prepare temp file if needed
+	tempFile, err := e.prepareFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	ctx.tempPath = tempFile
+
+	// Parse file
+	node, fset, err := lints.ParseFile(tempFile, nil)
+	if err != nil {
+		e.cleanupTemp(tempFile)
+		return nil, fmt.Errorf("error parsing file: %w", err)
+	}
+
+	ctx.node = node
+	ctx.fset = fset
+	ctx.nolintMgr = nolint.ParseComments(node, fset)
+
+	return ctx, nil
+}
+
+// createRunContextFromSource creates a new run context from source bytes.
+func (e *Engine) createRunContextFromSource(source []byte) (*runContext, error) {
+	node, fset, err := lints.ParseFile("", source)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing content: %w", err)
+	}
+
+	ctx := &runContext{
+		originalPath: "",
+		tempPath:     "",
+		node:         node,
+		fset:         fset,
+		nolintMgr:    nolint.ParseComments(node, fset),
+	}
+
+	return ctx, nil
+}
+
+// cleanupContext cleans up resources associated with a run context.
+func (e *Engine) cleanupContext(ctx *runContext) {
+	if ctx.tempPath != "" {
+		e.cleanupTemp(ctx.tempPath)
+	}
+}
+
+// runWithContext executes all lint rules using the provided context.
+func (e *Engine) runWithContext(ctx *runContext) ([]tt.Issue, error) {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	var allIssues []tt.Issue
+	for _, rule := range e.rules {
+		wg.Add(1)
+		go func(r LintRule) {
+			defer wg.Done()
+			if e.ignoredRules[r.Name()] {
+				return
+			}
+			// Use temp path for checking (golangci-lint needs .go files)
+			checkPath := ctx.tempPath
+			if checkPath == "" {
+				checkPath = ctx.originalPath
+			}
+			issues, err := r.Check(checkPath, ctx.node, ctx.fset)
+			if err != nil {
+				return
+			}
+
+			nolinted := e.filterNolintIssues(issues, ctx)
+			noIgnoredPaths := e.filterIgnoredPaths(nolinted, ctx)
+
+			mu.Lock()
+			allIssues = append(allIssues, noIgnoredPaths...)
+			mu.Unlock()
+		}(rule)
+	}
+	wg.Wait()
+
+	// Map issues back to original filename only if we used a temp file that differs from the original
+	// This ensures we only remap for .gno -> .go conversions, not for regular .go files
+	if ctx.tempPath != "" && ctx.originalPath != "" && ctx.tempPath != ctx.originalPath {
+		for i := range allIssues {
+			// Only remap if the issue is pointing to the temp file
+			if allIssues[i].Filename == ctx.tempPath {
+				allIssues[i].Filename = ctx.originalPath
+			}
+		}
+	}
+
+	return allIssues, nil
+}
+
+func (e *Engine) filterIgnoredPaths(issues []tt.Issue, ctx *runContext) []tt.Issue {
 	filtered := make([]tt.Issue, 0, len(issues))
 	for _, issue := range issues {
-		if !e.isIgnoredPath(issue.Filename) {
+		// Use original path for ignored path checking
+		checkPath := issue.Filename
+		if ctx.originalPath != "" && ctx.tempPath != "" && issue.Filename == ctx.tempPath {
+			checkPath = ctx.originalPath
+		}
+		if !e.isIgnoredPath(checkPath) {
 			filtered = append(filtered, issue)
 		}
 	}
@@ -196,9 +246,7 @@ func (e *Engine) filterIgnoredPaths(issues []tt.Issue) []tt.Issue {
 func (e *Engine) isIgnoredPath(path string) bool {
 	for _, ignored := range e.ignoredPaths {
 		res, err := filepath.Match(ignored, path)
-		fmt.Println("res:", res, err, ignored, path)
 		if err == nil && res {
-			fmt.Println("Ignoring path:", path)
 			return true
 		}
 	}
@@ -206,8 +254,8 @@ func (e *Engine) isIgnoredPath(path string) bool {
 }
 
 // filterNolintIssues filters issues based on nolint comments.
-func (e *Engine) filterNolintIssues(issues []tt.Issue) []tt.Issue {
-	if e.nolintMgr == nil {
+func (e *Engine) filterNolintIssues(issues []tt.Issue, ctx *runContext) []tt.Issue {
+	if ctx.nolintMgr == nil {
 		return issues
 	}
 	filtered := make([]tt.Issue, 0, len(issues))
@@ -216,7 +264,7 @@ func (e *Engine) filterNolintIssues(issues []tt.Issue) []tt.Issue {
 			Filename: issue.Filename,
 			Line:     issue.Start.Line,
 		}
-		if !e.nolintMgr.IsNolint(pos, issue.Rule) {
+		if !ctx.nolintMgr.IsNolint(pos, issue.Rule) {
 			filtered = append(filtered, issue)
 		}
 	}

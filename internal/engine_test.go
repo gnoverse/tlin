@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -237,4 +238,204 @@ func createTempDir(tb testing.TB, prefix string) string {
 	require.NoError(tb, err)
 	tb.Cleanup(func() { os.RemoveAll(tempDir) })
 	return tempDir
+}
+
+// TestGnoFileMapping tests that issues from .gno files are correctly mapped back
+func TestGnoFileMapping(t *testing.T) {
+	t.Parallel()
+
+	tempDir := createTempDir(t, "gno_mapping_test")
+
+	// Create a .gno file with known issues
+	gnoFile := filepath.Join(tempDir, "test.gno")
+	content := `package main
+
+func test() {
+	// Unnecessary type conversion that will be detected
+	x := 5
+	y := int(x) // This will trigger unnecessary-type-conversion rule
+	
+	// Useless break that will be detected
+	for i := 0; i < 10; i++ {
+		if i == 5 {
+			break
+		}
+		break // This will trigger useless-break rule
+	}
+	
+	_ = y
+}
+`
+	err := os.WriteFile(gnoFile, []byte(content), 0o644)
+	require.NoError(t, err)
+
+	engine, err := NewEngine(tempDir, nil, nil)
+	require.NoError(t, err)
+
+	issues, err := engine.Run(gnoFile)
+	assert.NoError(t, err)
+
+	// Assert that we found at least one issue
+	assert.NotEmpty(t, issues, "Should have found at least one issue in the .gno file")
+
+	// Check that all issues have the original .gno filename
+	issueCount := 0
+	for _, issue := range issues {
+		assert.Equal(t, gnoFile, issue.Filename, "Issue filename should be mapped back to .gno file")
+		assert.True(t, strings.HasSuffix(issue.Filename, ".gno"), "Issue filename should end with .gno")
+		issueCount++
+	}
+
+	// Ensure we actually checked some issues
+	assert.Greater(t, issueCount, 0, "Should have found and checked at least one issue")
+}
+
+// TestNolintIsolation tests that nolint comments from one file don't affect another
+func TestNolintIsolation(t *testing.T) {
+	t.Parallel()
+
+	tempDir := createTempDir(t, "nolint_isolation_test")
+
+	// Create two files with a detectable issue
+	file1 := filepath.Join(tempDir, "file1.go")
+	content1 := `package main
+
+//nolint:unnecessary-type-conversion
+func test1() {
+	x := int(5)
+	y := int(x) // unnecessary type conversion
+	_ = y
+}
+`
+	err := os.WriteFile(file1, []byte(content1), 0o644)
+	require.NoError(t, err)
+
+	file2 := filepath.Join(tempDir, "file2.go")
+	content2 := `package main
+
+func test2() {
+	x := int(5)
+	y := int(x) // unnecessary type conversion
+	_ = y
+}
+`
+	err = os.WriteFile(file2, []byte(content2), 0o644)
+	require.NoError(t, err)
+
+	engine, err := NewEngine(tempDir, nil, nil)
+	require.NoError(t, err)
+
+	// Run both files
+	issues1, err := engine.Run(file1)
+	assert.NoError(t, err)
+
+	issues2, err := engine.Run(file2)
+	assert.NoError(t, err)
+
+	// File1 should have fewer issues due to nolint comment
+	// File2 should have issues
+	assert.Less(t, len(issues1), len(issues2), "File1 with nolint should have fewer issues than file2")
+
+	// Verify that file2 has the unnecessary-type-conversion issue
+	hasTypeConversionIssue := false
+	for _, issue := range issues2 {
+		if issue.Rule == "unnecessary-type-conversion" {
+			hasTypeConversionIssue = true
+			break
+		}
+	}
+	assert.True(t, hasTypeConversionIssue, "File2 should have unnecessary-type-conversion issue")
+
+	// Verify that file1 doesn't have the unnecessary-type-conversion issue
+	for _, issue := range issues1 {
+		assert.NotEqual(t, "unnecessary-type-conversion", issue.Rule, "File1 should not have unnecessary-type-conversion issue due to nolint")
+	}
+}
+
+// TestConcurrentRuns tests that concurrent runs don't interfere with each other
+func TestConcurrentRuns(t *testing.T) {
+	t.Parallel()
+
+	tempDir := createTempDir(t, "concurrent_test")
+
+	// Create multiple test files with deterministic issues
+	numFiles := 10
+	files := make([]string, numFiles)
+	for i := 0; i < numFiles; i++ {
+		filename := filepath.Join(tempDir, fmt.Sprintf("test%d.go", i))
+		// Each file has a unique pattern of unnecessary type conversions
+		// File i will have i+1 unnecessary conversions
+		content := fmt.Sprintf(`package main
+
+// File %d
+func test%d() {
+	x := 5
+`, i, i)
+
+		// Add i+1 unnecessary type conversions
+		for j := 0; j <= i; j++ {
+			content += fmt.Sprintf("\tv%d := int(x) // unnecessary conversion %d in file %d\n", j, j, i)
+		}
+
+		content += "\t_ = x\n"
+		// Add usages to avoid unused variable warnings
+		for j := 0; j <= i; j++ {
+			content += fmt.Sprintf("\t_ = v%d\n", j)
+		}
+		content += "}\n"
+
+		err := os.WriteFile(filename, []byte(content), 0o644)
+		require.NoError(t, err)
+		files[i] = filename
+	}
+
+	engine, err := NewEngine(tempDir, nil, nil)
+	require.NoError(t, err)
+
+	// Run all files concurrently
+	type result struct {
+		filename string
+		issues   []types.Issue
+		err      error
+	}
+
+	resultChan := make(chan result, numFiles)
+	for _, file := range files {
+		go func(f string) {
+			issues, err := engine.Run(f)
+			resultChan <- result{filename: f, issues: issues, err: err}
+		}(file)
+	}
+
+	// Collect results
+	results := make(map[string][]types.Issue)
+	totalIssues := 0
+	for i := 0; i < numFiles; i++ {
+		r := <-resultChan
+		assert.NoError(t, r.err)
+		results[r.filename] = r.issues
+		totalIssues += len(r.issues)
+	}
+
+	// Verify we found issues
+	assert.Greater(t, totalIssues, 0, "Should have found at least some issues across all files")
+
+	// Verify that each file has at least one issue (since each file has at least one unnecessary conversion)
+	for filename, issues := range results {
+		assert.NotEmpty(t, issues, "File %s should have at least one issue", filename)
+
+		// Verify that all issues belong to the correct file
+		for _, issue := range issues {
+			assert.Equal(t, filename, issue.Filename, "Issue should belong to the correct file")
+		}
+	}
+
+	// Verify that files have different numbers of issues (as designed)
+	// This helps ensure isolation - if nolint or other state leaked between files,
+	// we might see identical issue counts
+	issueCounts := make(map[int]int)
+	for _, issues := range results {
+		issueCounts[len(issues)]++
+	}
+	assert.Greater(t, len(issueCounts), 1, "Files should have varying numbers of issues, indicating proper isolation")
 }
