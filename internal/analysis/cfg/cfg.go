@@ -53,17 +53,22 @@ func FromFunc(f *ast.FuncDecl) *CFG {
 func RenderToGraphVizFile(dotContent []byte, filename string) error {
 	graph, err := graphviz.ParseBytes(dotContent)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse DOT content: %w", err)
 	}
-	g, err := graphviz.New(context.Background())
+
+	ctx := context.Background()
+	g, err := graphviz.New(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create graphviz instance: %w", err)
 	}
 	defer g.Close()
-	err = g.RenderFilename(context.Background(), graph, graphviz.SVG, filename)
+
+	// Try to render the graph
+	err = g.RenderFilename(ctx, graph, graphviz.SVG, filename)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to render graph to file %s: %w", filename, err)
 	}
+
 	return nil
 }
 
