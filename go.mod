@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/fatih/color v1.18.0
 	github.com/fzipp/gocyclo v0.6.0
-	github.com/goccy/go-graphviz v0.2.9
+	github.com/goccy/go-graphviz v0.2.10
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/tools v0.40.0
@@ -21,7 +21,7 @@ require (
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/tetratelabs/wazero v1.8.2 // indirect
+	github.com/tetratelabs/wazero v1.10.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/image v0.24.0 // indirect
 	golang.org/x/mod v0.31.0 // indirect
