@@ -149,7 +149,7 @@ func processDirectory(
 	var processedFiles int
 
 	// Start result collector goroutine
-	var collectorDone = make(chan struct{})
+	collectorDone := make(chan struct{})
 	go func() {
 		for result := range resultChan {
 			processedFiles++
@@ -159,7 +159,7 @@ func processDirectory(
 			} else {
 				// Capture first error
 				errorMutex.Lock()
-				if firstErr == nil && result.err != ctx.Err() {
+				if firstErr == nil {
 					firstErr = result.err
 				}
 				errorMutex.Unlock()

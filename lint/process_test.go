@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	tt "github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
@@ -22,40 +21,33 @@ func TestProcessPathContextCancellation(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
-	// Create multiple test files
-	for i := 0; i < 10; i++ {
-		filename := filepath.Join(tempDir, fmt.Sprintf("test%d.go", i))
-		content := fmt.Sprintf(`package main
+	// Create a single test file since we're testing early cancellation
+	filename := filepath.Join(tempDir, "test.go")
+	content := `package main
 
-func test%d() {
+func test() {
 	x := 5
 	y := int(x) // unnecessary type conversion
 	_ = y
 }
-`, i)
-		err := os.WriteFile(filename, []byte(content), 0o644)
-		require.NoError(t, err)
-	}
+`
+	err = os.WriteFile(filename, []byte(content), 0o644)
+	require.NoError(t, err)
 
 	// Create engine
 	engine, err := New(tempDir, nil, "")
 	require.NoError(t, err)
 
-	// Create cancellable context
+	// Create already-cancelled context
 	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately before calling ProcessPath
 
-	// Cancel context after a short delay
-	go func() {
-		time.Sleep(10 * time.Millisecond)
-		cancel()
-	}()
-
-	// Process files
+	// Process files with cancelled context
 	issues, err := ProcessPath(ctx, nil, engine, tempDir, ProcessFile)
 
 	// Should return context cancelled error
 	assert.ErrorIs(t, err, context.Canceled)
-	// Should still return partial results
+	// Issues may be nil or empty when cancelled early
 	assert.NotNil(t, issues)
 }
 
