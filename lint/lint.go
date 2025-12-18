@@ -76,6 +76,162 @@ func ProcessFiles(
 	return allIssues, nil
 }
 
+// fileResult represents the result of processing a single file
+type fileResult struct {
+	filePath string
+	issues   []tt.Issue
+	err      error
+}
+
+// processDirectory handles concurrent processing of multiple files in a directory
+func processDirectory(
+	ctx context.Context,
+	logger *zap.Logger,
+	engine LintEngine,
+	path string,
+	files []string,
+	processor func(LintEngine, string) ([]tt.Issue, error),
+) ([]tt.Issue, error) {
+	// Setup UI components
+	var recentFilesMutex sync.Mutex
+	recentFiles := make([]string, maxShowRecentFiles)
+
+	// Make space for recent files display
+	for range maxShowRecentFiles + 1 {
+		fmt.Println()
+	}
+	fmt.Printf("\033[%dA", maxShowRecentFiles+1)
+
+	bar := progressbar.NewOptions(len(files),
+		progressbar.OptionSetDescription(path),
+		progressbar.OptionEnableColorCodes(true),
+		progressbar.OptionSetWidth(40),
+		progressbar.OptionShowCount(),
+		progressbar.OptionSetTheme(progressbar.Theme{
+			Saucer:        "[green]=[reset]",
+			SaucerHead:    "[green]>[reset]",
+			SaucerPadding: " ",
+			BarStart:      "[",
+			BarEnd:        "]",
+		}))
+
+	updateRecentFiles := func(filename string) {
+		recentFilesMutex.Lock()
+		defer recentFilesMutex.Unlock()
+
+		for j := maxShowRecentFiles - 1; j > 0; j-- {
+			recentFiles[j] = recentFiles[j-1]
+		}
+		recentFiles[0] = filename
+
+		fmt.Printf("\033[%dA", maxShowRecentFiles)
+		for j := range recentFiles {
+			if recentFiles[j] != "" {
+				fmt.Printf("\033[2K\r%s\n", recentFiles[j])
+			} else {
+				fmt.Printf("\033[2K\r\n")
+			}
+		}
+	}
+
+	// Channels and worker pool
+	resultChan := make(chan fileResult)
+	maxWorkers := runtime.NumCPU()
+	sem := make(chan struct{}, maxWorkers)
+
+	// WaitGroup to track all goroutines
+	var wg sync.WaitGroup
+
+	// Track errors and progress
+	allIssues := []tt.Issue{}
+	var firstErr error
+	var errorMutex sync.Mutex
+	var processedFiles int
+
+	// Start result collector goroutine
+	collectorDone := make(chan struct{})
+	go func() {
+		for result := range resultChan {
+			processedFiles++
+			if result.err == nil {
+				allIssues = append(allIssues, result.issues...)
+				updateRecentFiles(filepath.Base(result.filePath))
+			} else {
+				// Capture first error
+				errorMutex.Lock()
+				if firstErr == nil {
+					firstErr = result.err
+				}
+				errorMutex.Unlock()
+			}
+			bar.Add(1)
+		}
+		close(collectorDone)
+	}()
+
+	// Process files
+	var scheduledCount int
+	for _, filePath := range files {
+		// Early exit if context is cancelled
+		if ctx.Err() != nil {
+			// Still need to wait for running goroutines
+			break
+		}
+		scheduledCount++
+
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(fp string) {
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
+
+			// Check context before processing
+			select {
+			case <-ctx.Done():
+				resultChan <- fileResult{filePath: fp, err: ctx.Err()}
+				return
+			default:
+			}
+
+			fileIssues, err := processor(engine, fp)
+			if err != nil && logger != nil {
+				logger.Error("Error processing file", zap.String("file", fp), zap.Error(err))
+			}
+
+			resultChan <- fileResult{
+				filePath: fp,
+				issues:   fileIssues,
+				err:      err,
+			}
+		}(filePath)
+	}
+
+	// Wait for all workers to complete
+	wg.Wait()
+	close(resultChan)
+
+	// Wait for collector to finish
+	<-collectorDone
+
+	// Update progress bar if not all files were processed
+	if scheduledCount < len(files) {
+		// Fill remaining progress
+		for i := processedFiles; i < len(files); i++ {
+			bar.Add(1)
+		}
+	}
+
+	fmt.Println()
+
+	// Return context error if cancelled, otherwise first processing error
+	if ctx.Err() != nil {
+		return allIssues, ctx.Err()
+	}
+	return allIssues, firstErr
+}
+
 func ProcessPath(
 	ctx context.Context,
 	logger *zap.Logger,
@@ -88,118 +244,32 @@ func ProcessPath(
 		return nil, fmt.Errorf("error accessing %s: %w", path, err)
 	}
 
-	var issues []tt.Issue
+	issues := []tt.Issue{}
 	if info.IsDir() {
 		var files []string
-		filepath.Walk(path, func(filePath string, fileInfo os.FileInfo, err error) error {
+		err = filepath.Walk(path, func(filePath string, fileInfo os.FileInfo, walkErr error) error {
+			if walkErr != nil {
+				return nil // Skip files with errors
+			}
 			if !fileInfo.IsDir() && hasDesiredExtension(filePath) {
 				files = append(files, filePath)
 			}
 			return nil
 		})
-
-		// mutex for recent files
-		var recentFilesMutex sync.Mutex
-		recentFiles := make([]string, maxShowRecentFiles)
-
-		// make space for recent files
-		for range maxShowRecentFiles + 1 {
-			fmt.Println()
-		}
-		fmt.Printf("\033[%dA", maxShowRecentFiles+1)
-
-		// channels for results and errors
-		resultChan := make(chan []tt.Issue, len(files))
-		errorChan := make(chan error, len(files))
-
-		// limit the number of workers
-		maxWorkers := runtime.NumCPU()
-		sem := make(chan struct{}, maxWorkers)
-
-		bar := progressbar.NewOptions(len(files),
-			progressbar.OptionSetDescription(path),
-			progressbar.OptionEnableColorCodes(true),
-			progressbar.OptionSetWidth(40),
-			progressbar.OptionShowCount(),
-			progressbar.OptionSetTheme(progressbar.Theme{
-				Saucer:        "[green]=[reset]",
-				SaucerHead:    "[green]>[reset]",
-				SaucerPadding: " ",
-				BarStart:      "[",
-				BarEnd:        "]",
-			}))
-
-		// update recent files
-		updateRecentFiles := func(filename string) {
-			recentFilesMutex.Lock()
-			defer recentFilesMutex.Unlock()
-
-			// update the list
-			for j := maxShowRecentFiles - 1; j > 0; j-- {
-				recentFiles[j] = recentFiles[j-1]
-			}
-			recentFiles[0] = filename
-
-			// move the cursor up
-			fmt.Printf("\033[%dA", maxShowRecentFiles)
-
-			// print the list
-			for j := range recentFiles {
-				if recentFiles[j] != "" {
-					// \033[2k: clear the line
-					// \r: move the cursor to the beginning of the line
-					fmt.Printf("\033[2K\r%s\n", recentFiles[j])
-				} else {
-					fmt.Printf("\033[2K\r\n")
-				}
-			}
+		if err != nil {
+			return nil, fmt.Errorf("error walking directory: %w", err)
 		}
 
-		// for each file, run a goroutine
-		for _, filePath := range files {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			default:
-				sem <- struct{}{}
-				go func(fp string) {
-					defer func() { <-sem }()
-
-					// show the start of file processing
-					updateRecentFiles(filepath.Base(fp))
-
-					fileIssues, err := processor(engine, fp)
-					if err != nil {
-						if logger != nil {
-							logger.Error("Error processing file", zap.String("file", fp), zap.Error(err))
-						}
-						errorChan <- err
-						resultChan <- nil
-					} else {
-						resultChan <- fileIssues
-						errorChan <- nil
-					}
-					bar.Add(1)
-				}(filePath)
-			}
+		var dirErr error
+		issues, dirErr = processDirectory(ctx, logger, engine, path, files, processor)
+		if dirErr != nil {
+			return issues, dirErr
 		}
-
-		// collect all results
-		for range files {
-			if err := <-errorChan; err != nil {
-				continue
-			}
-			if result := <-resultChan; result != nil {
-				issues = append(issues, result...)
-			}
-		}
-
-		fmt.Println()
 		return issues, nil
 	} else if hasDesiredExtension(path) {
 		fileIssues, err := processor(engine, path)
 		if err != nil {
-			return nil, err
+			return issues, err
 		}
 		issues = append(issues, fileIssues...)
 	}
