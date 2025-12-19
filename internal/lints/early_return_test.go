@@ -1,6 +1,7 @@
 package lints
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
@@ -284,4 +285,26 @@ continue`,
 			assert.Equal(t, tt.expected, improved, "Improved code does not match expected output")
 		})
 	}
+}
+
+func TestExtractSnippetPreservesIndentation(t *testing.T) {
+	code := "package main\n\nfunc example() {\n\tif x {\n\t\treturn 1\n\t} else {\n\t\treturn 2\n\t}\n}\n"
+
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, "test.go", code, 0)
+	require.NoError(t, err)
+
+	var ifStmt *ast.IfStmt
+	ast.Inspect(node, func(n ast.Node) bool {
+		if s, ok := n.(*ast.IfStmt); ok {
+			ifStmt = s
+			return false
+		}
+		return true
+	})
+	require.NotNil(t, ifStmt)
+
+	snippet := extractSnippet(ifStmt, fset, []byte(code))
+	expected := "\tif x {\n\t\treturn 1\n\t} else {\n\t\treturn 2\n\t}"
+	assert.Equal(t, expected, snippet)
 }

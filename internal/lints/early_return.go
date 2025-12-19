@@ -420,6 +420,8 @@ func usesIdentNames(node ast.Node, names map[string]struct{}) bool {
 
 // cleanUpResult cleans up unnecessary braces and indentation in the final code
 func cleanUpResult(result string) string {
+	result = strings.ReplaceAll(result, "\r\n", "\n")
+	result = strings.ReplaceAll(result, "\r", "\n")
 	result = strings.TrimSpace(result)
 	result = strings.TrimPrefix(result, "{")
 	result = strings.TrimSuffix(result, "}")
@@ -439,7 +441,9 @@ func extractSnippet(node ast.Node, fset *token.FileSet, fileContent []byte) stri
 	endPos := fset.Position(node.End())
 
 	snippet := fileContent[startPos.Offset:endPos.Offset]
-	snippet = bytes.TrimLeft(snippet, " \t\n")
+	snippet = bytes.TrimLeftFunc(snippet, func(r rune) bool {
+		return r == '\n' || r == '\r'
+	})
 
 	// Include leading indentation
 	if startPos.Column > 1 {
@@ -451,19 +455,7 @@ func extractSnippet(node ast.Node, fset *token.FileSet, fileContent []byte) stri
 		}
 
 		prefix := fileContent[lineStart:startPos.Offset]
-		snippet = append(bytes.TrimLeft(prefix, " \t"), snippet...)
-	}
-
-	// Include trailing brace if it's on the next line
-	if endPos.Column > 1 {
-		nextNewline := bytes.Index(fileContent[endPos.Offset:], []byte{'\n'})
-		if nextNewline != -1 {
-			line := bytes.TrimSpace(fileContent[endPos.Offset : endPos.Offset+nextNewline])
-			if len(line) == 1 && line[0] == '}' {
-				snippet = append(snippet, line...)
-				snippet = append(snippet, '\n')
-			}
-		}
+		snippet = append(prefix, snippet...)
 	}
 
 	return string(bytes.TrimRight(snippet, " \t\n"))
