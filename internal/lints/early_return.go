@@ -66,7 +66,7 @@ func markChain(chain *ifChain, processed map[*ast.IfStmt]bool) {
 // isQualifiedChain returns true if the top-level if statement of the chain
 // always terminates and has an else branch
 func isQualifiedChain(chain *ifChain) bool {
-	return chain.root.Else != nil && blockAlwaysTerminates(chain.root.Body)
+	return chain.root.Else != nil && ifChainAllBodiesTerminate(chain.root)
 }
 
 // DetectEarlyReturnOpportunities traverses the AST of functions in the file,
@@ -277,7 +277,7 @@ func transformBlock(block *ast.BlockStmt) {
 		case *ast.IfStmt:
 			transformIfStmt(s)
 
-			if s.Else != nil && blockAlwaysTerminates(s.Body) && !ifChainUsesInitVars(s) {
+			if s.Else != nil && ifChainAllBodiesTerminate(s) && !ifChainUsesInitVars(s) {
 				flattened := flattenIfChain(s)
 				newList = append(newList, flattened...)
 				continue
@@ -308,6 +308,23 @@ func transformIfStmt(ifStmt *ast.IfStmt) {
 	case *ast.IfStmt:
 		transformIfStmt(elseNode)
 	}
+}
+
+func ifChainAllBodiesTerminate(ifStmt *ast.IfStmt) bool {
+	for current := ifStmt; current != nil; {
+		if !blockAlwaysTerminates(current.Body) {
+			return false
+		}
+
+		next, ok := current.Else.(*ast.IfStmt)
+		if !ok {
+			return true
+		}
+
+		current = next
+	}
+
+	return true
 }
 
 func ifChainUsesInitVars(ifStmt *ast.IfStmt) bool {
