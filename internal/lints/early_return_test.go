@@ -114,6 +114,20 @@ func example(x int) {
 }`,
 			totalIssues: 0,
 		},
+		{
+			name: "No early return when else uses init vars",
+			code: `
+package main
+
+func example() int {
+	if v, ok := get(); !ok {
+		return 0
+	} else {
+		return v
+	}
+}`,
+			totalIssues: 0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -245,6 +259,19 @@ if z {
 	break
 }
 continue`,
+		},
+		{
+			name: "Keep else when using init vars",
+			input: `if v, ok := get(); !ok {
+	return 0
+} else {
+	return v
+}`,
+			expected: `if v, ok := get(); !ok {
+	return 0
+} else {
+	return v
+}`,
 		},
 	}
 

@@ -148,6 +148,10 @@ func traverseIfStatement(ifStmt *ast.IfStmt, ctx *traversalContext, inChain bool
 
 // processQualifiedChain creates an issue for a qualified if-chain
 func processQualifiedChain(chain *ifChain, ctx *traversalContext) {
+	if ifChainUsesInitVars(chain.root) {
+		return
+	}
+
 	snippet := extractSnippet(chain.root, ctx.fset, ctx.content)
 	suggestion, err := generateEarlyReturnSuggestion(snippet)
 	if err != nil {
@@ -273,7 +277,7 @@ func transformBlock(block *ast.BlockStmt) {
 		case *ast.IfStmt:
 			transformIfStmt(s)
 
-			if s.Else != nil && blockAlwaysTerminates(s.Body) {
+			if s.Else != nil && blockAlwaysTerminates(s.Body) && !ifChainUsesInitVars(s) {
 				flattened := flattenIfChain(s)
 				newList = append(newList, flattened...)
 				continue
@@ -304,6 +308,114 @@ func transformIfStmt(ifStmt *ast.IfStmt) {
 	case *ast.IfStmt:
 		transformIfStmt(elseNode)
 	}
+}
+
+func ifChainUsesInitVars(ifStmt *ast.IfStmt) bool {
+	if ifStmt == nil {
+		return false
+	}
+
+	initNames := declaredNamesFromInit(ifStmt.Init)
+	if len(initNames) > 0 && elseBranchUsesNames(ifStmt.Else, initNames) {
+		return true
+	}
+
+	if elseIf, ok := ifStmt.Else.(*ast.IfStmt); ok {
+		return ifChainUsesInitVars(elseIf)
+	}
+
+	return false
+}
+
+func declaredNamesFromInit(init ast.Stmt) map[string]struct{} {
+	if init == nil {
+		return nil
+	}
+
+	declared := map[string]struct{}{}
+
+	switch s := init.(type) {
+	case *ast.AssignStmt:
+		if s.Tok != token.DEFINE {
+			return nil
+		}
+		for _, expr := range s.Lhs {
+			if ident, ok := expr.(*ast.Ident); ok {
+				declared[ident.Name] = struct{}{}
+			}
+		}
+	case *ast.DeclStmt:
+		decl, ok := s.Decl.(*ast.GenDecl)
+		if !ok {
+			return nil
+		}
+		for _, spec := range decl.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for _, name := range valueSpec.Names {
+				declared[name.Name] = struct{}{}
+			}
+		}
+	}
+
+	if len(declared) == 0 {
+		return nil
+	}
+
+	return declared
+}
+
+func elseBranchUsesNames(branch ast.Stmt, names map[string]struct{}) bool {
+	if branch == nil || len(names) == 0 {
+		return false
+	}
+
+	return usesIdentNames(branch, names)
+}
+
+func usesIdentNames(node ast.Node, names map[string]struct{}) bool {
+	if node == nil {
+		return false
+	}
+
+	found := false
+	ast.Inspect(node, func(n ast.Node) bool {
+		if n == nil || found {
+			return false
+		}
+
+		switch v := n.(type) {
+		case *ast.AssignStmt:
+			if v.Tok == token.DEFINE {
+				for _, rhs := range v.Rhs {
+					if usesIdentNames(rhs, names) {
+						found = true
+						return false
+					}
+				}
+				return false
+			}
+		case *ast.ValueSpec:
+			for _, rhs := range v.Values {
+				if usesIdentNames(rhs, names) {
+					found = true
+					return false
+				}
+			}
+			return false
+		case *ast.Ident:
+			if _, ok := names[v.Name]; ok {
+				found = true
+				return false
+			}
+		}
+
+		return true
+	})
+
+	return found
 }
 
 // cleanUpResult cleans up unnecessary braces and indentation in the final code
