@@ -98,7 +98,6 @@ func TestDebugIRComplexCase(t *testing.T) {
 	t.Logf("original:\n%s", report.IR.Original)
 	t.Logf("transformed:\n%s", report.IR.Transformed)
 	t.Logf("details:\n%s", report.Detail)
-
 }
 
 func TestAssignmentNotEquivalent(t *testing.T) {
@@ -548,6 +547,22 @@ func TestOpaqueCalls_DifferentOrder(t *testing.T) {
 	// f(); g() vs g(); f() should NOT be equivalent (different call order)
 	s1 := Seq(Call("f"), Call("g"))
 	s2 := Seq(Call("g"), Call("f"))
+
+	report := ml.Verify(s1, s2)
+	if report.Result != NotEquivalent {
+		t.Errorf("Expected NotEquivalent, got %v: %s", report.Result, report.Detail)
+	}
+}
+
+func TestOpaqueCalls_DifferentOrderInExpr(t *testing.T) {
+	config := EvalConfig{
+		CallPolicy:      OpaqueCalls,
+		ControlFlowMode: EarlyReturnAware,
+	}
+	ml := NewWithConfig(config)
+
+	s1 := Assign("x", Binary(OpAdd, CallExpr{Func: "f"}, CallExpr{Func: "g"}))
+	s2 := Assign("x", Binary(OpAdd, CallExpr{Func: "g"}, CallExpr{Func: "f"}))
 
 	report := ml.Verify(s1, s2)
 	if report.Result != NotEquivalent {

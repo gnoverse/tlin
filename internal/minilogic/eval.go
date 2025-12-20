@@ -56,34 +56,45 @@ func NewEvaluator(config EvalConfig) *Evaluator {
 // EvalExpr evaluates an expression in the given environment.
 // Returns the resulting value.
 func (ev *Evaluator) EvalExpr(expr Expr, env *Env) Value {
+	val, _ := ev.evalExprWithCalls(expr, env, nil)
+	return val
+}
+
+func (ev *Evaluator) evalExprWithCalls(expr Expr, env *Env, calls []CallRecord) (Value, []CallRecord) {
 	switch e := expr.(type) {
 	case LiteralExpr:
-		return e.Val
+		return e.Val, calls
 
 	case VarExpr:
 		val := env.Get(e.Name)
 		if val == nil {
 			// Variable not found, return symbolic value
-			return SymbolicValue{Name: e.Name}
+			return SymbolicValue{Name: e.Name}, calls
 		}
-		return val
+		return val, calls
 
 	case BinaryExpr:
-		left := ev.EvalExpr(e.Left, env)
-		right := ev.EvalExpr(e.Right, env)
-		return ev.evalBinary(e.Op, left, right)
+		left, calls := ev.evalExprWithCalls(e.Left, env, calls)
+		right, calls := ev.evalExprWithCalls(e.Right, env, calls)
+		return ev.evalBinary(e.Op, left, right), calls
 
 	case UnaryExpr:
-		operand := ev.EvalExpr(e.Operand, env)
-		return ev.evalUnary(e.Op, operand)
+		operand, calls := ev.evalExprWithCalls(e.Operand, env, calls)
+		return ev.evalUnary(e.Op, operand), calls
 
 	case CallExpr:
-		// Evaluate arguments but return symbolic value
-		// (calls are side-effecting and return unknown values)
-		return SymbolicValue{Name: "call_" + e.Func}
+		// Evaluate arguments, then record the call in order.
+		args := make([]Value, len(e.Args))
+		for i, arg := range e.Args {
+			var argVal Value
+			argVal, calls = ev.evalExprWithCalls(arg, env, calls)
+			args[i] = argVal
+		}
+		calls = append(calls, CallRecord{Func: e.Func, Args: args})
+		return SymbolicValue{Name: "call_" + e.Func}, calls
 
 	default:
-		return SymbolicValue{Name: "unknown"}
+		return SymbolicValue{Name: "unknown"}, calls
 	}
 }
 
@@ -272,19 +283,19 @@ func (ev *Evaluator) evalStmt(stmt Stmt, env *Env, calls []CallRecord) Result {
 		if ev.config.CallPolicy == DisallowCalls && exprHasCall(s.Expr) {
 			return UnknownResult()
 		}
-		val := ev.EvalExpr(s.Expr, env)
+		val, newCalls := ev.evalExprWithCalls(s.Expr, env, calls)
 		newEnv := env.Clone()
 		newEnv.Set(s.Var, val)
-		return ContinueResultWithCalls(newEnv, calls)
+		return ContinueResultWithCalls(newEnv, newCalls)
 
 	case DeclAssignStmt:
 		if ev.config.CallPolicy == DisallowCalls && exprHasCall(s.Expr) {
 			return UnknownResult()
 		}
-		val := ev.EvalExpr(s.Expr, env)
+		val, newCalls := ev.evalExprWithCalls(s.Expr, env, calls)
 		newEnv := env.Clone()
 		newEnv.Set(s.Var, val)
-		return ContinueResultWithCalls(newEnv, calls)
+		return ContinueResultWithCalls(newEnv, newCalls)
 
 	case SeqStmt:
 		// Evaluate first statement
@@ -320,15 +331,16 @@ func (ev *Evaluator) evalStmt(stmt Stmt, env *Env, calls []CallRecord) Result {
 			return UnknownResult()
 		}
 		var val Value
+		newCalls := calls
 		if s.Value != nil {
 			if ev.config.CallPolicy == DisallowCalls && exprHasCall(s.Value) {
 				return UnknownResult()
 			}
-			val = ev.EvalExpr(s.Value, env)
+			val, newCalls = ev.evalExprWithCalls(s.Value, env, calls)
 		} else {
 			val = NilValue{}
 		}
-		return ReturnResult(val, calls)
+		return ReturnResult(val, newCalls)
 
 	case BreakStmt:
 		if ev.config.ControlFlowMode == NoTermination {
@@ -387,7 +399,7 @@ func (ev *Evaluator) evalIfStmt(s IfStmt, env *Env, calls []CallRecord) Result {
 	if ev.config.CallPolicy == DisallowCalls && exprHasCall(s.Cond) {
 		return UnknownResult()
 	}
-	condVal := ev.EvalExpr(s.Cond, workingEnv)
+	condVal, workingCalls := ev.evalExprWithCalls(s.Cond, workingEnv, workingCalls)
 	if _, ok := condVal.(SymbolicValue); ok && ev.config.CondSolver != nil {
 		if solved, ok := ev.config.CondSolver.Solve(s.Cond, workingEnv); ok {
 			condVal = solved
@@ -553,7 +565,9 @@ func (ev *Evaluator) evalCallStmt(s CallStmt, env *Env, calls []CallRecord) Resu
 	// OpaqueCalls: track the call but continue execution
 	args := make([]Value, len(s.Call.Args))
 	for i, arg := range s.Call.Args {
-		args[i] = ev.EvalExpr(arg, env)
+		var argVal Value
+		argVal, calls = ev.evalExprWithCalls(arg, env, calls)
+		args[i] = argVal
 	}
 
 	newCalls := append(calls, CallRecord{Func: s.Call.Func, Args: args})
