@@ -1,6 +1,7 @@
 package lints
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
@@ -111,6 +112,113 @@ func example(x int) {
 		doSomething()
 	}
 	doSomethingElse()
+}`,
+			totalIssues: 0,
+		},
+		{
+			name: "No early return when else uses init vars",
+			code: `
+package main
+
+func example() int {
+	if v, ok := get(); !ok {
+		return 0
+	} else {
+		return v
+	}
+}`,
+			totalIssues: 0,
+		},
+		{
+			name: "No early return when else-if uses init vars",
+			code: `
+package main
+
+func example() int {
+	if v, ok := get(); !ok {
+		return 0
+	} else if v > 0 {
+		return v
+	} else {
+		return 1
+	}
+}`,
+			totalIssues: 0,
+		},
+		{
+			name: "No early return when else shadows init vars",
+			code: `
+package main
+
+func example() int {
+	if v, ok := get(); !ok {
+		return 0
+	} else {
+		v := other()
+		return v
+	}
+}`,
+			totalIssues: 0,
+		},
+		{
+			name: "No early return when if body does not terminate",
+			code: `
+package main
+
+func example(x int) int {
+	if x > 0 {
+		doSomething()
+	} else {
+		return 1
+	}
+	return 2
+}`,
+			totalIssues: 0,
+		},
+		{
+			name: "No early return when if body panics",
+			code: `
+package main
+
+func example(x int) int {
+	if x > 0 {
+		panic("boom")
+	} else {
+		return 1
+	}
+	return 2
+}`,
+			totalIssues: 0,
+		},
+		{
+			name: "Early return with multi-statement else",
+			code: `
+package main
+
+func example(x int) int {
+	if x > 0 {
+		return 1
+	} else {
+		log()
+		return 2
+	}
+}`,
+			totalIssues: 1,
+		},
+		{
+			name: "No early return when else-if does not terminate",
+			code: `
+package main
+
+func example(x, y int) int {
+	if x > 0 {
+		return 1
+	} else if y > 0 {
+		doSomething()
+	} else {
+		return 2
+	}
+	return 3
 }`,
 			totalIssues: 0,
 		},
@@ -246,6 +354,131 @@ if z {
 }
 continue`,
 		},
+		{
+			name: "Keep else when using init vars",
+			input: `if v, ok := get(); !ok {
+	return 0
+} else {
+	return v
+}`,
+			expected: `if v, ok := get(); !ok {
+	return 0
+} else {
+	return v
+}`,
+		},
+		{
+			name: "Keep else when else-if uses init vars",
+			input: `if v, ok := get(); !ok {
+	return 0
+} else if v > 0 {
+	return v
+} else {
+	return 1
+}`,
+			expected: `if v, ok := get(); !ok {
+	return 0
+} else if v > 0 {
+	return v
+} else {
+	return 1
+}`,
+		},
+		{
+			name: "Keep else when else shadows init vars",
+			input: `if v, ok := get(); !ok {
+	return 0
+} else {
+	v := other()
+	return v
+}`,
+			expected: `if v, ok := get(); !ok {
+	return 0
+} else {
+	v := other()
+	return v
+}`,
+		},
+		{
+			name: "Keep else when if body does not terminate",
+			input: `if x > 0 {
+	doSomething()
+} else {
+	return 1
+}
+return 2`,
+			expected: `if x > 0 {
+	doSomething()
+} else {
+	return 1
+}
+return 2`,
+		},
+		{
+			name: "Keep else when if body panics",
+			input: `if x > 0 {
+	panic("boom")
+} else {
+	return 1
+}
+return 2`,
+			expected: `if x > 0 {
+	panic("boom")
+} else {
+	return 1
+}
+return 2`,
+		},
+		{
+			name: "Flatten else with multiple statements",
+			input: `if x > 0 {
+	return 1
+} else {
+	log()
+	return 2
+}`,
+			expected: `if x > 0 {
+	return 1
+}
+log()
+return 2`,
+		},
+		{
+			name: "Keep else when else-if does not terminate",
+			input: `if x > 0 {
+	return 1
+} else if y > 0 {
+	doSomething()
+} else {
+	return 2
+}
+return 3`,
+			expected: `if x > 0 {
+	return 1
+} else if y > 0 {
+	doSomething()
+} else {
+	return 2
+}
+return 3`,
+		},
+		{
+			name: "Flatten chain when all bodies terminate",
+			input: `if x > 0 {
+	return 1
+} else if y > 0 {
+	return 2
+} else {
+	return 3
+}`,
+			expected: `if x > 0 {
+	return 1
+}
+if y > 0 {
+	return 2
+}
+return 3`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -257,4 +490,26 @@ continue`,
 			assert.Equal(t, tt.expected, improved, "Improved code does not match expected output")
 		})
 	}
+}
+
+func TestExtractSnippetPreservesIndentation(t *testing.T) {
+	code := "package main\n\nfunc example() {\n\tif x {\n\t\treturn 1\n\t} else {\n\t\treturn 2\n\t}\n}\n"
+
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, "test.go", code, 0)
+	require.NoError(t, err)
+
+	var ifStmt *ast.IfStmt
+	ast.Inspect(node, func(n ast.Node) bool {
+		if s, ok := n.(*ast.IfStmt); ok {
+			ifStmt = s
+			return false
+		}
+		return true
+	})
+	require.NotNil(t, ifStmt)
+
+	snippet := extractSnippet(ifStmt, fset, []byte(code))
+	expected := "\tif x {\n\t\treturn 1\n\t} else {\n\t\treturn 2\n\t}"
+	assert.Equal(t, expected, snippet)
 }
