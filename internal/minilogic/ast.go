@@ -30,7 +30,8 @@ func (e VarExpr) String() string {
 type BinaryOp int
 
 const (
-	OpAdd BinaryOp = iota
+	_ BinaryOp = iota
+	OpAdd
 	OpSub
 	OpMul
 	OpDiv

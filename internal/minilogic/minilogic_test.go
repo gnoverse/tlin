@@ -533,6 +533,33 @@ func TestDisallowCallsInExpr(t *testing.T) {
 	}
 }
 
+func TestPanicCallDoesNotTerminate(t *testing.T) {
+	config := EvalConfig{
+		CallPolicy:      OpaqueCalls,
+		ControlFlowMode: EarlyReturnAware,
+	}
+	ml := NewWithConfig(config)
+
+	// panic() is treated as an opaque call unless explicitly modeled.
+	s := Seq(
+		Call("panic"),
+		Assign("x", IntLit(1)),
+	)
+
+	result := ml.Evaluate(s, NewEnv())
+	if result.Kind != ResultContinue {
+		t.Errorf("Expected Continue, got %v", result.Kind)
+	}
+	if xVal := result.Env.Get("x"); xVal == nil {
+		t.Error("x should be set")
+	} else if iv, ok := xVal.(IntValue); !ok || iv.Val != 1 {
+		t.Errorf("Expected x = 1, got %v", xVal)
+	}
+	if len(result.Calls) != 1 || result.Calls[0].Func != "panic" {
+		t.Errorf("Expected panic call to be tracked, got %v", result.Calls)
+	}
+}
+
 // =======================
 // API Tests
 // =======================

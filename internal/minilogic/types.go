@@ -19,6 +19,7 @@ func (IntValue) isValue() {}
 func (v IntValue) String() string {
 	return fmt.Sprintf("%d", v.Val)
 }
+
 func (v IntValue) Equal(other Value) bool {
 	if o, ok := other.(IntValue); ok {
 		return v.Val == o.Val
@@ -35,6 +36,7 @@ func (BoolValue) isValue() {}
 func (v BoolValue) String() string {
 	return fmt.Sprintf("%t", v.Val)
 }
+
 func (v BoolValue) Equal(other Value) bool {
 	if o, ok := other.(BoolValue); ok {
 		return v.Val == o.Val
@@ -51,6 +53,7 @@ func (StringValue) isValue() {}
 func (v StringValue) String() string {
 	return fmt.Sprintf("%q", v.Val)
 }
+
 func (v StringValue) Equal(other Value) bool {
 	if o, ok := other.(StringValue); ok {
 		return v.Val == o.Val
@@ -65,6 +68,7 @@ func (NilValue) isValue() {}
 func (NilValue) String() string {
 	return "nil"
 }
+
 func (v NilValue) Equal(other Value) bool {
 	_, ok := other.(NilValue)
 	return ok
@@ -80,6 +84,7 @@ func (SymbolicValue) isValue() {}
 func (v SymbolicValue) String() string {
 	return fmt.Sprintf("<%s>", v.Name)
 }
+
 func (v SymbolicValue) Equal(other Value) bool {
 	if o, ok := other.(SymbolicValue); ok {
 		return v.Name == o.Name

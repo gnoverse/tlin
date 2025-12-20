@@ -6,8 +6,9 @@ import "fmt"
 type ResultKind int
 
 const (
+	_ ResultKind = iota
 	// ResultContinue indicates normal execution continues.
-	ResultContinue ResultKind = iota
+	ResultContinue
 	// ResultReturn indicates a return statement was executed.
 	ResultReturn
 	// ResultBreak indicates a break statement was executed.

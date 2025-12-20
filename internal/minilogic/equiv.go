@@ -4,8 +4,9 @@ package minilogic
 type VerificationResult int
 
 const (
+	_ VerificationResult = iota
 	// Equivalent indicates the two statements are semantically equivalent.
-	Equivalent VerificationResult = iota
+	Equivalent
 	// NotEquivalent indicates the two statements are not equivalent.
 	NotEquivalent
 	// Unknown indicates equivalence cannot be determined.

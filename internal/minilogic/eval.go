@@ -4,9 +4,10 @@ package minilogic
 type CallPolicy int
 
 const (
+	_ CallPolicy = iota
 	// OpaqueCalls treats calls as opaque effects.
 	// Calls always evaluate to Continue, but call order/multiplicity is tracked.
-	OpaqueCalls CallPolicy = iota
+	OpaqueCalls
 	// DisallowCalls rejects any block containing calls as Unknown.
 	DisallowCalls
 )
@@ -15,8 +16,9 @@ const (
 type ControlFlowMode int
 
 const (
+	_ ControlFlowMode = iota
 	// NoTermination does not model termination statements.
-	NoTermination ControlFlowMode = iota
+	NoTermination
 	// EarlyReturnAware models return, break, continue statements.
 	EarlyReturnAware
 )
