@@ -516,6 +516,95 @@ func TestInitVarDoesNotAffectOuterScope(t *testing.T) {
 	}
 }
 
+func TestInitVarDeclAssignsValue(t *testing.T) {
+	ml := New()
+
+	// if var x = 1; true { y = x } should assign y = 1
+	env := NewEnv()
+	s := IfInit(
+		VarDecl("x", IntLit(1)),
+		BoolLit(true),
+		Assign("y", Var("x")),
+		nil,
+	)
+
+	result := ml.Evaluate(s, env)
+	if result.Kind != ResultContinue {
+		t.Errorf("Expected Continue, got %v", result.Kind)
+	}
+
+	if yVal := result.Env.Get("y"); yVal == nil {
+		t.Error("y should be set")
+	} else if iv, ok := yVal.(IntValue); !ok || iv.Val != 1 {
+		t.Errorf("Expected y = 1, got %v", yVal)
+	}
+
+	if xVal := result.Env.Get("x"); xVal != nil {
+		t.Errorf("x should not be visible after if, got %v", xVal)
+	}
+}
+
+func TestInitVarDeclWithoutValue(t *testing.T) {
+	ml := New()
+
+	// if var x; true { y = x } should assign y to a symbolic value
+	env := NewEnv()
+	s := IfInit(
+		VarDecl("x", nil),
+		BoolLit(true),
+		Assign("y", Var("x")),
+		nil,
+	)
+
+	result := ml.Evaluate(s, env)
+	if result.Kind != ResultContinue {
+		t.Errorf("Expected Continue, got %v", result.Kind)
+	}
+
+	yVal, ok := result.Env.Get("y").(SymbolicValue)
+	if !ok {
+		t.Fatalf("Expected symbolic y, got %T", result.Env.Get("y"))
+	}
+	expected := SymbolicValue{Name: "var_x"}
+	if !yVal.Equal(expected) {
+		t.Errorf("Expected y = %v, got %v", expected, yVal)
+	}
+}
+
+func TestInitMultiDeclAssign(t *testing.T) {
+	ml := New()
+
+	// if x, ok := f(); true { y = x } should assign y to a tuple-derived symbol
+	env := NewEnv()
+	s := IfInit(
+		DeclAssignMulti([]string{"x", "ok"}, CallExpr{Func: "f"}),
+		BoolLit(true),
+		Assign("y", Var("x")),
+		nil,
+	)
+
+	result := ml.Evaluate(s, env)
+	if result.Kind != ResultContinue {
+		t.Errorf("Expected Continue, got %v", result.Kind)
+	}
+
+	yVal, ok := result.Env.Get("y").(SymbolicValue)
+	if !ok {
+		t.Fatalf("Expected symbolic y, got %T", result.Env.Get("y"))
+	}
+	expected := SymbolicValue{Name: "tuple(f())[0]"}
+	if !yVal.Equal(expected) {
+		t.Errorf("Expected y = %v, got %v", expected, yVal)
+	}
+
+	if xVal := result.Env.Get("x"); xVal != nil {
+		t.Errorf("x should not be visible after if, got %v", xVal)
+	}
+	if okVal := result.Env.Get("ok"); okVal != nil {
+		t.Errorf("ok should not be visible after if, got %v", okVal)
+	}
+}
+
 // =======================
 // Function Call Policy Tests
 // =======================

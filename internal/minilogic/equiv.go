@@ -215,7 +215,9 @@ func callSequencesEqual(a, b []CallRecord) bool {
 // isInScope checks if a statement is within MiniLogic's modeling scope.
 func (v *Verifier) isInScope(stmt Stmt) bool {
 	switch s := stmt.(type) {
-	case AssignStmt, DeclAssignStmt, NoopStmt:
+	case AssignStmt, DeclAssignStmt, DeclAssignMultiStmt, NoopStmt:
+		return true
+	case VarDeclStmt:
 		return true
 
 	case SeqStmt:
@@ -278,7 +280,14 @@ func (v *Verifier) collectInitVars(stmt Stmt, vars map[string]bool) {
 
 	case IfStmt:
 		if s.Init != nil {
-			if decl, ok := s.Init.(DeclAssignStmt); ok {
+			switch decl := s.Init.(type) {
+			case DeclAssignStmt:
+				vars[decl.Var] = true
+			case DeclAssignMultiStmt:
+				for _, name := range decl.Vars {
+					vars[name] = true
+				}
+			case VarDeclStmt:
 				vars[decl.Var] = true
 			}
 		}
@@ -300,6 +309,23 @@ func (v *Verifier) checkViolation(stmt Stmt, initVars map[string]bool, inIfScope
 		// Check expression for variable references
 		if ref := v.checkExprViolation(s.Expr, initVars, inIfScope, currentScopeVars); ref != "" {
 			return ref
+		}
+
+	case DeclAssignStmt:
+		if ref := v.checkExprViolation(s.Expr, initVars, inIfScope, currentScopeVars); ref != "" {
+			return ref
+		}
+
+	case DeclAssignMultiStmt:
+		if ref := v.checkExprViolation(s.Expr, initVars, inIfScope, currentScopeVars); ref != "" {
+			return ref
+		}
+
+	case VarDeclStmt:
+		if s.Expr != nil {
+			if ref := v.checkExprViolation(s.Expr, initVars, inIfScope, currentScopeVars); ref != "" {
+				return ref
+			}
 		}
 
 	case SeqStmt:
@@ -327,7 +353,16 @@ func (v *Verifier) checkViolation(stmt Stmt, initVars map[string]bool, inIfScope
 		// Track variables declared in this if's init
 		localScopeVars := make(map[string]bool)
 		if s.Init != nil {
-			if decl, ok := s.Init.(DeclAssignStmt); ok {
+			switch decl := s.Init.(type) {
+			case DeclAssignStmt:
+				localInitVars[decl.Var] = true
+				localScopeVars[decl.Var] = true
+			case DeclAssignMultiStmt:
+				for _, name := range decl.Vars {
+					localInitVars[name] = true
+					localScopeVars[name] = true
+				}
+			case VarDeclStmt:
 				localInitVars[decl.Var] = true
 				localScopeVars[decl.Var] = true
 			}

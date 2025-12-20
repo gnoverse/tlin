@@ -95,7 +95,8 @@ func (e BinaryExpr) String() string {
 type UnaryOp int
 
 const (
-	OpNot UnaryOp = iota
+	_ UnaryOp = iota
+	OpNot
 	OpNeg
 )
 
@@ -167,6 +168,40 @@ type DeclAssignStmt struct {
 func (DeclAssignStmt) isStmt() {}
 func (s DeclAssignStmt) String() string {
 	return s.Var + " := " + s.Expr.String()
+}
+
+// DeclAssignMultiStmt represents a short variable declaration: x, y := e
+// Used primarily in if-init statements with multiple bindings.
+type DeclAssignMultiStmt struct {
+	Vars []string
+	Expr Expr
+}
+
+func (DeclAssignMultiStmt) isStmt() {}
+func (s DeclAssignMultiStmt) String() string {
+	result := ""
+	for i, name := range s.Vars {
+		if i > 0 {
+			result += ", "
+		}
+		result += name
+	}
+	return result + " := " + s.Expr.String()
+}
+
+// VarDeclStmt represents a var declaration: var x = e (or var x).
+// Used primarily in if-init statements.
+type VarDeclStmt struct {
+	Var  string
+	Expr Expr // can be nil for uninitialized declarations
+}
+
+func (VarDeclStmt) isStmt() {}
+func (s VarDeclStmt) String() string {
+	if s.Expr == nil {
+		return "var " + s.Var
+	}
+	return "var " + s.Var + " = " + s.Expr.String()
 }
 
 // SeqStmt represents a sequence of statements: S1 ; S2
@@ -309,6 +344,16 @@ func Assign(v string, e Expr) Stmt {
 // DeclAssign creates a short variable declaration.
 func DeclAssign(v string, e Expr) Stmt {
 	return DeclAssignStmt{Var: v, Expr: e}
+}
+
+// DeclAssignMulti creates a short variable declaration with multiple bindings.
+func DeclAssignMulti(vars []string, e Expr) Stmt {
+	return DeclAssignMultiStmt{Vars: vars, Expr: e}
+}
+
+// VarDecl creates a var declaration.
+func VarDecl(v string, e Expr) Stmt {
+	return VarDeclStmt{Var: v, Expr: e}
 }
 
 // Seq creates a sequence of statements.

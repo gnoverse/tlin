@@ -24,6 +24,15 @@ func (n *Normalizer) normalizeStmt(stmt Stmt) Stmt {
 	case DeclAssignStmt:
 		return DeclAssignStmt{Var: s.Var, Expr: n.normalizeExpr(s.Expr)}
 
+	case DeclAssignMultiStmt:
+		return DeclAssignMultiStmt{Vars: s.Vars, Expr: n.normalizeExpr(s.Expr)}
+
+	case VarDeclStmt:
+		if s.Expr != nil {
+			return VarDeclStmt{Var: s.Var, Expr: n.normalizeExpr(s.Expr)}
+		}
+		return s
+
 	case SeqStmt:
 		first := n.normalizeStmt(s.First)
 		second := n.normalizeStmt(s.Second)

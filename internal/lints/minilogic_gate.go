@@ -81,6 +81,8 @@ func astStmtToMini(stmt ast.Stmt) (minilogic.Stmt, bool) {
 		return astReturnToMini(s)
 	case *ast.AssignStmt:
 		return astAssignToMini(s)
+	case *ast.DeclStmt:
+		return astDeclStmtToMini(s)
 	case *ast.ExprStmt:
 		return astExprStmtToMini(s)
 	case *ast.EmptyStmt:
@@ -91,8 +93,13 @@ func astStmtToMini(stmt ast.Stmt) (minilogic.Stmt, bool) {
 }
 
 func astIfToMini(stmt *ast.IfStmt) (minilogic.Stmt, bool) {
+	var initStmt minilogic.Stmt
 	if stmt.Init != nil {
-		return nil, false
+		var ok bool
+		initStmt, ok = astIfInitToMini(stmt.Init)
+		if !ok {
+			return nil, false
+		}
 	}
 	cond, ok := astExprToMini(stmt.Cond)
 	if !ok {
@@ -112,7 +119,24 @@ func astIfToMini(stmt *ast.IfStmt) (minilogic.Stmt, bool) {
 		}
 	}
 
+	if initStmt != nil {
+		return minilogic.IfInit(initStmt, cond, thenStmt, elseStmt), true
+	}
 	return minilogic.If(cond, thenStmt, elseStmt), true
+}
+
+func astIfInitToMini(stmt ast.Stmt) (minilogic.Stmt, bool) {
+	switch s := stmt.(type) {
+	case *ast.AssignStmt:
+		if s.Tok != token.DEFINE {
+			return nil, false
+		}
+		return astAssignToMini(s)
+	case *ast.DeclStmt:
+		return astDeclStmtToMini(s)
+	default:
+		return nil, false
+	}
 }
 
 func astReturnToMini(stmt *ast.ReturnStmt) (minilogic.Stmt, bool) {
@@ -130,26 +154,73 @@ func astReturnToMini(stmt *ast.ReturnStmt) (minilogic.Stmt, bool) {
 }
 
 func astAssignToMini(stmt *ast.AssignStmt) (minilogic.Stmt, bool) {
-	if len(stmt.Lhs) != 1 || len(stmt.Rhs) != 1 {
-		return nil, false
-	}
-	ident, ok := stmt.Lhs[0].(*ast.Ident)
-	if !ok {
-		return nil, false
-	}
-	expr, ok := astExprToMini(stmt.Rhs[0])
-	if !ok {
-		return nil, false
-	}
-
 	switch stmt.Tok {
 	case token.ASSIGN:
+		if len(stmt.Lhs) != 1 || len(stmt.Rhs) != 1 {
+			return nil, false
+		}
+		ident, ok := stmt.Lhs[0].(*ast.Ident)
+		if !ok {
+			return nil, false
+		}
+		expr, ok := astExprToMini(stmt.Rhs[0])
+		if !ok {
+			return nil, false
+		}
 		return minilogic.Assign(ident.Name, expr), true
 	case token.DEFINE:
-		return minilogic.DeclAssign(ident.Name, expr), true
+		if len(stmt.Rhs) != 1 || len(stmt.Lhs) == 0 {
+			return nil, false
+		}
+		expr, ok := astExprToMini(stmt.Rhs[0])
+		if !ok {
+			return nil, false
+		}
+		vars := make([]string, len(stmt.Lhs))
+		for i, lhs := range stmt.Lhs {
+			ident, ok := lhs.(*ast.Ident)
+			if !ok {
+				return nil, false
+			}
+			vars[i] = ident.Name
+		}
+		if len(vars) == 1 {
+			return minilogic.DeclAssign(vars[0], expr), true
+		}
+		return minilogic.DeclAssignMulti(vars, expr), true
 	default:
 		return nil, false
 	}
+}
+
+func astDeclStmtToMini(stmt *ast.DeclStmt) (minilogic.Stmt, bool) {
+	gen, ok := stmt.Decl.(*ast.GenDecl)
+	if !ok || gen.Tok != token.VAR {
+		return nil, false
+	}
+	if len(gen.Specs) != 1 {
+		return nil, false
+	}
+	spec, ok := gen.Specs[0].(*ast.ValueSpec)
+	if !ok {
+		return nil, false
+	}
+	if len(spec.Names) != 1 {
+		return nil, false
+	}
+	if len(spec.Values) > 1 {
+		return nil, false
+	}
+
+	name := spec.Names[0].Name
+	if len(spec.Values) == 0 {
+		return minilogic.VarDecl(name, nil), true
+	}
+	expr, ok := astExprToMini(spec.Values[0])
+	if !ok {
+		return nil, false
+	}
+	return minilogic.VarDecl(name, expr), true
 }
 
 func astExprStmtToMini(stmt *ast.ExprStmt) (minilogic.Stmt, bool) {

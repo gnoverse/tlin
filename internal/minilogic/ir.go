@@ -29,11 +29,9 @@ func (v *Verifier) withDebugIR(report VerificationReport, original, transformed 
 }
 
 func buildIRReport(original, transformed Stmt, env *Env, config EvalConfig) IRReport {
-	irOriginal := formatStmtIR(original, env, config)
-	irTransformed := formatStmtIR(transformed, env, config)
 	return IRReport{
-		Original:    irOriginal,
-		Transformed: irTransformed,
+		Original:    formatStmtIR(original, env, config),
+		Transformed: formatStmtIR(transformed, env, config),
 	}
 }
 

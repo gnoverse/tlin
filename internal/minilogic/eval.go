@@ -297,6 +297,30 @@ func (ev *Evaluator) evalStmt(stmt Stmt, env *Env, calls []CallRecord) Result {
 		newEnv.Set(s.Var, val)
 		return ContinueResultWithCalls(newEnv, newCalls)
 
+	case DeclAssignMultiStmt:
+		if ev.config.CallPolicy == DisallowCalls && exprHasCall(s.Expr) {
+			return UnknownResult()
+		}
+		_, newCalls := ev.evalExprWithCalls(s.Expr, env, calls)
+		newEnv := env.Clone()
+		for i, name := range s.Vars {
+			newEnv.Set(name, tupleSymbolicValue(s.Expr, i))
+		}
+		return ContinueResultWithCalls(newEnv, newCalls)
+
+	case VarDeclStmt:
+		if s.Expr != nil && ev.config.CallPolicy == DisallowCalls && exprHasCall(s.Expr) {
+			return UnknownResult()
+		}
+		val := Value(SymbolicValue{Name: "var_" + s.Var})
+		newCalls := calls
+		if s.Expr != nil {
+			val, newCalls = ev.evalExprWithCalls(s.Expr, env, calls)
+		}
+		newEnv := env.Clone()
+		newEnv.Set(s.Var, val)
+		return ContinueResultWithCalls(newEnv, newCalls)
+
 	case SeqStmt:
 		// Evaluate first statement
 		r1 := ev.evalStmt(s.First, env, calls)
@@ -379,11 +403,16 @@ func (ev *Evaluator) evalIfStmt(s IfStmt, env *Env, calls []CallRecord) Result {
 	var initVarNames []string
 
 	// Handle init statement
-	if s.Init != nil {
-		// Track variables declared in init (for scope cleanup later)
-		if decl, ok := s.Init.(DeclAssignStmt); ok {
-			initVarNames = append(initVarNames, decl.Var)
-		}
+		if s.Init != nil {
+			// Track variables declared in init (for scope cleanup later)
+			switch decl := s.Init.(type) {
+			case DeclAssignStmt:
+				initVarNames = append(initVarNames, decl.Var)
+			case DeclAssignMultiStmt:
+				initVarNames = append(initVarNames, decl.Vars...)
+			case VarDeclStmt:
+				initVarNames = append(initVarNames, decl.Var)
+			}
 
 		// Create a child scope for init-bound variables
 		childEnv := NewChildEnv(env)
@@ -572,4 +601,27 @@ func (ev *Evaluator) evalCallStmt(s CallStmt, env *Env, calls []CallRecord) Resu
 
 	newCalls := append(calls, CallRecord{Func: s.Call.Func, Args: args})
 	return ContinueResultWithCalls(env, newCalls)
+}
+
+func tupleSymbolicValue(expr Expr, index int) Value {
+	name := "tuple(" + expr.String() + ")[" + fmtInt(index) + "]"
+	return SymbolicValue{Name: name}
+}
+
+func fmtInt(v int) string {
+	if v == 0 {
+		return "0"
+	}
+	sign := ""
+	if v < 0 {
+		sign = "-"
+		v = -v
+	}
+	buf := make([]byte, 0, 12)
+	for v > 0 {
+		d := v % 10
+		buf = append([]byte{byte('0' + d)}, buf...)
+		v /= 10
+	}
+	return sign + string(buf)
 }
