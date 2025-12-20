@@ -28,6 +28,7 @@ type EvalConfig struct {
 	CallPolicy      CallPolicy
 	ControlFlowMode ControlFlowMode
 	InLoopContext   bool // true if we're inside a loop
+	CondSolver      CondSolver
 }
 
 // DefaultConfig returns the default evaluation configuration.
@@ -36,6 +37,7 @@ func DefaultConfig() EvalConfig {
 		CallPolicy:      OpaqueCalls,
 		ControlFlowMode: EarlyReturnAware,
 		InLoopContext:   false,
+		CondSolver:      BasicCondSolver{},
 	}
 }
 
@@ -384,6 +386,11 @@ func (ev *Evaluator) evalIfStmt(s IfStmt, env *Env, calls []CallRecord) Result {
 		return UnknownResult()
 	}
 	condVal := ev.EvalExpr(s.Cond, workingEnv)
+	if _, ok := condVal.(SymbolicValue); ok && ev.config.CondSolver != nil {
+		if solved, ok := ev.config.CondSolver.Solve(s.Cond, workingEnv); ok {
+			condVal = solved
+		}
+	}
 
 	// If condition is symbolic, we cannot determine which branch to take
 	if _, ok := condVal.(SymbolicValue); ok {
@@ -437,6 +444,86 @@ func (ev *Evaluator) cleanupInitVars(result Result, originalEnv *Env, initVarNam
 	return ContinueResultWithCalls(newEnv, result.Calls)
 }
 
+func (ev *Evaluator) mergeSymbolicResults(cond Expr, thenResult, elseResult Result, baseEnv *Env) Result {
+	if thenResult.Kind != elseResult.Kind {
+		return UnknownResult()
+	}
+
+	if !callSeqEqual(thenResult.Calls, elseResult.Calls) {
+		return UnknownResult()
+	}
+
+	switch thenResult.Kind {
+	case ResultContinue:
+		if thenResult.Env == nil || elseResult.Env == nil {
+			return UnknownResult()
+		}
+		mergedEnv, ok := mergeEnvWithIte(cond, thenResult.Env, elseResult.Env, baseEnv)
+		if !ok {
+			return UnknownResult()
+		}
+		return ContinueResultWithCalls(mergedEnv, thenResult.Calls)
+	case ResultReturn:
+		if thenResult.Value == nil && elseResult.Value == nil {
+			return thenResult
+		}
+		if thenResult.Value == nil || elseResult.Value == nil {
+			return UnknownResult()
+		}
+		if thenResult.Value.Equal(elseResult.Value) {
+			return thenResult
+		}
+		return ReturnResult(symbolicIteValue(cond, thenResult.Value, elseResult.Value), thenResult.Calls)
+	case ResultBreak, ResultContinueLoop:
+		return thenResult
+	default:
+		return UnknownResult()
+	}
+}
+
+func mergeEnvWithIte(cond Expr, thenEnv, elseEnv, baseEnv *Env) (*Env, bool) {
+	newEnv := baseEnv.Clone()
+	keys := make(map[string]struct{})
+	for _, key := range thenEnv.Keys() {
+		keys[key] = struct{}{}
+	}
+	for _, key := range elseEnv.Keys() {
+		keys[key] = struct{}{}
+	}
+
+	for key := range keys {
+		thenVal := thenEnv.Get(key)
+		elseVal := elseEnv.Get(key)
+		if thenVal == nil || elseVal == nil {
+			return nil, false
+		}
+		if thenVal.Equal(elseVal) {
+			newEnv.Set(key, thenVal)
+			continue
+		}
+		newEnv.Set(key, symbolicIteValue(cond, thenVal, elseVal))
+	}
+
+	return newEnv, true
+}
+
+func symbolicIteValue(cond Expr, thenVal, elseVal Value) Value {
+	name := "ite(" + cond.String() + "," + thenVal.String() + "," + elseVal.String() + ")"
+	return SymbolicValue{Name: name}
+}
+
+func callSeqEqual(a, b []CallRecord) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !callsEqual(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 func (ev *Evaluator) evalSymbolicIf(s IfStmt, env *Env, calls []CallRecord) Result {
 	// For symbolic conditions, evaluate both branches
 	thenResult := ev.evalStmt(s.Then, env, calls)
@@ -453,8 +540,7 @@ func (ev *Evaluator) evalSymbolicIf(s IfStmt, env *Env, calls []CallRecord) Resu
 		return thenResult
 	}
 
-	// Otherwise, return Unknown (we cannot determine the result)
-	return UnknownResult()
+	return ev.mergeSymbolicResults(s.Cond, thenResult, elseResult, env)
 }
 
 func (ev *Evaluator) evalCallStmt(s CallStmt, env *Env, calls []CallRecord) Result {

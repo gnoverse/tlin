@@ -560,6 +560,51 @@ func TestPanicCallDoesNotTerminate(t *testing.T) {
 	}
 }
 
+func TestSymbolicCondSolverTautology(t *testing.T) {
+	ml := New()
+
+	// x == x is always true for pure expressions.
+	s := If(
+		Binary(OpEq, Var("x"), Var("x")),
+		Assign("y", IntLit(1)),
+		Assign("y", IntLit(2)),
+	)
+
+	result := ml.Evaluate(s, NewEnv())
+	if result.Kind != ResultContinue {
+		t.Errorf("Expected Continue, got %v", result.Kind)
+	}
+	if yVal := result.Env.Get("y"); yVal == nil {
+		t.Error("y should be set")
+	} else if iv, ok := yVal.(IntValue); !ok || iv.Val != 1 {
+		t.Errorf("Expected y = 1, got %v", yVal)
+	}
+}
+
+func TestSymbolicIfMergesWithIte(t *testing.T) {
+	ml := New()
+
+	// Symbolic condition should merge branch values using ite.
+	s := If(
+		Var("cond"),
+		Assign("x", IntLit(1)),
+		Assign("x", IntLit(2)),
+	)
+
+	result := ml.Evaluate(s, NewEnv())
+	if result.Kind != ResultContinue {
+		t.Errorf("Expected Continue, got %v", result.Kind)
+	}
+	xVal, ok := result.Env.Get("x").(SymbolicValue)
+	if !ok {
+		t.Fatalf("Expected symbolic x, got %T", result.Env.Get("x"))
+	}
+	expected := SymbolicValue{Name: "ite(cond,1,2)"}
+	if !xVal.Equal(expected) {
+		t.Errorf("Expected x = %v, got %v", expected, xVal)
+	}
+}
+
 // =======================
 // API Tests
 // =======================
