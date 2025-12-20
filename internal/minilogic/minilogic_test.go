@@ -1,6 +1,7 @@
 package minilogic
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -34,6 +35,72 @@ func TestSequenceEquivalence(t *testing.T) {
 	}
 }
 
+func TestDebugIRReport(t *testing.T) {
+	config := DefaultConfig()
+	config.DebugIR = true
+	ml := NewWithConfig(config)
+
+	s1 := Assign("x", IntLit(1))
+	s2 := Assign("x", IntLit(1))
+
+	report := ml.Verify(s1, s2)
+	if report.IR == nil {
+		t.Fatal("Expected debug IR report to be populated")
+	}
+	if report.IR.Original == "" || report.IR.Transformed == "" {
+		t.Fatal("Expected debug IR strings to be non-empty")
+	}
+	t.Log(report.Detail)
+	if !strings.Contains(report.Detail, "IR(original):") {
+		t.Fatalf("Expected detail to include IR, got: %s", report.Detail)
+	}
+}
+
+func TestDebugIRComplexCase(t *testing.T) {
+	config := DefaultConfig()
+	config.DebugIR = true
+	ml := NewWithConfig(config)
+
+	// Include init, symbolic condition, and calls to exercise IR formatting.
+	s1 := IfInit(
+		Seq(Call("f"), DeclAssign("x", IntLit(1))),
+		Var("cond"),
+		Assign("y", Var("x")),
+		Assign("y", IntLit(2)),
+	)
+	s2 := IfInit(
+		Seq(Call("f"), DeclAssign("x", IntLit(1))),
+		Var("cond"),
+		Assign("y", Var("x")),
+		Assign("y", IntLit(3)),
+	)
+
+	report := ml.Verify(s1, s2)
+	if report.IR == nil {
+		t.Fatal("Expected debug IR report to be populated")
+	}
+	if !strings.Contains(report.IR.Original, "Continue(") {
+		t.Fatalf("Expected IR to include Continue block, got: %s", report.IR.Original)
+	}
+	if !strings.Contains(report.IR.Original, "env = {") {
+		t.Fatalf("Expected IR to include env block, got: %s", report.IR.Original)
+	}
+	if !strings.Contains(report.IR.Original, "calls = [f()]") {
+		t.Fatalf("Expected IR to include call record, got: %s", report.IR.Original)
+	}
+	if !strings.Contains(report.IR.Original, "ite(") {
+		t.Fatalf("Expected IR to include ite merge, got: %s", report.IR.Original)
+	}
+	if !strings.Contains(report.Detail, "IR(transformed):") {
+		t.Fatalf("Expected detail to include IR, got: %s", report.Detail)
+	}
+
+	t.Logf("original:\n%s", report.IR.Original)
+	t.Logf("transformed:\n%s", report.IR.Transformed)
+	t.Logf("details:\n%s", report.Detail)
+
+}
+
 func TestAssignmentNotEquivalent(t *testing.T) {
 	ml := New()
 
@@ -58,6 +125,8 @@ func TestIfElseConstantTrue(t *testing.T) {
 	if report.Result != Equivalent {
 		t.Errorf("Expected Equivalent, got %v: %s", report.Result, report.Detail)
 	}
+
+	// t.Log(report.Detail)
 }
 
 func TestIfElseConstantFalse(t *testing.T) {
@@ -248,6 +317,8 @@ func TestIfElseChainFlattening(t *testing.T) {
 	if report.Result != Equivalent {
 		t.Errorf("Expected Equivalent, got %v: %s", report.Result, report.Detail)
 	}
+
+	t.Log(report.Detail)
 }
 
 func TestNestedReturnEquivalence(t *testing.T) {
@@ -312,6 +383,8 @@ func TestInitializerEquivalence(t *testing.T) {
 	if report.Result != Equivalent {
 		t.Errorf("Expected Equivalent, got %v: %s", report.Result, report.Detail)
 	}
+
+	t.Log(report.Detail)
 }
 
 func TestShadowingInitVar(t *testing.T) {

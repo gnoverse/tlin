@@ -22,6 +22,9 @@ func New() *MiniLogic {
 
 // NewWithConfig creates a new MiniLogic instance with the given configuration.
 func NewWithConfig(config EvalConfig) *MiniLogic {
+	if config.CondSolver == nil {
+		config.CondSolver = BasicCondSolver{}
+	}
 	return &MiniLogic{
 		verifier:   NewVerifier(config),
 		normalizer: NewNormalizer(config),
@@ -32,11 +35,8 @@ func NewWithConfig(config EvalConfig) *MiniLogic {
 // NewForLoopContext creates a MiniLogic instance for verifying
 // transformations inside loop bodies.
 func NewForLoopContext() *MiniLogic {
-	config := EvalConfig{
-		CallPolicy:      OpaqueCalls,
-		ControlFlowMode: EarlyReturnAware,
-		InLoopContext:   true,
-	}
+	config := DefaultConfig()
+	config.InLoopContext = true
 	return NewWithConfig(config)
 }
 

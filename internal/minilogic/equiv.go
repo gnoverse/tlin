@@ -77,6 +77,7 @@ type VerificationReport struct {
 	Result VerificationResult
 	Reason ReasonCode
 	Detail string
+	IR     *IRReport
 }
 
 // Verifier verifies the equivalence of statement transformations.
@@ -104,27 +105,27 @@ func (v *Verifier) CheckEquivalence(s1, s2 Stmt) VerificationReport {
 func (v *Verifier) CheckEquivalenceWithEnv(s1, s2 Stmt, env *Env) VerificationReport {
 	// Pre-check: validate both statements are within scope
 	if !v.isInScope(s1) || !v.isInScope(s2) {
-		return VerificationReport{
+		return v.withDebugIR(VerificationReport{
 			Result: Unknown,
 			Reason: ReasonOutOfScope,
 			Detail: "statement contains constructs outside MiniLogic scope",
-		}
+		}, s1, s2, env)
 	}
 
 	// Check for scope violations (init-scoped variables used outside)
 	if violation := v.checkScopeViolation(s1); violation != "" {
-		return VerificationReport{
+		return v.withDebugIR(VerificationReport{
 			Result: Unknown,
 			Reason: ReasonScopeViolation,
 			Detail: violation,
-		}
+		}, s1, s2, env)
 	}
 	if violation := v.checkScopeViolation(s2); violation != "" {
-		return VerificationReport{
+		return v.withDebugIR(VerificationReport{
 			Result: Unknown,
 			Reason: ReasonScopeViolation,
 			Detail: violation,
-		}
+		}, s1, s2, env)
 	}
 
 	// Evaluate both statements
@@ -133,48 +134,48 @@ func (v *Verifier) CheckEquivalenceWithEnv(s1, s2 Stmt, env *Env) VerificationRe
 
 	// Check for Unknown results
 	if r1.Kind == ResultUnknown || r2.Kind == ResultUnknown {
-		return VerificationReport{
+		return v.withDebugIR(VerificationReport{
 			Result: Unknown,
 			Reason: ReasonSymbolicCondition,
 			Detail: "evaluation produced unknown result",
-		}
+		}, s1, s2, env)
 	}
 
 	// Compare result kinds
 	if r1.Kind != r2.Kind {
-		return VerificationReport{
+		return v.withDebugIR(VerificationReport{
 			Result: NotEquivalent,
 			Reason: ReasonDifferentKind,
 			Detail: "result kinds differ: " + r1.Kind.String() + " vs " + r2.Kind.String(),
-		}
+		}, s1, s2, env)
 	}
 
 	// Compare based on kind
 	switch r1.Kind {
 	case ResultContinue:
 		if !r1.Env.Equal(r2.Env) {
-			return VerificationReport{
+			return v.withDebugIR(VerificationReport{
 				Result: NotEquivalent,
 				Reason: ReasonDifferentEnv,
 				Detail: "environments differ: " + r1.Env.String() + " vs " + r2.Env.String(),
-			}
+			}, s1, s2, env)
 		}
 
 	case ResultReturn:
 		if r1.Value == nil && r2.Value == nil {
 			// Both nil, ok
 		} else if r1.Value == nil || r2.Value == nil {
-			return VerificationReport{
+			return v.withDebugIR(VerificationReport{
 				Result: NotEquivalent,
 				Reason: ReasonDifferentValue,
 				Detail: "return values differ (nil vs non-nil)",
-			}
+			}, s1, s2, env)
 		} else if !r1.Value.Equal(r2.Value) {
-			return VerificationReport{
+			return v.withDebugIR(VerificationReport{
 				Result: NotEquivalent,
 				Reason: ReasonDifferentValue,
 				Detail: "return values differ: " + r1.Value.String() + " vs " + r2.Value.String(),
-			}
+			}, s1, s2, env)
 		}
 
 	case ResultBreak, ResultContinueLoop:
@@ -184,19 +185,19 @@ func (v *Verifier) CheckEquivalenceWithEnv(s1, s2 Stmt, env *Env) VerificationRe
 	// Compare call sequences (for OpaqueCalls policy)
 	if v.config.CallPolicy == OpaqueCalls {
 		if !callSequencesEqual(r1.Calls, r2.Calls) {
-			return VerificationReport{
+			return v.withDebugIR(VerificationReport{
 				Result: NotEquivalent,
 				Reason: ReasonDifferentCalls,
 				Detail: "call sequences differ",
-			}
+			}, s1, s2, env)
 		}
 	}
 
-	return VerificationReport{
+	return v.withDebugIR(VerificationReport{
 		Result: Equivalent,
 		Reason: ReasonSameResult,
 		Detail: "statements produce identical results",
-	}
+	}, s1, s2, env)
 }
 
 func callSequencesEqual(a, b []CallRecord) bool {

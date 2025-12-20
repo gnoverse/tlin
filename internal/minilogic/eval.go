@@ -29,6 +29,7 @@ type EvalConfig struct {
 	ControlFlowMode ControlFlowMode
 	InLoopContext   bool // true if we're inside a loop
 	CondSolver      CondSolver
+	DebugIR         bool
 }
 
 // DefaultConfig returns the default evaluation configuration.
@@ -38,6 +39,7 @@ func DefaultConfig() EvalConfig {
 		ControlFlowMode: EarlyReturnAware,
 		InLoopContext:   false,
 		CondSolver:      BasicCondSolver{},
+		DebugIR:         false,
 	}
 }
 
