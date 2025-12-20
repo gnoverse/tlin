@@ -403,16 +403,16 @@ func (ev *Evaluator) evalIfStmt(s IfStmt, env *Env, calls []CallRecord) Result {
 	var initVarNames []string
 
 	// Handle init statement
-		if s.Init != nil {
-			// Track variables declared in init (for scope cleanup later)
-			switch decl := s.Init.(type) {
-			case DeclAssignStmt:
-				initVarNames = append(initVarNames, decl.Var)
-			case DeclAssignMultiStmt:
-				initVarNames = append(initVarNames, decl.Vars...)
-			case VarDeclStmt:
-				initVarNames = append(initVarNames, decl.Var)
-			}
+	if s.Init != nil {
+		// Track variables declared in init (for scope cleanup later)
+		switch decl := s.Init.(type) {
+		case DeclAssignStmt:
+			initVarNames = append(initVarNames, decl.Var)
+		case DeclAssignMultiStmt:
+			initVarNames = append(initVarNames, decl.Vars...)
+		case VarDeclStmt:
+			initVarNames = append(initVarNames, decl.Var)
+		}
 
 		// Create a child scope for init-bound variables
 		childEnv := NewChildEnv(env)
