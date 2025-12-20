@@ -1,6 +1,7 @@
 package minilogic
 
 // Expr represents an expression in the MiniLogic system.
+// This is a small subset of Go expressions, used for lint rewrite checks.
 type Expr interface {
 	isExpr()
 	String() string
@@ -142,6 +143,7 @@ func (e CallExpr) String() string {
 }
 
 // Stmt represents a statement in the MiniLogic system.
+// This is a deliberately small subset of Go statements.
 type Stmt interface {
 	isStmt()
 	String() string

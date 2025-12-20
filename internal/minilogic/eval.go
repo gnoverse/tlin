@@ -44,6 +44,7 @@ func DefaultConfig() EvalConfig {
 }
 
 // Evaluator evaluates expressions and statements.
+// It is a lightweight abstract interpreter, not a full Go semantics model.
 type Evaluator struct {
 	config EvalConfig
 }

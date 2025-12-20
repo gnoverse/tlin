@@ -7,6 +7,7 @@ type CondSolver interface {
 }
 
 // BasicCondSolver provides simple, sound condition deductions.
+// It is intentionally minimal and may fail to resolve many conditions.
 type BasicCondSolver struct{}
 
 func (BasicCondSolver) Solve(cond Expr, env *Env) (BoolValue, bool) {
