@@ -66,7 +66,7 @@ func markChain(chain *ifChain, processed map[*ast.IfStmt]bool) {
 // isQualifiedChain returns true if the top-level if statement of the chain
 // always terminates and has an else branch
 func isQualifiedChain(chain *ifChain) bool {
-	return chain.root.Else != nil && blockAlwaysTerminates(chain.root.Body)
+	return chain.root.Else != nil && ifChainAllBodiesTerminate(chain.root)
 }
 
 // DetectEarlyReturnOpportunities traverses the AST of functions in the file,
@@ -148,6 +148,10 @@ func traverseIfStatement(ifStmt *ast.IfStmt, ctx *traversalContext, inChain bool
 
 // processQualifiedChain creates an issue for a qualified if-chain
 func processQualifiedChain(chain *ifChain, ctx *traversalContext) {
+	if ifChainUsesInitVars(chain.root) {
+		return
+	}
+
 	snippet := extractSnippet(chain.root, ctx.fset, ctx.content)
 	suggestion, err := generateEarlyReturnSuggestion(snippet)
 	if err != nil {
@@ -273,7 +277,7 @@ func transformBlock(block *ast.BlockStmt) {
 		case *ast.IfStmt:
 			transformIfStmt(s)
 
-			if s.Else != nil && blockAlwaysTerminates(s.Body) {
+			if s.Else != nil && ifChainAllBodiesTerminate(s) && !ifChainUsesInitVars(s) {
 				flattened := flattenIfChain(s)
 				newList = append(newList, flattened...)
 				continue
@@ -306,8 +310,135 @@ func transformIfStmt(ifStmt *ast.IfStmt) {
 	}
 }
 
+func ifChainAllBodiesTerminate(ifStmt *ast.IfStmt) bool {
+	for current := ifStmt; current != nil; {
+		if !blockAlwaysTerminates(current.Body) {
+			return false
+		}
+
+		next, ok := current.Else.(*ast.IfStmt)
+		if !ok {
+			return true
+		}
+
+		current = next
+	}
+
+	return true
+}
+
+func ifChainUsesInitVars(ifStmt *ast.IfStmt) bool {
+	if ifStmt == nil {
+		return false
+	}
+
+	initNames := declaredNamesFromInit(ifStmt.Init)
+	if len(initNames) > 0 && elseBranchUsesNames(ifStmt.Else, initNames) {
+		return true
+	}
+
+	if elseIf, ok := ifStmt.Else.(*ast.IfStmt); ok {
+		return ifChainUsesInitVars(elseIf)
+	}
+
+	return false
+}
+
+func declaredNamesFromInit(init ast.Stmt) map[string]struct{} {
+	if init == nil {
+		return nil
+	}
+
+	declared := map[string]struct{}{}
+
+	switch s := init.(type) {
+	case *ast.AssignStmt:
+		if s.Tok != token.DEFINE {
+			return nil
+		}
+		for _, expr := range s.Lhs {
+			if ident, ok := expr.(*ast.Ident); ok {
+				declared[ident.Name] = struct{}{}
+			}
+		}
+	case *ast.DeclStmt:
+		decl, ok := s.Decl.(*ast.GenDecl)
+		if !ok {
+			return nil
+		}
+		for _, spec := range decl.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for _, name := range valueSpec.Names {
+				declared[name.Name] = struct{}{}
+			}
+		}
+	}
+
+	if len(declared) == 0 {
+		return nil
+	}
+
+	return declared
+}
+
+func elseBranchUsesNames(branch ast.Stmt, names map[string]struct{}) bool {
+	if branch == nil || len(names) == 0 {
+		return false
+	}
+
+	return usesIdentNames(branch, names)
+}
+
+func usesIdentNames(node ast.Node, names map[string]struct{}) bool {
+	if node == nil {
+		return false
+	}
+
+	found := false
+	ast.Inspect(node, func(n ast.Node) bool {
+		if n == nil || found {
+			return false
+		}
+
+		switch v := n.(type) {
+		case *ast.AssignStmt:
+			if v.Tok == token.DEFINE {
+				for _, rhs := range v.Rhs {
+					if usesIdentNames(rhs, names) {
+						found = true
+						return false
+					}
+				}
+				return false
+			}
+		case *ast.ValueSpec:
+			for _, rhs := range v.Values {
+				if usesIdentNames(rhs, names) {
+					found = true
+					return false
+				}
+			}
+			return false
+		case *ast.Ident:
+			if _, ok := names[v.Name]; ok {
+				found = true
+				return false
+			}
+		}
+
+		return true
+	})
+
+	return found
+}
+
 // cleanUpResult cleans up unnecessary braces and indentation in the final code
 func cleanUpResult(result string) string {
+	result = strings.ReplaceAll(result, "\r\n", "\n")
+	result = strings.ReplaceAll(result, "\r", "\n")
 	result = strings.TrimSpace(result)
 	result = strings.TrimPrefix(result, "{")
 	result = strings.TrimSuffix(result, "}")
@@ -327,7 +458,9 @@ func extractSnippet(node ast.Node, fset *token.FileSet, fileContent []byte) stri
 	endPos := fset.Position(node.End())
 
 	snippet := fileContent[startPos.Offset:endPos.Offset]
-	snippet = bytes.TrimLeft(snippet, " \t\n")
+	snippet = bytes.TrimLeftFunc(snippet, func(r rune) bool {
+		return r == '\n' || r == '\r'
+	})
 
 	// Include leading indentation
 	if startPos.Column > 1 {
@@ -339,19 +472,7 @@ func extractSnippet(node ast.Node, fset *token.FileSet, fileContent []byte) stri
 		}
 
 		prefix := fileContent[lineStart:startPos.Offset]
-		snippet = append(bytes.TrimLeft(prefix, " \t"), snippet...)
-	}
-
-	// Include trailing brace if it's on the next line
-	if endPos.Column > 1 {
-		nextNewline := bytes.Index(fileContent[endPos.Offset:], []byte{'\n'})
-		if nextNewline != -1 {
-			line := bytes.TrimSpace(fileContent[endPos.Offset : endPos.Offset+nextNewline])
-			if len(line) == 1 && line[0] == '}' {
-				snippet = append(snippet, line...)
-				snippet = append(snippet, '\n')
-			}
-		}
+		snippet = append(prefix, snippet...)
 	}
 
 	return string(bytes.TrimRight(snippet, " \t\n"))
