@@ -93,7 +93,7 @@ func (v SymbolicValue) Equal(other Value) bool {
 }
 
 // Env represents the symbolic environment as a key-value map.
-// It maps variable names to their values.
+// It maps variable names to values and does not model heap/aliasing.
 type Env struct {
 	vars   map[string]Value
 	parent *Env // for scoped environments (init statements)

@@ -44,6 +44,8 @@ func TestDebugIRReport(t *testing.T) {
 	s2 := Assign("x", IntLit(1))
 
 	report := ml.Verify(s1, s2)
+	t.Log(report.IR.Original)
+	t.Log(report.IR.Transformed)
 	if report.IR == nil {
 		t.Fatal("Expected debug IR report to be populated")
 	}

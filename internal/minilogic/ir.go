@@ -49,6 +49,7 @@ func cloneEnvForEval(env *Env) *Env {
 	return env.Clone()
 }
 
+// nolint:unused
 func formatResultIR(result Result) string {
 	switch result.Kind {
 	case ResultContinue:
@@ -89,6 +90,7 @@ func formatResultIRPretty(result Result) string {
 	}
 }
 
+//nolint:unused
 func formatEnvIR(env *Env) string {
 	if env == nil {
 		return "{}"
@@ -145,6 +147,7 @@ func formatEnvIRPretty(env *Env) string {
 	return "{\n" + strings.Join(lines, "\n") + "\n}"
 }
 
+//nolint:unused
 func formatCallsIR(calls []CallRecord) string {
 	if len(calls) == 0 {
 		return "[]"
