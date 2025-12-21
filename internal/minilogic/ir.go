@@ -49,7 +49,7 @@ func cloneEnvForEval(env *Env) *Env {
 	return env.Clone()
 }
 
-// nolint:unused
+//nolint:unused
 func formatResultIR(result Result) string {
 	switch result.Kind {
 	case ResultContinue:

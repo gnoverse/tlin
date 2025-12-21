@@ -1,3 +1,4 @@
+// nolint:goconst
 package minilogic
 
 // VerificationResult represents the result of equivalence verification.
