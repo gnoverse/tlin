@@ -212,6 +212,47 @@ suggestion:
 	assert.Equal(t, expected, result, "Formatted output should match expected output")
 }
 
+// TestFormatIssuesWithInconsistentIndentation tests the case where an issue
+// spans multiple lines with inconsistent indentation (first line has no indent,
+// subsequent lines are indented). This was causing a panic due to negative
+// Repeat count in strings.Repeat.
+func TestFormatIssuesWithInconsistentIndentation(t *testing.T) {
+	t.Parallel()
+
+	// Reproduces the bug: first line has no indentation,
+	// but the rest of the lines are indented.
+	code := &internal.SourceCode{
+		Lines: []string{
+			"impl, ok := result.(IMyType)",
+			"    if !ok {",
+			`        return errors.New("impl is not an IMyType")`,
+			"    } else {",
+			"        implementation = impl",
+			"        return nil",
+			"    }",
+		},
+	}
+
+	// Issue spans from line 2 to line 7, simulating early-return-opportunity detection
+	issues := []tt.Issue{
+		{
+			Rule:     "early-return-opportunity",
+			Filename: "test.go",
+			Start:    token.Position{Line: 2, Column: 5},
+			End:      token.Position{Line: 7, Column: 5},
+			Message:  "this if-else block can be simplified using early return",
+		},
+	}
+
+	// Should not panic
+	result := GenerateFormattedIssue(issues, code)
+
+	// Verify the output contains expected elements
+	assert.Contains(t, result, "early-return-opportunity")
+	assert.Contains(t, result, "test.go:2:5")
+	assert.Contains(t, result, "this if-else block can be simplified using early return")
+}
+
 func TestFindCommonIndent(t *testing.T) {
 	tests := []struct {
 		name     string
