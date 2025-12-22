@@ -212,8 +212,18 @@ func underlineAndMessage(message string, padding string, startLine int, endLine 
 	}
 
 	// calculate underline end position
+	// NOTE: when an issue spans multiple lines with inconsistent indentation
+	// (e.g., first line has no indent, subsequent lines are indented),
+	// underlineEnd or underlineLength can become negative, causing panic
+	// in strings.Repeat. We clamp these values to ensure valid output.
 	underlineEnd := calculateVisualColumn(snippetLines[endLine-1], endColumn) - commonIndentWidth
+	if underlineEnd < 0 {
+		underlineEnd = 0
+	}
 	underlineLength := underlineEnd - underlineStart + 1
+	if underlineLength < 1 {
+		underlineLength = 1
+	}
 
 	endString += fmt.Sprint(strings.Repeat(" ", underlineStart))
 	endString += messageStyle.Sprintf("%s\n", strings.Repeat("^", underlineLength))
