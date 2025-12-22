@@ -178,6 +178,78 @@ func main() {
 }
 `,
 		},
+		{
+			name: "Fix - format-without-verb Errorf with return",
+			input: `package main
+
+func example() error {
+	return ufmt.Errorf("handler error")
+}
+`,
+			issues: []tt.Issue{
+				{
+					Rule:       "format-without-verb",
+					Message:    "format string has no verbs; use errors.New() instead",
+					Start:      token.Position{Line: 4, Column: 9},
+					End:        token.Position{Line: 4, Column: 38},
+					Suggestion: `return errors.New("handler error")`,
+				},
+			},
+			expected: `package main
+
+func example() error {
+	return errors.New("handler error")
+}
+`,
+		},
+		{
+			name: "Fix - format-without-verb Sprintf to literal",
+			input: `package main
+
+func main() {
+	msg := ufmt.Sprintf("hello world")
+}
+`,
+			issues: []tt.Issue{
+				{
+					Rule:       "format-without-verb",
+					Message:    "format string has no verbs; use a string literal directly",
+					Start:      token.Position{Line: 4, Column: 9},
+					End:        token.Position{Line: 4, Column: 37},
+					Suggestion: `msg := "hello world"`,
+				},
+			},
+			expected: `package main
+
+func main() {
+	msg := "hello world"
+}
+`,
+		},
+		{
+			name: "Fix - format-without-verb Printf to print",
+			input: `package main
+
+func main() {
+	ufmt.Printf("status ok")
+}
+`,
+			issues: []tt.Issue{
+				{
+					Rule:       "format-without-verb",
+					Message:    "format string has no verbs; use print() instead",
+					Start:      token.Position{Line: 4, Column: 2},
+					End:        token.Position{Line: 4, Column: 26},
+					Suggestion: `print("status ok")`,
+				},
+			},
+			expected: `package main
+
+func main() {
+	print("status ok")
+}
+`,
+		},
 	}
 
 	for _, tt := range tests {

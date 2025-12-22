@@ -3,6 +3,7 @@ package lints
 import (
 	"go/ast"
 	"go/token"
+	"os"
 	"strconv"
 	"strings"
 	"unicode"
@@ -12,13 +13,14 @@ import (
 
 type formatFuncInfo struct {
 	formatArgIndex int
+	suggestion     string
 }
 
 var formatFunctions = map[string]formatFuncInfo{
-	"Sprintf": {formatArgIndex: 0},
-	"Printf":  {formatArgIndex: 0},
-	"Errorf":  {formatArgIndex: 0},
-	"Fprintf": {formatArgIndex: 1},
+	"Sprintf": {formatArgIndex: 0, suggestion: "use a string literal directly"},
+	"Printf":  {formatArgIndex: 0, suggestion: "use print() instead"},
+	"Errorf":  {formatArgIndex: 0, suggestion: "use errors.New() instead"},
+	"Fprintf": {formatArgIndex: 1, suggestion: "use io.WriteString() instead"},
 }
 
 // DetectFormatWithoutVerb reports formatting calls whose format string has no verbs.
@@ -40,6 +42,8 @@ func DetectFormatWithoutVerb(
 	if !hasAllowedImports(aliasMap, allowPaths) {
 		return nil, nil
 	}
+
+	src, _ := os.ReadFile(filename)
 
 	constants := collectStringConstants(node)
 
@@ -83,13 +87,23 @@ func DetectFormatWithoutVerb(
 			return true
 		}
 
+		funcName := sel.Sel.Name
+		message := "format string has no verbs; " + info.suggestion
+
+		startPos := fset.Position(call.Pos())
+		endPos := fset.Position(call.End())
+
+		// Build suggestion by replacing the call expression in the original line
+		suggestion := buildLineSuggestion(src, startPos, endPos, funcName, formatVal)
+
 		issues = append(issues, tt.Issue{
-			Rule:     "format-without-verb",
-			Filename: filename,
-			Start:    fset.Position(call.Pos()),
-			End:      fset.Position(call.End()),
-			Message:  "format string has no verbs; use ufmt.Sprint/ufmt.Fprint or a literal",
-			Severity: severity,
+			Rule:       "format-without-verb",
+			Filename:   filename,
+			Start:      startPos,
+			End:        endPos,
+			Message:    message,
+			Suggestion: suggestion,
+			Severity:   severity,
 		})
 
 		return true
@@ -243,4 +257,51 @@ func containsVerb(format string) bool {
 
 func isTestFile(filename string) bool {
 	return strings.HasSuffix(filename, "_test.go") || strings.HasSuffix(filename, "_test.gno")
+}
+
+func buildLineSuggestion(src []byte, startPos, endPos token.Position, funcName, formatVal string) string {
+	if len(src) == 0 {
+		return buildCallReplacement(funcName, formatVal)
+	}
+
+	lines := strings.Split(string(src), "\n")
+
+	// Handle single-line case
+	if startPos.Line == endPos.Line {
+		lineIdx := startPos.Line - 1
+		if lineIdx < 0 || lineIdx >= len(lines) {
+			return buildCallReplacement(funcName, formatVal)
+		}
+		line := lines[lineIdx]
+
+		// Column is 1-based
+		startCol := startPos.Column - 1
+		endCol := endPos.Column - 1
+
+		if startCol < 0 || endCol > len(line) || startCol >= endCol {
+			return buildCallReplacement(funcName, formatVal)
+		}
+
+		replacement := buildCallReplacement(funcName, formatVal)
+		return line[:startCol] + replacement + line[endCol:]
+	}
+
+	// Multi-line call: just return the replacement for the call
+	return buildCallReplacement(funcName, formatVal)
+}
+
+func buildCallReplacement(funcName, formatVal string) string {
+	quotedVal := strconv.Quote(formatVal)
+	switch funcName {
+	case "Sprintf":
+		return quotedVal
+	case "Errorf":
+		return "errors.New(" + quotedVal + ")"
+	case "Printf":
+		return "print(" + quotedVal + ")"
+	case "Fprintf":
+		return "io.WriteString(w, " + quotedVal + ")"
+	default:
+		return quotedVal
+	}
 }
