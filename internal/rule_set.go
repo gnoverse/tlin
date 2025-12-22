@@ -40,6 +40,7 @@ var (
 	GnoSpecificRule              = LintRule{severity: tt.SeverityWarning, check: lints.DetectGnoPackageImports}
 	SimplifyForRangeRule         = LintRule{severity: tt.SeverityWarning, check: lints.DetectSimplifiableForLoops}
 	FormatWithoutVerbRule        = LintRule{severity: tt.SeverityWarning, check: lints.DetectFormatWithoutVerb}
+	DivisionByZeroRule           = LintRule{severity: tt.SeverityWarning, check: lints.DetectDivisionByZero}
 )
 
 // Define the ruleMap type
@@ -59,4 +60,5 @@ var allRules = ruleMap{
 	"unused-package":              GnoSpecificRule,
 	"simplify-for-range":          SimplifyForRangeRule,
 	"format-without-verb":         FormatWithoutVerbRule,
+	"division-by-zero":            DivisionByZeroRule,
 }
