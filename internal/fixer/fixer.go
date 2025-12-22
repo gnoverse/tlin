@@ -3,9 +3,6 @@ package fixer
 import (
 	"bytes"
 	"fmt"
-	"go/format"
-	"go/parser"
-	"go/token"
 	"os"
 	"sort"
 	"strings"
@@ -42,9 +39,6 @@ func (f *Fixer) Fix(filename string, issues []tt.Issue) error {
 	lines := strings.Split(string(content), "\n")
 	sortIssuesByEndOffset(issues)
 
-	// Collect required imports from all issues
-	requiredImports := CollectRequiredImports(issues)
-
 	for _, issue := range issues {
 		if f.DryRun {
 			f.printDryRunInfo(filename, issue)
@@ -55,7 +49,7 @@ func (f *Fixer) Fix(filename string, issues []tt.Issue) error {
 	}
 
 	if !f.DryRun {
-		if err := f.writeFixedContent(filename, lines, requiredImports); err != nil {
+		if err := f.writeFixedContent(filename, lines); err != nil {
 			return err
 		}
 		fmt.Printf("Fixed issues in %s\n", filename)
@@ -108,7 +102,7 @@ func (f *Fixer) applyFix(lines []string, issue tt.Issue) []string {
 	return modified
 }
 
-func (f *Fixer) writeFixedContent(filename string, lines []string, requiredImports []string) error {
+func (f *Fixer) writeFixedContent(filename string, lines []string) error {
 	f.buffer.Reset()
 	for i, line := range lines {
 		f.buffer.WriteString(line)
@@ -117,31 +111,15 @@ func (f *Fixer) writeFixedContent(filename string, lines []string, requiredImpor
 		}
 	}
 
-	content := f.buffer.Bytes()
-
-	// Add required imports if any
-	if len(requiredImports) > 0 {
-		var err error
-		content, err = EnsureImports(content, requiredImports)
-		if err != nil {
-			// If import addition fails, continue with original content
-			fmt.Printf("Warning: failed to add imports: %v\n", err)
-			content = f.buffer.Bytes()
-		}
-	}
-
-	fset := token.NewFileSet()
-	astFile, err := parser.ParseFile(fset, filename, content, parser.ParseComments)
+	// Process imports: adds missing imports and removes unused ones
+	content, err := ProcessImports(filename, f.buffer.Bytes())
 	if err != nil {
-		return fmt.Errorf("failed to parse file: %w", err)
+		// If import processing fails, fall back to basic formatting
+		fmt.Printf("Warning: failed to process imports: %v\n", err)
+		content = f.buffer.Bytes()
 	}
 
-	f.buffer.Reset()
-	if err := format.Node(&f.buffer, fset, astFile); err != nil {
-		return fmt.Errorf("failed to format file: %w", err)
-	}
-
-	if err := os.WriteFile(filename, f.buffer.Bytes(), defaultFilePermissions); err != nil {
+	if err := os.WriteFile(filename, content, defaultFilePermissions); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 

@@ -197,6 +197,8 @@ func example() error {
 			},
 			expected: `package main
 
+import "errors"
+
 func example() error {
 	return errors.New("handler error")
 }

@@ -1,32 +1,28 @@
 package fixer
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"testing"
 
-	tt "github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestEnsureImports(t *testing.T) {
+func TestProcessImports(t *testing.T) {
 	tests := []struct {
 		name     string
+		filename string
 		src      string
-		imports  []string
 		expected string
 	}{
 		{
-			name: "add single import to file without imports",
+			name:     "add missing import",
+			filename: "test.go",
 			src: `package main
 
 func main() {
 	_ = errors.New("test")
 }
 `,
-			imports: []string{"errors"},
 			expected: `package main
 
 import "errors"
@@ -37,17 +33,9 @@ func main() {
 `,
 		},
 		{
-			name: "add import to file with existing imports",
+			name:     "remove unused import",
+			filename: "test.go",
 			src: `package main
-
-import "fmt"
-
-func main() {
-	fmt.Println(errors.New("test"))
-}
-`,
-			imports: []string{"errors"},
-			expected: `package main
 
 import (
 	"errors"
@@ -55,62 +43,189 @@ import (
 )
 
 func main() {
-	fmt.Println(errors.New("test"))
-}
-`,
-		},
-		{
-			name: "skip already existing import",
-			src: `package main
-
-import "errors"
-
-func main() {
 	_ = errors.New("test")
 }
 `,
-			imports: []string{"errors"},
-			expected: `package main
-
-import "errors"
-
-func main() {
-	_ = errors.New("test")
-}
-`,
-		},
-		{
-			name: "add multiple imports",
-			src: `package main
-
-func main() {
-	io.WriteString(os.Stdout, "test")
-}
-`,
-			imports: []string{"io", "os"},
 			expected: `package main
 
 import (
-	"io"
-	"os"
+	"errors"
 )
 
 func main() {
-	io.WriteString(os.Stdout, "test")
+	_ = errors.New("test")
 }
 `,
 		},
 		{
-			name: "no imports to add",
+			name:     "add and remove imports simultaneously",
+			filename: "test.go",
+			src: `package main
+
+import "fmt"
+
+func main() {
+	_ = errors.New("test")
+}
+`,
+			expected: `package main
+
+import "errors"
+
+func main() {
+	_ = errors.New("test")
+}
+`,
+		},
+		{
+			name:     "gno file processed as go",
+			filename: "test.gno",
 			src: `package main
 
 func main() {
+	_ = errors.New("test")
 }
 `,
-			imports:  []string{},
+			expected: `package main
+
+import "errors"
+
+func main() {
+	_ = errors.New("test")
+}
+`,
+		},
+		{
+			name:     "preserve gno imports that are used",
+			filename: "test.gno",
+			src: `package main
+
+import "gno.land/p/nt/ufmt"
+
+func main() {
+	ufmt.Sprintf("hello %s", "world")
+}
+`,
+			expected: `package main
+
+import "gno.land/p/nt/ufmt"
+
+func main() {
+	ufmt.Sprintf("hello %s", "world")
+}
+`,
+		},
+		{
+			name:     "remove unused gno import",
+			filename: "test.gno",
+			src: `package main
+
+import "gno.land/p/nt/ufmt"
+
+func main() {
+	println("hello")
+}
+`,
 			expected: `package main
 
 func main() {
+	println("hello")
+}
+`,
+		},
+		{
+			name:     "cannot auto-add non-standard library imports",
+			filename: "test.gno",
+			src: `package main
+
+func main() {
+	// ufmt is used but not imported - imports.Process cannot auto-add it
+	// because it's not a standard library package
+	ufmt.Sprintf("hello")
+}
+`,
+			// imports.Process cannot resolve non-standard packages,
+			// so the code remains unchanged (with unresolved ufmt reference)
+			expected: `package main
+
+func main() {
+	// ufmt is used but not imported - imports.Process cannot auto-add it
+	// because it's not a standard library package
+	ufmt.Sprintf("hello")
+}
+`,
+		},
+		{
+			name:     "preserve multiple mixed imports - remove only unused",
+			filename: "test.gno",
+			src: `package main
+
+import (
+	"errors"
+	"fmt"
+	"gno.land/p/nt/ufmt"
+)
+
+func main() {
+	_ = errors.New("test")
+	ufmt.Sprintf("hello")
+}
+`,
+			expected: `package main
+
+import (
+	"errors"
+
+	"gno.land/p/nt/ufmt"
+)
+
+func main() {
+	_ = errors.New("test")
+	ufmt.Sprintf("hello")
+}
+`,
+		},
+		{
+			name:     "preserve aliased imports that are used",
+			filename: "test.gno",
+			src: `package main
+
+import (
+	u "gno.land/p/nt/ufmt"
+)
+
+func main() {
+	u.Sprintf("hello")
+}
+`,
+			expected: `package main
+
+import (
+	u "gno.land/p/nt/ufmt"
+)
+
+func main() {
+	u.Sprintf("hello")
+}
+`,
+		},
+		{
+			name:     "remove unused aliased import",
+			filename: "test.gno",
+			src: `package main
+
+import (
+	u "gno.land/p/nt/ufmt"
+)
+
+func main() {
+	println("hello")
+}
+`,
+			expected: `package main
+
+func main() {
+	println("hello")
 }
 `,
 		},
@@ -118,112 +233,9 @@ func main() {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := EnsureImports([]byte(tc.src), tc.imports)
+			result, err := ProcessImports(tc.filename, []byte(tc.src))
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, string(result))
 		})
 	}
-}
-
-func TestHasImport(t *testing.T) {
-	tests := []struct {
-		name       string
-		src        string
-		importPath string
-		expected   bool
-	}{
-		{
-			name: "has import",
-			src: `package main
-
-import "errors"
-
-func main() {}
-`,
-			importPath: "errors",
-			expected:   true,
-		},
-		{
-			name: "does not have import",
-			src: `package main
-
-import "fmt"
-
-func main() {}
-`,
-			importPath: "errors",
-			expected:   false,
-		},
-		{
-			name: "has import in group",
-			src: `package main
-
-import (
-	"errors"
-	"fmt"
-)
-
-func main() {}
-`,
-			importPath: "errors",
-			expected:   true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			fset, file := parseSource(t, tc.src)
-			_ = fset
-			result := hasImport(file, tc.importPath)
-			assert.Equal(t, tc.expected, result)
-		})
-	}
-}
-
-func TestCollectRequiredImports(t *testing.T) {
-	tests := []struct {
-		name     string
-		issues   []tt.Issue
-		expected []string
-	}{
-		{
-			name: "collect from single issue",
-			issues: []tt.Issue{
-				{RequiredImports: []string{"errors"}},
-			},
-			expected: []string{"errors"},
-		},
-		{
-			name: "collect from multiple issues with duplicates",
-			issues: []tt.Issue{
-				{RequiredImports: []string{"errors"}},
-				{RequiredImports: []string{"errors", "fmt"}},
-				{RequiredImports: []string{"io"}},
-			},
-			expected: []string{"errors", "fmt", "io"},
-		},
-		{
-			name: "empty issues",
-			issues: []tt.Issue{
-				{RequiredImports: nil},
-				{RequiredImports: []string{}},
-			},
-			expected: nil,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result := CollectRequiredImports(tc.issues)
-			assert.Equal(t, tc.expected, result)
-		})
-	}
-}
-
-func parseSource(t *testing.T, src string) (*token.FileSet, *ast.File) {
-	t.Helper()
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "", src, parser.ParseComments)
-	require.NoError(t, err)
-	return fset, file
 }
