@@ -250,6 +250,62 @@ func main() {
 }
 `,
 		},
+		{
+			name: "Fix - format-without-verb Errorf adds errors import",
+			input: `package main
+
+func example() error {
+	return ufmt.Errorf("handler error")
+}
+`,
+			issues: []tt.Issue{
+				{
+					Rule:            "format-without-verb",
+					Message:         "format string has no verbs; use errors.New() instead",
+					Start:           token.Position{Line: 4, Column: 9},
+					End:             token.Position{Line: 4, Column: 38},
+					Suggestion:      `return errors.New("handler error")`,
+					RequiredImports: []string{"errors"},
+				},
+			},
+			expected: `package main
+
+import "errors"
+
+func example() error {
+	return errors.New("handler error")
+}
+`,
+		},
+		{
+			name: "Fix - does not duplicate existing import",
+			input: `package main
+
+import "errors"
+
+func example() error {
+	return ufmt.Errorf("handler error")
+}
+`,
+			issues: []tt.Issue{
+				{
+					Rule:            "format-without-verb",
+					Message:         "format string has no verbs; use errors.New() instead",
+					Start:           token.Position{Line: 6, Column: 9},
+					End:             token.Position{Line: 6, Column: 38},
+					Suggestion:      `return errors.New("handler error")`,
+					RequiredImports: []string{"errors"},
+				},
+			},
+			expected: `package main
+
+import "errors"
+
+func example() error {
+	return errors.New("handler error")
+}
+`,
+		},
 	}
 
 	for _, tt := range tests {

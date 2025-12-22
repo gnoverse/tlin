@@ -96,14 +96,21 @@ func DetectFormatWithoutVerb(
 		// Build suggestion by replacing the call expression in the original line
 		suggestion := buildLineSuggestion(src, startPos, endPos, funcName, formatVal)
 
+		// Determine required imports based on the replacement
+		var requiredImports []string
+		if funcName == "Errorf" {
+			requiredImports = []string{"errors"}
+		}
+
 		issues = append(issues, tt.Issue{
-			Rule:       "format-without-verb",
-			Filename:   filename,
-			Start:      startPos,
-			End:        endPos,
-			Message:    message,
-			Suggestion: suggestion,
-			Severity:   severity,
+			Rule:            "format-without-verb",
+			Filename:        filename,
+			Start:           startPos,
+			End:             endPos,
+			Message:         message,
+			Suggestion:      suggestion,
+			Severity:        severity,
+			RequiredImports: requiredImports,
 		})
 
 		return true
