@@ -3,9 +3,6 @@ package fixer
 import (
 	"bytes"
 	"fmt"
-	"go/format"
-	"go/parser"
-	"go/token"
 	"os"
 	"sort"
 	"strings"
@@ -114,18 +111,15 @@ func (f *Fixer) writeFixedContent(filename string, lines []string) error {
 		}
 	}
 
-	fset := token.NewFileSet()
-	astFile, err := parser.ParseFile(fset, filename, f.buffer.Bytes(), parser.ParseComments)
+	// Process imports: adds missing imports and removes unused ones
+	content, err := ProcessImports(filename, f.buffer.Bytes())
 	if err != nil {
-		return fmt.Errorf("failed to parse file: %w", err)
+		// If import processing fails, fall back to basic formatting
+		fmt.Printf("Warning: failed to process imports: %v\n", err)
+		content = f.buffer.Bytes()
 	}
 
-	f.buffer.Reset()
-	if err := format.Node(&f.buffer, fset, astFile); err != nil {
-		return fmt.Errorf("failed to format file: %w", err)
-	}
-
-	if err := os.WriteFile(filename, f.buffer.Bytes(), defaultFilePermissions); err != nil {
+	if err := os.WriteFile(filename, content, defaultFilePermissions); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 

@@ -12,15 +12,16 @@ import (
 
 // Issue represents a lint issue found in the code base.
 type Issue struct {
-	Rule       string         `json:"rule"`
-	Category   string         `json:"category"`
-	Filename   string         `json:"filename"`
-	Message    string         `json:"message"`
-	Suggestion string         `json:"suggestion"`
-	Note       string         `json:"note"`
-	Start      token.Position `json:"start"`
-	End        token.Position `json:"end"`
-	Severity   Severity       `json:"severity"`
+	Rule            string         `json:"rule"`
+	Category        string         `json:"category"`
+	Filename        string         `json:"filename"`
+	Message         string         `json:"message"`
+	Suggestion      string         `json:"suggestion"`
+	Note            string         `json:"note"`
+	Start           token.Position `json:"start"`
+	End             token.Position `json:"end"`
+	Severity        Severity       `json:"severity"`
+	RequiredImports []string       `json:"required_imports,omitempty"`
 }
 
 func (i Issue) String() string {
@@ -37,26 +38,28 @@ type PositionWithoutFilename struct {
 }
 
 type IssueWithoutFilename struct {
-	Rule       string                  `json:"rule"`
-	Category   string                  `json:"category"`
-	Message    string                  `json:"message"`
-	Suggestion string                  `json:"suggestion"`
-	Note       string                  `json:"note"`
-	Start      PositionWithoutFilename `json:"start"`
-	End        PositionWithoutFilename `json:"end"`
-	Severity   Severity                `json:"severity"`
+	Rule            string                  `json:"rule"`
+	Category        string                  `json:"category"`
+	Message         string                  `json:"message"`
+	Suggestion      string                  `json:"suggestion"`
+	Note            string                  `json:"note"`
+	Start           PositionWithoutFilename `json:"start"`
+	End             PositionWithoutFilename `json:"end"`
+	Severity        Severity                `json:"severity"`
+	RequiredImports []string                `json:"required_imports,omitempty"`
 }
 
 func (i *Issue) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&IssueWithoutFilename{
-		Rule:       i.Rule,
-		Category:   i.Category,
-		Message:    i.Message,
-		Suggestion: i.Suggestion,
-		Note:       i.Note,
-		Start:      PositionWithoutFilename{Offset: i.Start.Offset, Line: i.Start.Line, Column: i.Start.Column},
-		End:        PositionWithoutFilename{Offset: i.End.Offset, Line: i.End.Line, Column: i.End.Column},
-		Severity:   i.Severity,
+		Rule:            i.Rule,
+		Category:        i.Category,
+		Message:         i.Message,
+		Suggestion:      i.Suggestion,
+		Note:            i.Note,
+		Start:           PositionWithoutFilename{Offset: i.Start.Offset, Line: i.Start.Line, Column: i.Start.Column},
+		End:             PositionWithoutFilename{Offset: i.End.Offset, Line: i.End.Line, Column: i.End.Column},
+		Severity:        i.Severity,
+		RequiredImports: i.RequiredImports,
 	})
 }
 
