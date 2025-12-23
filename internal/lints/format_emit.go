@@ -117,7 +117,7 @@ func formatArg(arg ast.Expr) string {
 func formatCallExpr(call *ast.CallExpr) string {
 	var sb strings.Builder
 	if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
-		sb.WriteString(sel.X.(*ast.Ident).Name)
+		sb.WriteString(formatEmitExpr(sel.X))
 		sb.WriteString(".")
 		sb.WriteString(sel.Sel.Name)
 	} else if ident, ok := call.Fun.(*ast.Ident); ok {
@@ -132,4 +132,17 @@ func formatCallExpr(call *ast.CallExpr) string {
 	}
 	sb.WriteString(")")
 	return sb.String()
+}
+
+func formatEmitExpr(expr ast.Expr) string {
+	switch v := expr.(type) {
+	case *ast.Ident:
+		return v.Name
+	case *ast.CallExpr:
+		return formatCallExpr(v)
+	case *ast.SelectorExpr:
+		return formatEmitExpr(v.X) + "." + v.Sel.Name
+	default:
+		return "..."
+	}
 }
