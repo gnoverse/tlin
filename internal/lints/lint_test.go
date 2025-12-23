@@ -322,6 +322,17 @@ func TestFormatEmitCall(t *testing.T) {
     "amount", token.Format(amount),
 )`,
 		},
+		{
+			name:  "Emit call with chained method calls",
+			input: `chain.Emit("UpdateConfig", "callerAddr", ctx.Caller().String(), "callerPath", ctx.Path(), "newVal", conv.FormatInt(newVal, 10), "prevVal", conv.FormatInt(prevVal, 10))`,
+			expected: `chain.Emit(
+    "UpdateConfig",
+    "callerAddr", ctx.Caller().String(),
+    "callerPath", ctx.Path(),
+    "newVal", conv.FormatInt(newVal, 10),
+    "prevVal", conv.FormatInt(prevVal, 10),
+)`,
+		},
 	}
 
 	for _, tt := range tests {
