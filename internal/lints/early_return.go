@@ -157,6 +157,9 @@ func processQualifiedChain(chain *ifChain, ctx *traversalContext) {
 	if err != nil {
 		return
 	}
+	if !verifyWithMiniLogic(snippet, suggestion) {
+		return
+	}
 
 	issue := tt.Issue{
 		Rule:       "early-return",
