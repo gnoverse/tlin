@@ -287,6 +287,47 @@ func TestRulesFireOnTestdata(t *testing.T) {
 	}
 }
 
+// TestConfigSeverityReachesIssues is the integration anchor for the
+// severity-resolution chain:
+//
+//	Engine.severityOverrides
+//	  → effectiveSeverity(r)
+//	  → AnalysisContext.Severity
+//	  → legacyRule forwards to inner check's severity arg
+//	  → Issue.Severity
+//
+// PR-2's TestLegacyAdapterPropagatesContextSeverity and PR-3's
+// TestNewEngineConfig pin individual links. This test pins the whole
+// chain end-to-end, so a future change that quietly bypasses
+// effectiveSeverity (e.g. simplifying it back to r.DefaultSeverity())
+// fails here even when the unit tests stay green.
+func TestConfigSeverityReachesIssues(t *testing.T) {
+	t.Parallel()
+	_, currentFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	testDataDir := filepath.Join(filepath.Dir(currentFile), "../testdata")
+
+	// simplify-slice-range defaults to Error; override to Warning so a
+	// passing test cannot be explained by the default already matching.
+	config := map[string]types.ConfigRule{
+		"simplify-slice-range": {Severity: types.SeverityWarning},
+	}
+	engine, err := NewEngine(config)
+	require.NoError(t, err)
+
+	issues, err := engine.Run(filepath.Join(testDataDir, "slice0.gno"))
+	require.NoError(t, err)
+
+	for _, issue := range issues {
+		if issue.Rule == "simplify-slice-range" {
+			assert.Equal(t, types.SeverityWarning, issue.Severity,
+				"config override must propagate to Issue.Severity")
+			return
+		}
+	}
+	t.Fatal("simplify-slice-range did not fire on slice0.gno")
+}
+
 func createTempDir(tb testing.TB, prefix string) string {
 	tb.Helper()
 	tempDir, err := os.MkdirTemp("", prefix)

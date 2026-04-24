@@ -52,6 +52,7 @@ func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 		}
 		if cfg.Severity == tt.SeverityOff {
 			e.IgnoreRule(key)
+			continue
 		}
 		e.severityOverrides[key] = cfg.Severity
 	}
@@ -97,11 +98,11 @@ func (e *Engine) RunSource(source []byte) ([]tt.Issue, error) {
 	return e.runWithContext(ctx)
 }
 
-func (e *Engine) IgnoreRule(rule string) {
+func (e *Engine) IgnoreRule(name string) {
 	if e.ignoredRules == nil {
 		e.ignoredRules = make(map[string]bool)
 	}
-	e.ignoredRules[rule] = true
+	e.ignoredRules[name] = true
 }
 
 func (e *Engine) IgnorePath(path string) {
