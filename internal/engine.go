@@ -11,14 +11,16 @@ import (
 
 	"github.com/gnolang/tlin/internal/lints"
 	"github.com/gnolang/tlin/internal/nolint"
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
 // Engine manages the linting process.
 type Engine struct {
-	ignoredPaths []string            // Readonly
-	ignoredRules map[string]bool     // Readonly
-	rules        map[string]LintRule // Readonly
+	ignoredPaths      []string               // Readonly
+	ignoredRules      map[string]bool        // Readonly
+	rules             map[string]rule.Rule   // Readonly
+	severityOverrides map[string]tt.Severity // Readonly
 }
 
 // runContext holds per-run state to ensure thread safety during concurrent linting.
@@ -40,27 +42,35 @@ func NewEngine(rules map[string]tt.ConfigRule) (*Engine, error) {
 }
 
 func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
-	e.rules = make(map[string]LintRule)
+	e.rules = make(map[string]rule.Rule)
+	e.severityOverrides = make(map[string]tt.Severity)
 	e.registerDefaultRules()
 
-	for key, rule := range rules {
-		r, ok := e.rules[key]
-		if !ok {
+	for key, cfg := range rules {
+		if _, ok := e.rules[key]; !ok {
 			continue
 		}
-		if rule.Severity == tt.SeverityOff {
+		if cfg.Severity == tt.SeverityOff {
 			e.IgnoreRule(key)
 		}
-		r.severity = rule.Severity
-		e.rules[key] = r
+		e.severityOverrides[key] = cfg.Severity
 	}
 }
 
 func (e *Engine) registerDefaultRules() {
-	for key, newRule := range allRules {
-		newRule.name = key
-		e.rules[key] = newRule
+	for key, lr := range allRules {
+		e.rules[key] = rule.NewLegacy(key, lr.severity, lr.check)
 	}
+}
+
+// effectiveSeverity returns the severity to use for r on this run:
+// the config override if one was supplied, otherwise the rule's
+// DefaultSeverity.
+func (e *Engine) effectiveSeverity(r rule.Rule) tt.Severity {
+	if sev, ok := e.severityOverrides[r.Name()]; ok {
+		return sev
+	}
+	return r.DefaultSeverity()
 }
 
 // Run applies all lint rules to the given file and returns a slice of Issues.
@@ -168,20 +178,29 @@ func (e *Engine) runWithContext(ctx *runContext) ([]tt.Issue, error) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
+	// Use temp path for checking (golangci-lint needs .go files).
+	workingPath := ctx.tempPath
+	if workingPath == "" {
+		workingPath = ctx.originalPath
+	}
+
 	var allIssues []tt.Issue
-	for _, rule := range e.rules {
+	for _, r := range e.rules {
 		wg.Add(1)
-		go func(r LintRule) {
+		go func(r rule.Rule) {
 			defer wg.Done()
 			if e.ignoredRules[r.Name()] {
 				return
 			}
-			// Use temp path for checking (golangci-lint needs .go files)
-			checkPath := ctx.tempPath
-			if checkPath == "" {
-				checkPath = ctx.originalPath
+			actx := &rule.AnalysisContext{
+				OriginalPath: ctx.originalPath,
+				WorkingPath:  workingPath,
+				File:         ctx.node,
+				Fset:         ctx.fset,
+				NolintMgr:    ctx.nolintMgr,
+				Severity:     e.effectiveSeverity(r),
 			}
-			issues, err := r.Check(checkPath, ctx.node, ctx.fset)
+			issues, err := r.Check(actx)
 			if err != nil {
 				return
 			}
@@ -192,7 +211,7 @@ func (e *Engine) runWithContext(ctx *runContext) ([]tt.Issue, error) {
 			mu.Lock()
 			allIssues = append(allIssues, noIgnoredPaths...)
 			mu.Unlock()
-		}(rule)
+		}(r)
 	}
 	wg.Wait()
 

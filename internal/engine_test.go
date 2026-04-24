@@ -42,15 +42,13 @@ func TestNewEngineConfig(t *testing.T) {
 
 	assert.NotEmpty(t, engine.rules)
 
-	for key, rule := range engine.rules {
-		switch key {
-		case "simplify-slice-range":
-			assert.Equal(t, types.SeverityWarning, rule.Severity(),
-				"config should override the default Error severity")
-		case "test-rule":
-			assert.Fail(t, "test-rule should not be in the rules")
-		}
-	}
+	// "test-rule" is not in allRules, so it must not show up in engine.rules.
+	_, hasTestRule := engine.rules["test-rule"]
+	assert.False(t, hasTestRule, "test-rule should not be in the rules")
+
+	// "simplify-slice-range" defaults to Error; config overrides it to Warning.
+	assert.Equal(t, types.SeverityWarning, engine.severityOverrides["simplify-slice-range"],
+		"config should override the default Error severity")
 
 	assert.True(t, engine.ignoredRules["useless-break"])
 }
