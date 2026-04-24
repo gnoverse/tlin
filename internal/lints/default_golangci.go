@@ -2,9 +2,11 @@ package lints
 
 import (
 	"encoding/json"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
 	"os/exec"
 
 	tt "github.com/gnolang/tlin/internal/types"
@@ -44,9 +46,15 @@ func RunGolangciLint(filename string, _ *ast.File, _ *token.FileSet, severity tt
 
 	var golangciResult golangciOutput
 
-	// @notJoon: Ignore Unmarshal error. We cannot unmarshal the output of golangci-lint
-	// when source code contains gno package imports (i.e. p/demo, r/demo, std). [07/25/24]
-	json.Unmarshal(output, &golangciResult)
+	// Best-effort decode: golangci-lint sometimes prints non-JSON output
+	// (e.g. when source contains gno package imports like p/demo, r/demo,
+	// std). When that happens we fall through with whatever Issues did
+	// parse and surface the error so the failure is observable instead
+	// of silently swallowed. EPR-1 promotes this stderr line to a
+	// returned error that the engine logs via WithLogger.
+	if err := json.Unmarshal(output, &golangciResult); err != nil {
+		fmt.Fprintf(os.Stderr, "tlin: golangci-lint output decode failed for %s: %v\n", filename, err)
+	}
 
 	issues := make([]tt.Issue, 0, len(golangciResult.Issues))
 	for _, gi := range golangciResult.Issues {

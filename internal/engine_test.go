@@ -328,6 +328,67 @@ func TestConfigSeverityReachesIssues(t *testing.T) {
 	t.Fatal("simplify-slice-range did not fire on slice0.gno")
 }
 
+// --- EPR anchor tests (skipped until target PR lands) ---
+//
+// The four tests below are behavior gates for the execution-layer
+// refactor (docs/architecture/09-execution-layer-todo.md). They are
+// committed in t.Skip state so the test names show up in CI reports
+// from EPR-0 onward; the corresponding EPR removes the skip and fills
+// in the assertion. Doing it this way means the gate is auditable
+// before the feature exists, and a future PR cannot quietly omit it.
+
+// TestRuleErrorsAreLogged anchors the EPR-1 contract that rule check
+// failures surface as engine logger.Warn entries instead of being
+// silently dropped (see internal/engine.go runWithContext, which
+// currently does `if err != nil { return }`).
+func TestRuleErrorsAreLogged(t *testing.T) {
+	t.Skip("anchor for EPR-1: requires Engine WithLogger option + Warn on rule check error")
+
+	// TODO(EPR-1): build a zap observer logger via zaptest/observer,
+	// construct Engine with WithLogger(observed), register a fake rule
+	// that returns an error, run engine on any source, and assert the
+	// observer recorded a Warn entry with fields {rule, file, err}.
+}
+
+// TestEngineGoroutineFootprint anchors the EPR-1 contract that the
+// engine no longer spawns per-rule fan-out goroutines for each file.
+// Today's runWithContext launches len(rules) goroutines per file; EPR-1
+// removes that loop and replaces it with sequential dispatch.
+func TestEngineGoroutineFootprint(t *testing.T) {
+	t.Skip("informational baseline; promote to regression gate after EPR-1 removes per-rule fan-out")
+
+	// TODO(EPR-1): record runtime.NumGoroutine() before engine.Run on a
+	// testdata file, run engine, and assert post == pre (no per-rule
+	// goroutines outliving Run). Pre-EPR-1 the assertion would be
+	// flaky because the engine spawns ~12 goroutines per file.
+}
+
+// TestIssueFilenameIsOriginalPath anchors the EPR-3 contract that all
+// issues emit Filename as the user-supplied path (.gno included),
+// structurally — not via the after-the-fact remap loop currently in
+// runWithContext (engine.go:219-228). Once EPR-3 introduces
+// ctx.NewIssue, the remap loop is removed and this test becomes the
+// guarantee of the convention.
+func TestIssueFilenameIsOriginalPath(t *testing.T) {
+	t.Skip("anchor for EPR-3: requires ctx.NewIssue helper that pins Filename to OriginalPath")
+
+	// TODO(EPR-3): write a .gno file with a triggerable issue, run
+	// engine, assert every issue.Filename ends in ".gno" and equals
+	// the user-supplied path (not the temp .go workingPath).
+}
+
+// TestRunHonoursContextCancel anchors the EPR-4 contract that the
+// engine respects context.Context cancellation. Today there is no ctx
+// parameter; cancellation cannot reach inner loops or sub-processes.
+// EPR-4 introduces Engine.RunWithContext / RunSourceWithContext.
+func TestRunHonoursContextCancel(t *testing.T) {
+	t.Skip("anchor for EPR-4: requires Engine.RunWithContext + ctx propagation")
+
+	// TODO(EPR-4): create a cancelled context.Context, call
+	// engine.RunWithContext(ctx, file), assert err is context.Canceled
+	// and no leaked goroutines (go.uber.org/goleak in test body).
+}
+
 func createTempDir(tb testing.TB, prefix string) string {
 	tb.Helper()
 	tempDir, err := os.MkdirTemp("", prefix)
