@@ -35,7 +35,7 @@ func test() {
 	require.NoError(t, err)
 
 	// Create engine
-	engine, err := New(tempDir, nil, "")
+	engine, err := New("")
 	require.NoError(t, err)
 
 	// Create already-cancelled context
@@ -83,7 +83,7 @@ func test%d() {
 	}
 
 	// Create engine
-	engine, err := New(tempDir, nil, "")
+	engine, err := New("")
 	require.NoError(t, err)
 
 	// Process files
@@ -126,7 +126,7 @@ func main() {}
 	require.NoError(t, err)
 
 	// Create engine
-	engine, err := New(tempDir, nil, "")
+	engine, err := New("")
 	require.NoError(t, err)
 
 	// Process files - should handle errors gracefully
@@ -155,7 +155,7 @@ func TestErrorPropagationSingleFile(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create engine
-	engine, err := New(tempDir, nil, "")
+	engine, err := New("")
 	require.NoError(t, err)
 
 	// Process single invalid file

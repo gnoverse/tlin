@@ -15,8 +15,6 @@ import (
 )
 
 // Engine manages the linting process.
-//
-// TODO: use symbol table
 type Engine struct {
 	ignoredPaths []string            // Readonly
 	ignoredRules map[string]bool     // Readonly
@@ -34,7 +32,7 @@ type runContext struct {
 }
 
 // NewEngine creates a new lint engine.
-func NewEngine(rootDir string, source []byte, rules map[string]tt.ConfigRule) (*Engine, error) {
+func NewEngine(rules map[string]tt.ConfigRule) (*Engine, error) {
 	engine := &Engine{}
 	engine.applyRules(rules)
 
@@ -45,24 +43,16 @@ func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 	e.rules = make(map[string]LintRule)
 	e.registerDefaultRules()
 
-	// Iterate over the rules and apply severity
 	for key, rule := range rules {
 		r, ok := e.findRule(key)
 		if !ok {
-			newRule, exists := allRules[key]
-			if !exists {
-				// Unknown rule, continue to the next one
-				continue
-			}
-			newRule.severity = rule.Severity
-			e.rules[key] = newRule
-		} else {
-			if rule.Severity == tt.SeverityOff {
-				e.IgnoreRule(key)
-			}
-			r.severity = rule.Severity
-			e.rules[key] = r
+			continue
 		}
+		if rule.Severity == tt.SeverityOff {
+			e.IgnoreRule(key)
+		}
+		r.severity = rule.Severity
+		e.rules[key] = r
 	}
 }
 
@@ -314,9 +304,4 @@ func ReadSourceCode(filename string) (*SourceCode, error) {
 	}
 	lines := strings.Split(string(content), "\n")
 	return &SourceCode{Lines: lines}, nil
-}
-
-type ModRule interface {
-	LintRule
-	CheckMod(filename string) ([]tt.Issue, error)
 }

@@ -2,7 +2,6 @@ package lints
 
 import (
 	"encoding/json"
-	_ "fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"

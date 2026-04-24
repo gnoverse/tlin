@@ -25,11 +25,11 @@ type LintEngine interface {
 	IgnorePath(path string)
 }
 
-// export the function NewEngine to be used in other packages
-func New(rootDir string, source []byte, configurationPath string) (*internal.Engine, error) {
-	// Do not return error here, because we want to continue the program
+// New constructs a lint engine from the given configuration file path.
+// A missing or unparseable file is tolerated so the linter can run with defaults.
+func New(configurationPath string) (*internal.Engine, error) {
 	config, _ := parseConfigurationFile(configurationPath)
-	return internal.NewEngine(rootDir, source, config.Rules)
+	return internal.NewEngine(config.Rules)
 }
 
 func ProcessSources(

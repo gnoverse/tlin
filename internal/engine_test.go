@@ -16,12 +16,9 @@ import (
 func TestNewEngine(t *testing.T) {
 	t.Parallel()
 
-	tempDir := createTempDir(t, "engine_test")
-
-	engine, err := NewEngine(tempDir, nil, nil)
+	engine, err := NewEngine(nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, engine)
-	// assert.NotNil(t, engine.SymbolTable)
 	assert.NotEmpty(t, engine.rules)
 }
 
@@ -39,9 +36,7 @@ func TestNewEngineConfig(t *testing.T) {
 			Severity: types.SeverityError,
 		},
 	}
-	tempDir := createTempDir(t, "engine_test")
-
-	engine, err := NewEngine(tempDir, nil, config)
+	engine, err := NewEngine(config)
 	assert.NoError(t, err)
 	assert.NotNil(t, engine)
 
@@ -62,17 +57,9 @@ func TestNewEngineConfig(t *testing.T) {
 func TestNewEngineContent(t *testing.T) {
 	t.Parallel()
 
-	fileContent := `package test
-type TestStruct struct {}
-func TestFunc() {}
-var TestVar int
-func (ts TestStruct) TestMethod() {}
-`
-
-	engine, err := NewEngine("", []byte(fileContent), nil)
+	engine, err := NewEngine(nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, engine)
-	// assert.NotNil(t, engine.SymbolTable)
 	assert.NotEmpty(t, engine.rules)
 }
 
@@ -178,7 +165,7 @@ func TestIgnorePaths(t *testing.T) {
 	require.True(t, ok)
 	testDataDir := filepath.Join(filepath.Dir(currentFile), "../testdata")
 
-	engine, err := NewEngine(testDataDir, nil, nil)
+	engine, err := NewEngine(nil)
 	if err != nil {
 		t.Fatalf("failed to create engine: %v", err)
 	}
@@ -210,7 +197,7 @@ func BenchmarkRun(b *testing.B) {
 	require.True(b, ok)
 	testDataDir := filepath.Join(filepath.Dir(currentFile), "../testdata")
 
-	engine, err := NewEngine(testDataDir, nil, nil)
+	engine, err := NewEngine(nil)
 	if err != nil {
 		b.Fatalf("failed to create engine: %v", err)
 	}
@@ -269,7 +256,7 @@ func test() {
 	err := os.WriteFile(gnoFile, []byte(content), 0o644)
 	require.NoError(t, err)
 
-	engine, err := NewEngine(tempDir, nil, nil)
+	engine, err := NewEngine(nil)
 	require.NoError(t, err)
 
 	issues, err := engine.Run(gnoFile)
@@ -322,7 +309,7 @@ func test2() {
 	err = os.WriteFile(file2, []byte(content2), 0o644)
 	require.NoError(t, err)
 
-	engine, err := NewEngine(tempDir, nil, nil)
+	engine, err := NewEngine(nil)
 	require.NoError(t, err)
 
 	// Run both files
@@ -389,7 +376,7 @@ func test%d() {
 		files[i] = filename
 	}
 
-	engine, err := NewEngine(tempDir, nil, nil)
+	engine, err := NewEngine(nil)
 	require.NoError(t, err)
 
 	// Run all files concurrently

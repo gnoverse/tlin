@@ -43,7 +43,7 @@ func Function2() {
 	err = os.WriteFile(file2, []byte(content2), 0o644)
 	require.NoError(t, err)
 
-	engine, err := NewEngine(tempDir, nil, nil)
+	engine, err := NewEngine(nil)
 	require.NoError(t, err)
 
 	// Run engine on file2
@@ -75,7 +75,7 @@ func test() {
 	err := os.WriteFile(gnoFile, []byte(content), 0o644)
 	require.NoError(t, err)
 
-	engine, err := NewEngine(tempDir, nil, nil)
+	engine, err := NewEngine(nil)
 	require.NoError(t, err)
 
 	// Run the engine
