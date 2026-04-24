@@ -82,7 +82,16 @@ func TestEngine_IgnorePath(t *testing.T) {
 	engine := &Engine{}
 	engine.IgnorePath("test_path")
 
-	assert.Equal(t, "test_path", engine.ignoredPaths[0])
+	// EPR-7: IgnorePath normalizes patterns to absolute form so
+	// relative and absolute callers both match against absolute
+	// internal paths. Stored value is the normalized pattern, not
+	// the raw input.
+	require.Len(t, engine.ignoredPaths, 1)
+	assert.True(t, filepath.IsAbs(engine.ignoredPaths[0]),
+		"IgnorePath must persist patterns in absolute form, got %q",
+		engine.ignoredPaths[0])
+	assert.True(t, strings.HasSuffix(engine.ignoredPaths[0], "test_path"),
+		"normalized pattern must end with the original input")
 }
 
 func TestEngine_PrepareFile(t *testing.T) {
@@ -163,6 +172,119 @@ func BenchmarkCreateTempGoFile(b *testing.B) {
 			b.Fatalf("failed to create temp go file: %v", err)
 		}
 		os.Remove(f)
+	}
+}
+
+// TestIsIgnoredPathPatterns covers the doublestar matcher introduced
+// in EPR-7. Validates that ** crosses directory separators, single *
+// stays segment-bounded, and that absolute/relative input both match
+// against absolute internal paths.
+func TestIsIgnoredPathPatterns(t *testing.T) {
+	t.Parallel()
+	_, currentFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	testDataDir := filepath.Join(filepath.Dir(currentFile), "../testdata")
+
+	tests := []struct {
+		name    string
+		pattern string
+		path    string
+		want    bool
+	}{
+		{
+			name:    "** matches across directories",
+			pattern: filepath.Join(testDataDir, "**"),
+			path:    filepath.Join(testDataDir, "regex/regex0.gno"),
+			want:    true,
+		},
+		{
+			name:    "** matches arbitrarily deep",
+			pattern: filepath.Join(testDataDir, "**/*.gno"),
+			path:    filepath.Join(testDataDir, "early_return/a3.gno"),
+			want:    true,
+		},
+		{
+			name:    "single * stays segment-bounded (no recursive descent)",
+			pattern: filepath.Join(testDataDir, "regex/*"),
+			path:    filepath.Join(testDataDir, "early_return/a3.gno"),
+			want:    false,
+		},
+		{
+			name:    "single * matches sibling files",
+			pattern: filepath.Join(testDataDir, "regex/*"),
+			path:    filepath.Join(testDataDir, "regex/regex0.gno"),
+			want:    true,
+		},
+		{
+			name:    "*.pb.go single-wildcard suffix",
+			pattern: filepath.Join(testDataDir, "*.pb.go"),
+			path:    filepath.Join(testDataDir, "thing.pb.go"),
+			want:    true,
+		},
+		{
+			name:    "exact file pattern matches",
+			pattern: filepath.Join(testDataDir, "slice0.gno"),
+			path:    filepath.Join(testDataDir, "slice0.gno"),
+			want:    true,
+		},
+		{
+			name:    "non-matching pattern",
+			pattern: filepath.Join(testDataDir, "no-such-dir/*"),
+			path:    filepath.Join(testDataDir, "regex/regex0.gno"),
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			engine, err := NewEngine(nil)
+			require.NoError(t, err)
+			engine.IgnorePath(tt.pattern)
+			assert.Equal(t, tt.want, engine.isIgnoredPath(tt.path))
+		})
+	}
+}
+
+// TestIsIgnoredPathRelativeAbsoluteMix verifies that the engine's
+// internal absolute-path representation matches whether the user
+// supplies the pattern (or the path under check) as relative or
+// absolute. The engine normalizes both at insert and query time.
+func TestIsIgnoredPathRelativeAbsoluteMix(t *testing.T) {
+	t.Parallel()
+	_, currentFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	testDataDir := filepath.Join(filepath.Dir(currentFile), "../testdata")
+	absPath := filepath.Join(testDataDir, "slice0.gno")
+
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	relPath, err := filepath.Rel(wd, absPath)
+	require.NoError(t, err)
+
+	cases := []struct {
+		name      string
+		pattern   string
+		queryPath string
+	}{
+		{"abs pattern, abs query", absPath, absPath},
+		{"rel pattern, abs query", relPath, absPath},
+		{"abs pattern, rel query", absPath, relPath},
+		{"rel pattern, rel query", relPath, relPath},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			engine, err := NewEngine(nil)
+			require.NoError(t, err)
+			engine.IgnorePath(tc.pattern)
+			assert.True(t, engine.isIgnoredPath(tc.queryPath),
+				"pattern=%q query=%q should match after normalization",
+				tc.pattern, tc.queryPath)
+		})
 	}
 }
 

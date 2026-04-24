@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/gnolang/tlin/internal/lints"
 	"github.com/gnolang/tlin/internal/nolint"
 	"github.com/gnolang/tlin/internal/rule"
@@ -140,8 +141,31 @@ func (e *Engine) IgnoreRule(name string) {
 	e.ignoredRules[name] = true
 }
 
-func (e *Engine) IgnorePath(path string) {
-	e.ignoredPaths = append(e.ignoredPaths, path)
+// IgnorePath registers a glob pattern that matches file paths to skip.
+// Patterns use doublestar syntax — `**` matches across directory
+// separators (e.g. `testdata/**/*.gno`), `*` matches a single path
+// segment.
+//
+// The pattern is normalized to an absolute, cleaned form so callers
+// can pass either absolute or relative paths and still match issues
+// produced from absolute working paths inside the engine.
+func (e *Engine) IgnorePath(pattern string) {
+	e.ignoredPaths = append(e.ignoredPaths, normalizeIgnorePattern(pattern))
+}
+
+// normalizeIgnorePattern converts a user-supplied path/glob into the
+// canonical form used by isIgnoredPath. Glob meta-characters (* ? [)
+// are preserved; only directory separators and absolute-vs-relative
+// resolution are normalized.
+func normalizeIgnorePattern(pattern string) string {
+	abs, err := filepath.Abs(pattern)
+	if err != nil {
+		// Fall back to the cleaned literal if Abs fails (extremely rare —
+		// only when os.Getwd fails). Better to keep the user's pattern
+		// than to drop it entirely.
+		return filepath.Clean(pattern)
+	}
+	return abs
 }
 
 func (e *Engine) prepareFile(filename string) (string, error) {
@@ -281,9 +305,16 @@ func (e *Engine) filterIgnoredPaths(issues []tt.Issue, ctx *runContext) []tt.Iss
 }
 
 func (e *Engine) isIgnoredPath(path string) bool {
-	for _, ignored := range e.ignoredPaths {
-		res, err := filepath.Match(ignored, path)
-		if err == nil && res {
+	if len(e.ignoredPaths) == 0 {
+		return false
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		abs = filepath.Clean(path)
+	}
+	for _, pattern := range e.ignoredPaths {
+		match, err := doublestar.Match(pattern, abs)
+		if err == nil && match {
 			return true
 		}
 	}
