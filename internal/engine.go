@@ -44,7 +44,7 @@ func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 	e.registerDefaultRules()
 
 	for key, rule := range rules {
-		r, ok := e.findRule(key)
+		r, ok := e.rules[key]
 		if !ok {
 			continue
 		}
@@ -57,18 +57,10 @@ func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 }
 
 func (e *Engine) registerDefaultRules() {
-	// iterate over allRules and add them to the rules map if severity is not off
 	for key, newRule := range allRules {
-		if newRule.Severity() != tt.SeverityOff {
-			newRule.name = key
-			e.rules[key] = newRule
-		}
+		newRule.name = key
+		e.rules[key] = newRule
 	}
-}
-
-func (e *Engine) findRule(name string) (LintRule, bool) {
-	rule, exists := e.rules[name]
-	return rule, exists
 }
 
 // Run applies all lint rules to the given file and returns a slice of Issues.

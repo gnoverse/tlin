@@ -29,7 +29,7 @@ func TestNewEngineConfig(t *testing.T) {
 		"useless-break": {
 			Severity: types.SeverityOff,
 		},
-		"deprecated-function": {
+		"simplify-slice-range": {
 			Severity: types.SeverityWarning,
 		},
 		"test-rule": {
@@ -44,8 +44,9 @@ func TestNewEngineConfig(t *testing.T) {
 
 	for key, rule := range engine.rules {
 		switch key {
-		case "deprecated-function":
-			assert.Equal(t, types.SeverityWarning, rule.Severity())
+		case "simplify-slice-range":
+			assert.Equal(t, types.SeverityWarning, rule.Severity(),
+				"config should override the default Error severity")
 		case "test-rule":
 			assert.Fail(t, "test-rule should not be in the rules")
 		}
