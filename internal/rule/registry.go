@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-// Registry holds rules keyed by their Name(). Use NewTestRegistry for
+// Registry holds rules keyed by their Name(). Use NewRegistry for
 // tests; the package-level default is used by production code via the
 // top-level Register and All functions.
 type Registry struct {
