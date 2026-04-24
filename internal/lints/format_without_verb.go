@@ -8,8 +8,22 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
+
+func init() {
+	rule.Register(formatWithoutVerbRule{})
+}
+
+type formatWithoutVerbRule struct{}
+
+func (formatWithoutVerbRule) Name() string                 { return "format-without-verb" }
+func (formatWithoutVerbRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
+
+func (formatWithoutVerbRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectFormatWithoutVerb(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+}
 
 type formatFuncInfo struct {
 	formatArgIndex int

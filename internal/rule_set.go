@@ -28,31 +28,17 @@ func (r LintRule) Check(filename string, node *ast.File, fset *token.FileSet) ([
 }
 
 var (
-	GolangciLintRule             = LintRule{severity: tt.SeverityWarning, check: lints.RunGolangciLint}
-	SimplifySliceExprRule        = LintRule{severity: tt.SeverityError, check: lints.DetectUnnecessarySliceLength}
-	UnnecessaryConversionRule    = LintRule{severity: tt.SeverityWarning, check: lints.DetectUnnecessaryConversions}
-	DetectCycleRule              = LintRule{severity: tt.SeverityError, check: lints.DetectCycle}
-	EmitFormatRule               = LintRule{severity: tt.SeverityInfo, check: lints.DetectEmitFormat}
 	EarlyReturnOpportunityRule   = LintRule{severity: tt.SeverityInfo, check: lints.DetectEarlyReturnOpportunities}
-	ConstErrorDeclarationRule    = LintRule{severity: tt.SeverityError, check: lints.DetectConstErrorDeclaration}
 	RepeatedRegexCompilationRule = LintRule{severity: tt.SeverityWarning, check: lints.DetectRepeatedRegexCompilation}
 	GnoSpecificRule              = LintRule{severity: tt.SeverityWarning, check: lints.DetectGnoPackageImports}
 	SimplifyForRangeRule         = LintRule{severity: tt.SeverityWarning, check: lints.DetectSimplifiableForLoops}
-	FormatWithoutVerbRule        = LintRule{severity: tt.SeverityWarning, check: lints.DetectFormatWithoutVerb}
 )
 
 type ruleMap map[string]LintRule
 
 var allRules = ruleMap{
-	"golangci-lint":               GolangciLintRule,
-	"simplify-slice-range":        SimplifySliceExprRule,
-	"unnecessary-type-conversion": UnnecessaryConversionRule,
-	"cycle-detection":             DetectCycleRule,
-	"emit-format":                 EmitFormatRule,
-	"early-return-opportunity":    EarlyReturnOpportunityRule,
-	"const-error-declaration":     ConstErrorDeclarationRule,
-	"repeated-regex-compilation":  RepeatedRegexCompilationRule,
-	"unused-package":              GnoSpecificRule,
-	"simplify-for-range":          SimplifyForRangeRule,
-	"format-without-verb":         FormatWithoutVerbRule,
+	"early-return-opportunity":   EarlyReturnOpportunityRule,
+	"repeated-regex-compilation": RepeatedRegexCompilationRule,
+	"unused-package":             GnoSpecificRule,
+	"simplify-for-range":         SimplifyForRangeRule,
 }

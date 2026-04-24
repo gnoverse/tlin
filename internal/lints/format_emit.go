@@ -5,8 +5,22 @@ import (
 	"go/token"
 	"strings"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
+
+func init() {
+	rule.Register(emitFormatRule{})
+}
+
+type emitFormatRule struct{}
+
+func (emitFormatRule) Name() string                 { return "emit-format" }
+func (emitFormatRule) DefaultSeverity() tt.Severity { return tt.SeverityInfo }
+
+func (emitFormatRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectEmitFormat(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+}
 
 func DetectEmitFormat(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	// Check for both old "chain" and new "runtime/chain" import paths

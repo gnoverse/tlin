@@ -5,8 +5,22 @@ import (
 	"go/ast"
 	"go/token"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
+
+func init() {
+	rule.Register(cycleDetectionRule{})
+}
+
+type cycleDetectionRule struct{}
+
+func (cycleDetectionRule) Name() string                 { return "cycle-detection" }
+func (cycleDetectionRule) DefaultSeverity() tt.Severity { return tt.SeverityError }
+
+func (cycleDetectionRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectCycle(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+}
 
 func DetectCycle(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	c := newCycle()

@@ -8,8 +8,22 @@ import (
 	"go/token"
 	"os/exec"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
+
+func init() {
+	rule.Register(golangciLintRule{})
+}
+
+type golangciLintRule struct{}
+
+func (golangciLintRule) Name() string                 { return "golangci-lint" }
+func (golangciLintRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
+
+func (golangciLintRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return RunGolangciLint(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+}
 
 func ParseFile(filename string, content []byte) (*ast.File, *token.FileSet, error) {
 	fset := token.NewFileSet()

@@ -6,8 +6,22 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
+
+func init() {
+	rule.Register(constErrorDeclarationRule{})
+}
+
+type constErrorDeclarationRule struct{}
+
+func (constErrorDeclarationRule) Name() string                 { return "const-error-declaration" }
+func (constErrorDeclarationRule) DefaultSeverity() tt.Severity { return tt.SeverityError }
+
+func (constErrorDeclarationRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectConstErrorDeclaration(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+}
 
 func DetectConstErrorDeclaration(
 	filename string,

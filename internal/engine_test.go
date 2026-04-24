@@ -476,16 +476,16 @@ func TestEngineMergesRegistryAndAllRules(t *testing.T) {
 	_, hasRegistered := engine.rules["test-only-rule"]
 	assert.True(t, hasRegistered, "registry rule must be merged into engine.rules")
 
-	_, hasLegacy := engine.rules["simplify-slice-range"]
+	_, hasLegacy := engine.rules["early-return-opportunity"]
 	assert.True(t, hasLegacy, "allRules legacy adapters must still be present")
 }
 
 func TestEngineDuplicateRuleNamePanics(t *testing.T) {
 	reg := rule.NewRegistry()
-	reg.Register(&fakeNamedRule{name: "simplify-slice-range", sev: types.SeverityError})
+	reg.Register(&fakeNamedRule{name: "early-return-opportunity", sev: types.SeverityError})
 
 	assert.PanicsWithValue(t,
-		`rule name conflict: "simplify-slice-range" is registered both via allRules and via init()`,
+		`rule name conflict: "early-return-opportunity" is registered both via allRules and via init()`,
 		func() {
 			_, _ = NewEngine(nil, WithRegistry(reg))
 		})

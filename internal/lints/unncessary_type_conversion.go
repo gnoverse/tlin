@@ -7,8 +7,22 @@ import (
 	"go/token"
 	"go/types"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
+
+func init() {
+	rule.Register(unnecessaryTypeConversionRule{})
+}
+
+type unnecessaryTypeConversionRule struct{}
+
+func (unnecessaryTypeConversionRule) Name() string                 { return "unnecessary-type-conversion" }
+func (unnecessaryTypeConversionRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
+
+func (unnecessaryTypeConversionRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectUnnecessaryConversions(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+}
 
 func DetectUnnecessaryConversions(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	info := &types.Info{

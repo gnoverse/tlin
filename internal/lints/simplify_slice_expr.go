@@ -6,8 +6,22 @@ import (
 	"go/token"
 	"strings"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
+
+func init() {
+	rule.Register(simplifySliceRangeRule{})
+}
+
+type simplifySliceRangeRule struct{}
+
+func (simplifySliceRangeRule) Name() string                 { return "simplify-slice-range" }
+func (simplifySliceRangeRule) DefaultSeverity() tt.Severity { return tt.SeverityError }
+
+func (simplifySliceRangeRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectUnnecessarySliceLength(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+}
 
 const (
 	baseMessageUnnecessaryLen = "unnecessary use of len() in slice expression, can be simplified"
