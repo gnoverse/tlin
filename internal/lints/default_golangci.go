@@ -6,7 +6,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
 	"os/exec"
 
 	tt "github.com/gnolang/tlin/internal/types"
@@ -46,14 +45,13 @@ func RunGolangciLint(filename string, _ *ast.File, _ *token.FileSet, severity tt
 
 	var golangciResult golangciOutput
 
-	// Best-effort decode: golangci-lint sometimes prints non-JSON output
-	// (e.g. when source contains gno package imports like p/demo, r/demo,
-	// std). When that happens we fall through with whatever Issues did
-	// parse and surface the error so the failure is observable instead
-	// of silently swallowed. EPR-1 promotes this stderr line to a
-	// returned error that the engine logs via WithLogger.
+	// golangci-lint occasionally prints non-JSON output for files that
+	// contain gno package imports (p/demo, r/demo, std). When the
+	// output fails to decode we surface the error to the engine so it
+	// logs Warn via WithLogger; partial Issues are not returned because
+	// any successful decode would mean no error.
 	if err := json.Unmarshal(output, &golangciResult); err != nil {
-		fmt.Fprintf(os.Stderr, "tlin: golangci-lint output decode failed for %s: %v\n", filename, err)
+		return nil, fmt.Errorf("decode golangci-lint output for %s: %w", filename, err)
 	}
 
 	issues := make([]tt.Issue, 0, len(golangciResult.Issues))

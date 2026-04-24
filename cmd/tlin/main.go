@@ -65,7 +65,7 @@ func main() {
 		return
 	}
 
-	engine, err := lint.New(config.ConfigurationPath)
+	engine, err := lint.NewWithLogger(config.ConfigurationPath, logger)
 	if err != nil {
 		logger.Fatal("Failed to initialize lint engine", zap.Error(err))
 	}

@@ -1,16 +1,23 @@
 package internal
 
 import (
+	"errors"
 	"fmt"
+	"go/ast"
+	"go/token"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/gnolang/tlin/internal/rule"
 	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestNewEngine(t *testing.T) {
@@ -337,30 +344,70 @@ func TestConfigSeverityReachesIssues(t *testing.T) {
 // in the assertion. Doing it this way means the gate is auditable
 // before the feature exists, and a future PR cannot quietly omit it.
 
-// TestRuleErrorsAreLogged anchors the EPR-1 contract that rule check
-// failures surface as engine logger.Warn entries instead of being
-// silently dropped (see internal/engine.go runWithContext, which
-// currently does `if err != nil { return }`).
+// TestRuleErrorsAreLogged pins the EPR-1 contract: rule check failures
+// surface as engine Warn entries instead of being silently dropped.
+// Builds a zap observer logger, injects a fake rule that returns an
+// error, and asserts the engine logged the failure with rule/file/err
+// fields.
 func TestRuleErrorsAreLogged(t *testing.T) {
-	t.Skip("anchor for EPR-1: requires Engine WithLogger option + Warn on rule check error")
+	core, observed := observer.New(zap.WarnLevel)
+	logger := zap.New(core)
 
-	// TODO(EPR-1): build a zap observer logger via zaptest/observer,
-	// construct Engine with WithLogger(observed), register a fake rule
-	// that returns an error, run engine on any source, and assert the
-	// observer recorded a Warn entry with fields {rule, file, err}.
+	failingRule := rule.NewLegacy(
+		"test-failing-rule",
+		types.SeverityError,
+		func(_ string, _ *ast.File, _ *token.FileSet, _ types.Severity) ([]types.Issue, error) {
+			return nil, errors.New("synthetic failure")
+		},
+	)
+
+	engine, err := NewEngine(nil,
+		WithLogger(logger),
+		WithRules(map[string]rule.Rule{"test-failing-rule": failingRule}),
+	)
+	require.NoError(t, err)
+
+	_, err = engine.RunSource([]byte("package main\n"))
+	require.NoError(t, err, "engine itself must not return the rule's error")
+
+	entries := observed.FilterMessage("rule check failed").All()
+	require.Len(t, entries, 1, "engine must emit exactly one Warn for the failing rule")
+
+	fields := entries[0].ContextMap()
+	assert.Equal(t, "test-failing-rule", fields["rule"])
+	errMsg, ok := fields["error"].(string)
+	require.True(t, ok, "error field must be a string (zap.Error renders to string), got %T", fields["error"])
+	assert.Contains(t, errMsg, "synthetic failure")
 }
 
-// TestEngineGoroutineFootprint anchors the EPR-1 contract that the
-// engine no longer spawns per-rule fan-out goroutines for each file.
-// Today's runWithContext launches len(rules) goroutines per file; EPR-1
-// removes that loop and replaces it with sequential dispatch.
+// TestEngineGoroutineFootprint pins the EPR-1 contract: the engine
+// dispatches rules sequentially within a single Run call. Pre-EPR-1
+// each Run spawned len(rules) ~ 12 goroutines; post-EPR-1 the count
+// returns to baseline.
 func TestEngineGoroutineFootprint(t *testing.T) {
-	t.Skip("informational baseline; promote to regression gate after EPR-1 removes per-rule fan-out")
+	engine, err := NewEngine(nil)
+	require.NoError(t, err)
 
-	// TODO(EPR-1): record runtime.NumGoroutine() before engine.Run on a
-	// testdata file, run engine, and assert post == pre (no per-rule
-	// goroutines outliving Run). Pre-EPR-1 the assertion would be
-	// flaky because the engine spawns ~12 goroutines per file.
+	// Warm up internal lazy-inits (e.g. importer machinery) so the
+	// pre-count isn't biased low.
+	_, _ = engine.RunSource([]byte("package main\n"))
+
+	runtime.GC()
+	pre := runtime.NumGoroutine()
+
+	_, err = engine.RunSource([]byte("package main\nfunc main() {}\n"))
+	require.NoError(t, err)
+
+	// Allow the runtime a beat to recycle any transient goroutines
+	// that finished during Run (workers in the importer, etc.) so the
+	// post count reflects the engine's own footprint.
+	time.Sleep(20 * time.Millisecond)
+	runtime.GC()
+	post := runtime.NumGoroutine()
+
+	assert.LessOrEqual(t, post, pre,
+		"engine.RunSource must not leak per-rule goroutines (per-rule fan-out removed in EPR-1); pre=%d post=%d",
+		pre, post)
 }
 
 // TestIssueFilenameIsOriginalPath anchors the EPR-3 contract that all

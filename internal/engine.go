@@ -7,12 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/gnolang/tlin/internal/lints"
 	"github.com/gnolang/tlin/internal/nolint"
 	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
+	"go.uber.org/zap"
 )
 
 // Engine manages the linting process.
@@ -21,6 +21,31 @@ type Engine struct {
 	ignoredRules      map[string]bool        // Readonly
 	rules             map[string]rule.Rule   // Readonly
 	severityOverrides map[string]tt.Severity // Readonly
+	logger            *zap.Logger            // Readonly
+}
+
+// Option configures an Engine at construction time. Pass via NewEngine.
+type Option func(*Engine)
+
+// WithLogger overrides the engine's logger. Default is zap.NewNop().
+// The engine emits Warn entries when a rule's Check returns an error
+// instead of silently dropping the failure.
+func WithLogger(logger *zap.Logger) Option {
+	return func(e *Engine) {
+		if logger != nil {
+			e.logger = logger
+		}
+	}
+}
+
+// WithRules replaces the engine's rule set after default registration.
+// Intended for tests that need to inject a fake rule (e.g. one that
+// returns an error to exercise the logging path). Production code
+// should leave rule registration to allRules.
+func WithRules(rules map[string]rule.Rule) Option {
+	return func(e *Engine) {
+		e.rules = rules
+	}
 }
 
 // runContext holds per-run state to ensure thread safety during concurrent linting.
@@ -34,9 +59,19 @@ type runContext struct {
 }
 
 // NewEngine creates a new lint engine.
-func NewEngine(rules map[string]tt.ConfigRule) (*Engine, error) {
-	engine := &Engine{}
+//
+// Variadic opts are applied AFTER default rule registration, so
+// WithRules replaces the registered set. Callers that don't pass any
+// option get the production defaults: allRules-derived legacy rules
+// and a no-op logger.
+func NewEngine(rules map[string]tt.ConfigRule, opts ...Option) (*Engine, error) {
+	engine := &Engine{
+		logger: zap.NewNop(),
+	}
 	engine.applyRules(rules)
+	for _, opt := range opts {
+		opt(engine)
+	}
 
 	return engine, nil
 }
@@ -175,10 +210,13 @@ func (e *Engine) cleanupContext(ctx *runContext) {
 }
 
 // runWithContext executes all lint rules using the provided context.
+//
+// Rules run sequentially. The previous fan-out spawned len(rules)
+// goroutines per file, on top of lint.processDirectory's per-file
+// worker pool — multiplying total goroutines by ~12. File-level
+// parallelism (the outer worker pool) is preserved; only the inner
+// per-rule fan-out is gone.
 func (e *Engine) runWithContext(ctx *runContext) ([]tt.Issue, error) {
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-
 	// Use temp path for checking (golangci-lint needs .go files).
 	workingPath := ctx.tempPath
 	if workingPath == "" {
@@ -187,37 +225,34 @@ func (e *Engine) runWithContext(ctx *runContext) ([]tt.Issue, error) {
 
 	var allIssues []tt.Issue
 	for _, r := range e.rules {
-		wg.Add(1)
-		go func(r rule.Rule) {
-			defer wg.Done()
-			if e.ignoredRules[r.Name()] {
-				return
-			}
-			actx := &rule.AnalysisContext{
-				OriginalPath: ctx.originalPath,
-				WorkingPath:  workingPath,
-				File:         ctx.node,
-				Fset:         ctx.fset,
-				NolintMgr:    ctx.nolintMgr,
-				Severity:     e.effectiveSeverity(r),
-			}
-			issues, err := r.Check(actx)
-			if err != nil {
-				return
-			}
+		if e.ignoredRules[r.Name()] {
+			continue
+		}
+		actx := &rule.AnalysisContext{
+			OriginalPath: ctx.originalPath,
+			WorkingPath:  workingPath,
+			File:         ctx.node,
+			Fset:         ctx.fset,
+			NolintMgr:    ctx.nolintMgr,
+			Severity:     e.effectiveSeverity(r),
+		}
+		issues, err := r.Check(actx)
+		if err != nil {
+			e.logger.Warn("rule check failed",
+				zap.String("rule", r.Name()),
+				zap.String("file", ctx.originalPath),
+				zap.Error(err))
+			continue
+		}
 
-			nolinted := e.filterNolintIssues(issues, ctx)
-			noIgnoredPaths := e.filterIgnoredPaths(nolinted, ctx)
-
-			mu.Lock()
-			allIssues = append(allIssues, noIgnoredPaths...)
-			mu.Unlock()
-		}(r)
+		nolinted := e.filterNolintIssues(issues, ctx)
+		noIgnoredPaths := e.filterIgnoredPaths(nolinted, ctx)
+		allIssues = append(allIssues, noIgnoredPaths...)
 	}
-	wg.Wait()
 
-	// Map issues back to original filename only if we used a temp file that differs from the original
-	// This ensures we only remap for .gno -> .go conversions, not for regular .go files
+	// Map issues back to original filename only if we used a temp file that differs from the original.
+	// This ensures we only remap for .gno -> .go conversions, not for regular .go files.
+	// EPR-3 will replace this post-hoc loop with a structural ctx.NewIssue helper.
 	if ctx.tempPath != "" && ctx.originalPath != "" && ctx.tempPath != ctx.originalPath {
 		for i := range allIssues {
 			// Only remap if the issue is pointing to the temp file

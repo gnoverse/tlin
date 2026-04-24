@@ -26,10 +26,21 @@ type LintEngine interface {
 }
 
 // New constructs a lint engine from the given configuration file path.
-// A missing or unparseable file is tolerated so the linter can run with defaults.
+// A missing or unparseable file is tolerated so the linter can run with
+// defaults.
+//
+// The returned engine logs rule failures via zap.NewNop — i.e. dropped.
+// CLI and library callers that want rule failures observable should use
+// NewWithLogger instead.
 func New(configurationPath string) (*internal.Engine, error) {
+	return NewWithLogger(configurationPath, zap.NewNop())
+}
+
+// NewWithLogger is New plus an explicit logger. The engine emits Warn
+// entries when a rule's Check returns an error.
+func NewWithLogger(configurationPath string, logger *zap.Logger) (*internal.Engine, error) {
 	config, _ := parseConfigurationFile(configurationPath)
-	return internal.NewEngine(config.Rules)
+	return internal.NewEngine(config.Rules, internal.WithLogger(logger))
 }
 
 func ProcessSources(
