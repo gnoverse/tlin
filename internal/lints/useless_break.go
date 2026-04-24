@@ -4,8 +4,22 @@ import (
 	"go/ast"
 	"go/token"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
+
+func init() {
+	rule.Register(uselessBreakRule{})
+}
+
+type uselessBreakRule struct{}
+
+func (uselessBreakRule) Name() string                 { return "useless-break" }
+func (uselessBreakRule) DefaultSeverity() tt.Severity { return tt.SeverityError }
+
+func (uselessBreakRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectUselessBreak(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+}
 
 // DetectUselessBreak detects useless break statements in switch or select statements.
 func DetectUselessBreak(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {

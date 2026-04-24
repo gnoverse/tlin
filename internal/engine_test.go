@@ -466,6 +466,42 @@ func TestConfigSeverityReachesIssues(t *testing.T) {
 // in the assertion. Doing it this way means the gate is auditable
 // before the feature exists, and a future PR cannot quietly omit it.
 
+func TestEngineMergesRegistryAndAllRules(t *testing.T) {
+	reg := rule.NewRegistry()
+	reg.Register(&fakeNamedRule{name: "test-only-rule", sev: types.SeverityInfo})
+
+	engine, err := NewEngine(nil, WithRegistry(reg))
+	require.NoError(t, err)
+
+	_, hasRegistered := engine.rules["test-only-rule"]
+	assert.True(t, hasRegistered, "registry rule must be merged into engine.rules")
+
+	_, hasLegacy := engine.rules["simplify-slice-range"]
+	assert.True(t, hasLegacy, "allRules legacy adapters must still be present")
+}
+
+func TestEngineDuplicateRuleNamePanics(t *testing.T) {
+	reg := rule.NewRegistry()
+	reg.Register(&fakeNamedRule{name: "simplify-slice-range", sev: types.SeverityError})
+
+	assert.PanicsWithValue(t,
+		`rule name conflict: "simplify-slice-range" is registered both via allRules and via init()`,
+		func() {
+			_, _ = NewEngine(nil, WithRegistry(reg))
+		})
+}
+
+type fakeNamedRule struct {
+	name string
+	sev  types.Severity
+}
+
+func (f *fakeNamedRule) Name() string                    { return f.name }
+func (f *fakeNamedRule) DefaultSeverity() types.Severity { return f.sev }
+func (f *fakeNamedRule) Check(*rule.AnalysisContext) ([]types.Issue, error) {
+	return nil, nil
+}
+
 // TestRuleErrorsAreLogged pins the EPR-1 contract: rule check failures
 // surface as engine Warn entries instead of being silently dropped.
 // Builds a zap observer logger, injects a fake rule that returns an

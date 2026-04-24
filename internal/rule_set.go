@@ -33,7 +33,6 @@ var (
 	UnnecessaryConversionRule    = LintRule{severity: tt.SeverityWarning, check: lints.DetectUnnecessaryConversions}
 	DetectCycleRule              = LintRule{severity: tt.SeverityError, check: lints.DetectCycle}
 	EmitFormatRule               = LintRule{severity: tt.SeverityInfo, check: lints.DetectEmitFormat}
-	UselessBreakRule             = LintRule{severity: tt.SeverityError, check: lints.DetectUselessBreak}
 	EarlyReturnOpportunityRule   = LintRule{severity: tt.SeverityInfo, check: lints.DetectEarlyReturnOpportunities}
 	ConstErrorDeclarationRule    = LintRule{severity: tt.SeverityError, check: lints.DetectConstErrorDeclaration}
 	RepeatedRegexCompilationRule = LintRule{severity: tt.SeverityWarning, check: lints.DetectRepeatedRegexCompilation}
@@ -42,17 +41,14 @@ var (
 	FormatWithoutVerbRule        = LintRule{severity: tt.SeverityWarning, check: lints.DetectFormatWithoutVerb}
 )
 
-// Define the ruleMap type
 type ruleMap map[string]LintRule
 
-// Create a map to hold the mappings of rule names to LintRule structs
 var allRules = ruleMap{
 	"golangci-lint":               GolangciLintRule,
 	"simplify-slice-range":        SimplifySliceExprRule,
 	"unnecessary-type-conversion": UnnecessaryConversionRule,
 	"cycle-detection":             DetectCycleRule,
 	"emit-format":                 EmitFormatRule,
-	"useless-break":               UselessBreakRule,
 	"early-return-opportunity":    EarlyReturnOpportunityRule,
 	"const-error-declaration":     ConstErrorDeclarationRule,
 	"repeated-regex-compilation":  RepeatedRegexCompilationRule,

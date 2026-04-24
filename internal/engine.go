@@ -23,6 +23,7 @@ type Engine struct {
 	rules             map[string]rule.Rule   // Readonly
 	severityOverrides map[string]tt.Severity // Readonly
 	logger            *zap.Logger            // Readonly
+	registry          *rule.Registry         // nil = rule package's default registry
 }
 
 // Option configures an Engine at construction time. Pass via NewEngine.
@@ -39,13 +40,24 @@ func WithLogger(logger *zap.Logger) Option {
 	}
 }
 
-// WithRules replaces the engine's rule set after default registration.
-// Intended for tests that need to inject a fake rule (e.g. one that
-// returns an error to exercise the logging path). Production code
-// should leave rule registration to allRules.
+// WithRules replaces the engine's rule set entirely, skipping the
+// default registration (allRules + registry). Intended for tests that
+// need to inject a fake rule (e.g. one that returns an error to
+// exercise the logging path). Production code should leave rule
+// registration to allRules and the rule package's default registry.
 func WithRules(rules map[string]rule.Rule) Option {
 	return func(e *Engine) {
 		e.rules = rules
+	}
+}
+
+// WithRegistry swaps the rule registry the engine reads during default
+// registration. Without it the engine uses rule.All(); tests pass an
+// isolated rule.NewRegistry() so init()-registered production rules
+// don't leak in.
+func WithRegistry(reg *rule.Registry) Option {
+	return func(e *Engine) {
+		e.registry = reg
 	}
 }
 
@@ -59,28 +71,27 @@ type runContext struct {
 	nolintMgr    *nolint.Manager // Nolint manager for this specific run
 }
 
-// NewEngine creates a new lint engine.
-//
-// Variadic opts are applied AFTER default rule registration, so
-// WithRules replaces the registered set. Callers that don't pass any
-// option get the production defaults: allRules-derived legacy rules
-// and a no-op logger.
+// NewEngine creates a new lint engine. Options run before rule
+// registration so WithRules and WithRegistry can influence which rules
+// the engine ends up holding.
 func NewEngine(rules map[string]tt.ConfigRule, opts ...Option) (*Engine, error) {
 	engine := &Engine{
 		logger: zap.NewNop(),
 	}
-	engine.applyRules(rules)
 	for _, opt := range opts {
 		opt(engine)
 	}
+	engine.applyRules(rules)
 
 	return engine, nil
 }
 
 func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
-	e.rules = make(map[string]rule.Rule)
 	e.severityOverrides = make(map[string]tt.Severity)
-	e.registerDefaultRules()
+	if e.rules == nil {
+		e.rules = make(map[string]rule.Rule)
+		e.registerDefaultRules()
+	}
 
 	for key, cfg := range rules {
 		if _, ok := e.rules[key]; !ok {
@@ -94,9 +105,22 @@ func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 	}
 }
 
+// registerDefaultRules merges allRules legacy adapters with the rules
+// in the configured registry. A name in both is a hard error — every
+// rule's canonical name must have exactly one source of truth.
 func (e *Engine) registerDefaultRules() {
 	for key, lr := range allRules {
 		e.rules[key] = rule.NewLegacy(key, lr.severity, lr.check)
+	}
+	registered := rule.All()
+	if e.registry != nil {
+		registered = e.registry.All()
+	}
+	for name, r := range registered {
+		if _, dup := e.rules[name]; dup {
+			panic(fmt.Sprintf("rule name conflict: %q is registered both via allRules and via init()", name))
+		}
+		e.rules[name] = r
 	}
 }
 
