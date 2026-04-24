@@ -220,6 +220,75 @@ func BenchmarkRun(b *testing.B) {
 	}
 }
 
+// TestRulesFireOnTestdata is the integration safety net for the rule
+// registration refactor. For each default rule, it runs the engine on a
+// known-positive testdata file and asserts the rule fires.
+//
+// The assertion uses `emittedRule` — the rule name the implementation
+// currently writes into Issue.Rule — rather than `registered`, the key
+// that allRules maps to the rule. Several rules currently emit a name
+// that does not match their registered key (see the table). PR-5 of the
+// rule-registration refactor will normalize these so emittedRule ==
+// registered; at that point this test pins the wiring and any divergence
+// between registry and emission becomes a failure.
+//
+// Rules excluded:
+//   - golangci-lint: depends on the external golangci-lint binary.
+//   - high-cyclomatic-complexity: not wired into the default Engine
+//     (uses the lint.ProcessCyclomaticComplexity special path; covered
+//     by TestDetectHighCyclomaticComplexity).
+func TestRulesFireOnTestdata(t *testing.T) {
+	t.Parallel()
+	_, currentFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	testDataDir := filepath.Join(filepath.Dir(currentFile), "../testdata")
+
+	cases := []struct {
+		registered  string // key in allRules
+		emittedRule string // name actually written to Issue.Rule
+		file        string // relative to testDataDir
+	}{
+		{"simplify-slice-range", "simplify-slice-range", "slice0.gno"},
+		{"unnecessary-type-conversion", "unnecessary-type-conversion", "coversion/conv0.gno"},
+		{"cycle-detection", "cycle-detection", "cycle/types.gno"},
+		{"emit-format", "emit-format", "emit/emit1.gno"},
+		{"useless-break", "useless-break", "break/break1.gno"},
+		// PR-5 will rename "early-return" → "early-return-opportunity".
+		{"early-return-opportunity", "early-return", "early_return/a0.gno"},
+		{"const-error-declaration", "const-error-declaration", "const-error-decl/const_decl.gno"},
+		// PR-5 will rename "repeatedregexcompilation" → "repeated-regex-compilation".
+		{"repeated-regex-compilation", "repeatedregexcompilation", "regex/regex6.gno"},
+		// PR-5 will rename "unused-import" → "unused-package".
+		{"unused-package", "unused-import", "pkg/pkg0.gno"},
+		// PR-5 will rename "simplify_for_range" → "simplify-for-range".
+		{"simplify-for-range", "simplify_for_range", "simple_for/for_len.gno"},
+		{"format-without-verb", "format-without-verb", "format_verb/positive.gno"},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.registered, func(t *testing.T) {
+			t.Parallel()
+			engine, err := NewEngine(nil)
+			require.NoError(t, err)
+
+			path := filepath.Join(testDataDir, tc.file)
+			issues, err := engine.Run(path)
+			require.NoError(t, err)
+
+			rules := make([]string, 0, len(issues))
+			for _, issue := range issues {
+				if issue.Rule == tc.emittedRule {
+					return
+				}
+				rules = append(rules, issue.Rule)
+			}
+			t.Fatalf("rule %q (registered as %q) did not fire on %s; rules that fired: %v",
+				tc.emittedRule, tc.registered, tc.file, rules)
+		})
+	}
+}
+
 func createTempDir(tb testing.TB, prefix string) string {
 	tb.Helper()
 	tempDir, err := os.MkdirTemp("", prefix)
