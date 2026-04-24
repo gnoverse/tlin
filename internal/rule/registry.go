@@ -13,9 +13,9 @@ type Registry struct {
 	rules map[string]Rule
 }
 
-// NewTestRegistry returns a fresh empty Registry. Tests use this to
-// keep rule registrations isolated from the package-level default.
-func NewTestRegistry() *Registry {
+// NewRegistry returns a fresh empty Registry. Tests use this when
+// they need isolation from the package-level default.
+func NewRegistry() *Registry {
 	return &Registry{rules: map[string]Rule{}}
 }
 
@@ -47,7 +47,7 @@ func (r *Registry) All() map[string]Rule {
 	return out
 }
 
-var defaultRegistry = NewTestRegistry()
+var defaultRegistry = NewRegistry()
 
 // Register adds rule to the package-level default registry. Intended
 // for use in init() blocks of rule packages.

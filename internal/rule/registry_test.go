@@ -21,7 +21,7 @@ func (f *fakeRule) Check(*AnalysisContext) ([]tt.Issue, error)  { return nil, ni
 
 func TestRegistryRegisterAndAll(t *testing.T) {
 	t.Parallel()
-	r := NewTestRegistry()
+	r := NewRegistry()
 	r.Register(&fakeRule{name: "a", sev: tt.SeverityWarning})
 	r.Register(&fakeRule{name: "b", sev: tt.SeverityError})
 
@@ -33,7 +33,7 @@ func TestRegistryRegisterAndAll(t *testing.T) {
 
 func TestRegistryDuplicatePanics(t *testing.T) {
 	t.Parallel()
-	r := NewTestRegistry()
+	r := NewRegistry()
 	r.Register(&fakeRule{name: "x"})
 	assert.PanicsWithValue(t, `rule.Register: duplicate name "x"`, func() {
 		r.Register(&fakeRule{name: "x"})
@@ -42,7 +42,7 @@ func TestRegistryDuplicatePanics(t *testing.T) {
 
 func TestRegistryEmptyNamePanics(t *testing.T) {
 	t.Parallel()
-	r := NewTestRegistry()
+	r := NewRegistry()
 	assert.PanicsWithValue(t, "rule.Register: empty Name()", func() {
 		r.Register(&fakeRule{name: ""})
 	})
@@ -50,7 +50,7 @@ func TestRegistryEmptyNamePanics(t *testing.T) {
 
 func TestRegistryAllReturnsCopy(t *testing.T) {
 	t.Parallel()
-	r := NewTestRegistry()
+	r := NewRegistry()
 	r.Register(&fakeRule{name: "a"})
 
 	got := r.All()
