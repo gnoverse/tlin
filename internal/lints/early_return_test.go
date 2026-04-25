@@ -253,7 +253,7 @@ func example(x, y int) int {
 
 			if len(issues) > 0 {
 				for _, issue := range issues {
-					assert.Equal(t, "early-return", issue.Rule)
+					assert.Equal(t, "early-return-opportunity", issue.Rule)
 					assert.Contains(t, issue.Message, "can be simplified using early returns")
 				}
 			}

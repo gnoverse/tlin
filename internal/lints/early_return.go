@@ -10,8 +10,22 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
+
+func init() {
+	rule.Register(earlyReturnOpportunityRule{})
+}
+
+type earlyReturnOpportunityRule struct{}
+
+func (earlyReturnOpportunityRule) Name() string                 { return "early-return-opportunity" }
+func (earlyReturnOpportunityRule) DefaultSeverity() tt.Severity { return tt.SeverityInfo }
+
+func (earlyReturnOpportunityRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectEarlyReturnOpportunities(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+}
 
 var errNoFunctionBody = errors.New("function body not found")
 
@@ -159,7 +173,7 @@ func processQualifiedChain(chain *ifChain, ctx *traversalContext) {
 	}
 
 	issue := tt.Issue{
-		Rule:       "early-return",
+		Rule:       "early-return-opportunity",
 		Filename:   ctx.filename,
 		Start:      ctx.fset.Position(chain.root.Pos()),
 		End:        ctx.fset.Position(chain.root.End()),

@@ -93,7 +93,7 @@ func multipleRepeats() {
 
 			if tt.expected > 0 {
 				for _, issue := range issues {
-					assert.Equal(t, "repeatedregexcompilation", issue.Rule)
+					assert.Equal(t, "repeated-regex-compilation", issue.Rule)
 					assert.Contains(t, issue.Message, "regexp.Compile called with same pattern more than once")
 				}
 			}

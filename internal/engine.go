@@ -105,21 +105,12 @@ func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 	}
 }
 
-// registerDefaultRules merges allRules legacy adapters with the rules
-// in the configured registry. A name in both is a hard error — every
-// rule's canonical name must have exactly one source of truth.
 func (e *Engine) registerDefaultRules() {
-	for key, lr := range allRules {
-		e.rules[key] = rule.NewLegacy(key, lr.severity, lr.check)
-	}
 	registered := rule.All()
 	if e.registry != nil {
 		registered = e.registry.All()
 	}
 	for name, r := range registered {
-		if _, dup := e.rules[name]; dup {
-			panic(fmt.Sprintf("rule name conflict: %q is registered both via allRules and via init()", name))
-		}
 		e.rules[name] = r
 	}
 }

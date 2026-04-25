@@ -4,13 +4,27 @@ import (
 	"go/ast"
 	"go/token"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
 )
 
+func init() {
+	rule.Register(repeatedRegexCompilationRule{})
+}
+
+type repeatedRegexCompilationRule struct{}
+
+func (repeatedRegexCompilationRule) Name() string                 { return "repeated-regex-compilation" }
+func (repeatedRegexCompilationRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
+
+func (repeatedRegexCompilationRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectRepeatedRegexCompilation(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+}
+
 var RepeatedRegexCompilationAnalyzer = &analysis.Analyzer{
-	Name: "repeatedregexcompilation",
+	Name: "repeated-regex-compilation",
 	Doc:  "Checks for repeated compilation of the same regex pattern",
 	Run:  runRepeatedRegexCompilation,
 }

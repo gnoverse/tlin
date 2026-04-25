@@ -8,8 +8,22 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
+
+func init() {
+	rule.Register(unusedPackageRule{})
+}
+
+type unusedPackageRule struct{}
+
+func (unusedPackageRule) Name() string                 { return "unused-package" }
+func (unusedPackageRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
+
+func (unusedPackageRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectGnoPackageImports(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+}
 
 const (
 	GNO_PKG_PREFIX  = "gno.land/"
@@ -95,7 +109,7 @@ func runGnoPackageLinter(_ *ast.File, fset *token.FileSet, deps Dependencies, se
 			startPos := fset.Position(dep.Line)
 			endPos := fset.Position(dep.Column)
 			issue := tt.Issue{
-				Rule:     "unused-import",
+				Rule:     "unused-package",
 				Message:  fmt.Sprintf("unused import: %s", imp),
 				Severity: severity,
 				Start:    startPos,

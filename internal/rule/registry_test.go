@@ -1,8 +1,6 @@
 package rule
 
 import (
-	"go/ast"
-	"go/token"
 	"testing"
 
 	tt "github.com/gnolang/tlin/internal/types"
@@ -61,30 +59,3 @@ func TestRegistryAllReturnsCopy(t *testing.T) {
 		"All() must return a copy; mutating the returned map must not affect the registry")
 }
 
-// TestLegacyAdapterPropagatesContextSeverity guards a subtle
-// invariant: ctx.Severity (engine-resolved) is what reaches the inner
-// check function, not r.DefaultSeverity(). Engine relies on this when
-// applying config overrides.
-func TestLegacyAdapterPropagatesContextSeverity(t *testing.T) {
-	t.Parallel()
-	var captured tt.Severity
-	check := func(filename string, _ *ast.File, _ *token.FileSet, sev tt.Severity) ([]tt.Issue, error) {
-		captured = sev
-		return []tt.Issue{{Rule: "x", Filename: filename}}, nil
-	}
-
-	r := NewLegacy("x", tt.SeverityInfo, check)
-	assert.Equal(t, "x", r.Name())
-	assert.Equal(t, tt.SeverityInfo, r.DefaultSeverity())
-
-	ctx := &AnalysisContext{
-		WorkingPath: "/tmp/foo.go",
-		Severity:    tt.SeverityWarning, // overridden by engine, ≠ DefaultSeverity
-	}
-	issues, err := r.Check(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, tt.SeverityWarning, captured,
-		"legacy adapter must pass ctx.Severity, not DefaultSeverity, to the inner check")
-	require.Len(t, issues, 1)
-	assert.Equal(t, "/tmp/foo.go", issues[0].Filename)
-}

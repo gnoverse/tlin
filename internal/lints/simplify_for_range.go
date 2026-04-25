@@ -8,8 +8,22 @@ import (
 	"go/token"
 	"go/types"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
+
+func init() {
+	rule.Register(simplifyForRangeRule{})
+}
+
+type simplifyForRangeRule struct{}
+
+func (simplifyForRangeRule) Name() string                 { return "simplify-for-range" }
+func (simplifyForRangeRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
+
+func (simplifyForRangeRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectSimplifiableForLoops(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+}
 
 // DetectSimplifiableForLoops detects counter-based for-loops that can be safely
 // rewritten to Go/Gno-style range loops:
@@ -143,7 +157,7 @@ func DetectSimplifiableForLoops(filename string, node *ast.File, fset *token.Fil
 		)
 
 		issues = append(issues, tt.Issue{
-			Rule:       "simplify_for_range",
+			Rule:       "simplify-for-range",
 			Filename:   filename,
 			Message:    "counter-based for loop can be simplified to range-based loop",
 			Category:   "style",

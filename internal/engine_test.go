@@ -3,8 +3,6 @@ package internal
 import (
 	"errors"
 	"fmt"
-	"go/ast"
-	"go/token"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -347,20 +345,13 @@ func BenchmarkRun(b *testing.B) {
 	}
 }
 
-// TestRulesFireOnTestdata is the integration safety net for the rule
-// registration refactor. For each default rule, it runs the engine on a
-// known-positive testdata file and asserts the rule fires.
+// TestRulesFireOnTestdata pins the engine's rule wiring: each default
+// rule must fire on a known-positive testdata file with Issue.Rule
+// equal to its registered name. Any divergence between registration
+// and emission fails here.
 //
-// The assertion uses `emittedRule` — the rule name the implementation
-// currently writes into Issue.Rule — rather than `registered`, the key
-// that allRules maps to the rule. Several rules currently emit a name
-// that does not match their registered key (see the table). PR-5 of the
-// rule-registration refactor will normalize these so emittedRule ==
-// registered; at that point this test pins the wiring and any divergence
-// between registry and emission becomes a failure.
-//
-// Rules excluded:
-//   - golangci-lint: depends on the external golangci-lint binary.
+// Excluded:
+//   - golangci-lint: depends on the external binary.
 //   - high-cyclomatic-complexity: not wired into the default Engine
 //     (uses the lint.ProcessCyclomaticComplexity special path; covered
 //     by TestDetectHighCyclomaticComplexity).
@@ -371,30 +362,25 @@ func TestRulesFireOnTestdata(t *testing.T) {
 	testDataDir := filepath.Join(filepath.Dir(currentFile), "../testdata")
 
 	cases := []struct {
-		registered  string // key in allRules
-		emittedRule string // name actually written to Issue.Rule
-		file        string // relative to testDataDir
+		rule string
+		file string // relative to testDataDir
 	}{
-		{"simplify-slice-range", "simplify-slice-range", "slice0.gno"},
-		{"unnecessary-type-conversion", "unnecessary-type-conversion", "coversion/conv0.gno"},
-		{"cycle-detection", "cycle-detection", "cycle/types.gno"},
-		{"emit-format", "emit-format", "emit/emit1.gno"},
-		{"useless-break", "useless-break", "break/break1.gno"},
-		// PR-5 will rename "early-return" → "early-return-opportunity".
-		{"early-return-opportunity", "early-return", "early_return/a0.gno"},
-		{"const-error-declaration", "const-error-declaration", "const-error-decl/const_decl.gno"},
-		// PR-5 will rename "repeatedregexcompilation" → "repeated-regex-compilation".
-		{"repeated-regex-compilation", "repeatedregexcompilation", "regex/regex6.gno"},
-		// PR-5 will rename "unused-import" → "unused-package".
-		{"unused-package", "unused-import", "pkg/pkg0.gno"},
-		// PR-5 will rename "simplify_for_range" → "simplify-for-range".
-		{"simplify-for-range", "simplify_for_range", "simple_for/for_len.gno"},
-		{"format-without-verb", "format-without-verb", "format_verb/positive.gno"},
+		{"simplify-slice-range", "slice0.gno"},
+		{"unnecessary-type-conversion", "coversion/conv0.gno"},
+		{"cycle-detection", "cycle/types.gno"},
+		{"emit-format", "emit/emit1.gno"},
+		{"useless-break", "break/break1.gno"},
+		{"early-return-opportunity", "early_return/a0.gno"},
+		{"const-error-declaration", "const-error-decl/const_decl.gno"},
+		{"repeated-regex-compilation", "regex/regex6.gno"},
+		{"unused-package", "pkg/pkg0.gno"},
+		{"simplify-for-range", "simple_for/for_len.gno"},
+		{"format-without-verb", "format_verb/positive.gno"},
 	}
 
 	for _, tc := range cases {
 		tc := tc
-		t.Run(tc.registered, func(t *testing.T) {
+		t.Run(tc.rule, func(t *testing.T) {
 			t.Parallel()
 			engine, err := NewEngine(nil)
 			require.NoError(t, err)
@@ -405,13 +391,13 @@ func TestRulesFireOnTestdata(t *testing.T) {
 
 			rules := make([]string, 0, len(issues))
 			for _, issue := range issues {
-				if issue.Rule == tc.emittedRule {
+				if issue.Rule == tc.rule {
 					return
 				}
 				rules = append(rules, issue.Rule)
 			}
-			t.Fatalf("rule %q (registered as %q) did not fire on %s; rules that fired: %v",
-				tc.emittedRule, tc.registered, tc.file, rules)
+			t.Fatalf("rule %q did not fire on %s; rules that fired: %v",
+				tc.rule, tc.file, rules)
 		})
 	}
 }
@@ -466,42 +452,6 @@ func TestConfigSeverityReachesIssues(t *testing.T) {
 // in the assertion. Doing it this way means the gate is auditable
 // before the feature exists, and a future PR cannot quietly omit it.
 
-func TestEngineMergesRegistryAndAllRules(t *testing.T) {
-	reg := rule.NewRegistry()
-	reg.Register(&fakeNamedRule{name: "test-only-rule", sev: types.SeverityInfo})
-
-	engine, err := NewEngine(nil, WithRegistry(reg))
-	require.NoError(t, err)
-
-	_, hasRegistered := engine.rules["test-only-rule"]
-	assert.True(t, hasRegistered, "registry rule must be merged into engine.rules")
-
-	_, hasLegacy := engine.rules["early-return-opportunity"]
-	assert.True(t, hasLegacy, "allRules legacy adapters must still be present")
-}
-
-func TestEngineDuplicateRuleNamePanics(t *testing.T) {
-	reg := rule.NewRegistry()
-	reg.Register(&fakeNamedRule{name: "early-return-opportunity", sev: types.SeverityError})
-
-	assert.PanicsWithValue(t,
-		`rule name conflict: "early-return-opportunity" is registered both via allRules and via init()`,
-		func() {
-			_, _ = NewEngine(nil, WithRegistry(reg))
-		})
-}
-
-type fakeNamedRule struct {
-	name string
-	sev  types.Severity
-}
-
-func (f *fakeNamedRule) Name() string                    { return f.name }
-func (f *fakeNamedRule) DefaultSeverity() types.Severity { return f.sev }
-func (f *fakeNamedRule) Check(*rule.AnalysisContext) ([]types.Issue, error) {
-	return nil, nil
-}
-
 // TestRuleErrorsAreLogged pins the EPR-1 contract: rule check failures
 // surface as engine Warn entries instead of being silently dropped.
 // Builds a zap observer logger, injects a fake rule that returns an
@@ -511,17 +461,9 @@ func TestRuleErrorsAreLogged(t *testing.T) {
 	core, observed := observer.New(zap.WarnLevel)
 	logger := zap.New(core)
 
-	failingRule := rule.NewLegacy(
-		"test-failing-rule",
-		types.SeverityError,
-		func(_ string, _ *ast.File, _ *token.FileSet, _ types.Severity) ([]types.Issue, error) {
-			return nil, errors.New("synthetic failure")
-		},
-	)
-
 	engine, err := NewEngine(nil,
 		WithLogger(logger),
-		WithRules(map[string]rule.Rule{"test-failing-rule": failingRule}),
+		WithRules(map[string]rule.Rule{"test-failing-rule": failingFakeRule{}}),
 	)
 	require.NoError(t, err)
 
@@ -566,6 +508,16 @@ func TestEngineGoroutineFootprint(t *testing.T) {
 	assert.LessOrEqual(t, post, pre,
 		"engine.RunSource must not leak per-rule goroutines (per-rule fan-out removed in EPR-1); pre=%d post=%d",
 		pre, post)
+}
+
+// failingFakeRule satisfies rule.Rule by returning a synthetic error
+// from Check, used by TestRuleErrorsAreLogged to drive the Warn path.
+type failingFakeRule struct{}
+
+func (failingFakeRule) Name() string                                        { return "test-failing-rule" }
+func (failingFakeRule) DefaultSeverity() types.Severity                     { return types.SeverityError }
+func (failingFakeRule) Check(*rule.AnalysisContext) ([]types.Issue, error) {
+	return nil, errors.New("synthetic failure")
 }
 
 // TestIssueFilenameIsOriginalPath anchors the EPR-3 contract that all

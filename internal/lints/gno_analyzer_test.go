@@ -36,7 +36,7 @@ func TestRunLinter(t *testing.T) {
 				rule    string
 				message string
 			}{
-				{"unused-import", "unused import: strings"},
+				{"unused-package", "unused import: strings"},
 			},
 			expectedDeps: map[string]struct {
 				isGno     bool
