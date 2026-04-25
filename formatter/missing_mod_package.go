@@ -1,5 +1,9 @@
 package formatter
 
+func init() {
+	Register("gno-mod-tidy", &MissingModPackageFormatter{})
+}
+
 type MissingModPackageFormatter struct{}
 
 func (f *MissingModPackageFormatter) IssueTemplate() string {
