@@ -28,7 +28,10 @@ type AnalysisContext struct {
 	WorkingPath string
 	// File is the parsed AST. Always non-nil inside Check.
 	File *ast.File
-	// Fset is the FileSet that produced File. Always non-nil.
+	// Fset is the FileSet that produced File. Always non-nil during
+	// engine dispatch; Position keeps a defensive nil branch so
+	// hand-built test contexts (RunSource fixtures, unit-test
+	// constructions) don't panic.
 	Fset *token.FileSet
 	// NolintMgr provides nolint comment resolution. May be nil for
 	// source-only runs.

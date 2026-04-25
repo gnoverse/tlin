@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"go/ast"
-	"go/parser"
 	"go/token"
 	"os/exec"
 
@@ -26,22 +24,6 @@ func (golangciLintRule) DefaultSeverity() tt.Severity { return tt.SeverityWarnin
 // dispatch goes straight to CheckPackage with the live ctx.
 func (r golangciLintRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
 	return r.CheckPackage(context.Background(), ctx.SinglePackage())
-}
-
-func ParseFile(filename string, content []byte) (*ast.File, *token.FileSet, error) {
-	fset := token.NewFileSet()
-	var node *ast.File
-	var err error
-	if content == nil {
-		node, err = parser.ParseFile(fset, filename, nil, parser.ParseComments)
-	} else {
-		node, err = parser.ParseFile(fset, filename, content, parser.ParseComments)
-	}
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return node, fset, nil
 }
 
 type golangciOutput struct {

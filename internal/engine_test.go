@@ -96,7 +96,7 @@ func TestEngine_IgnorePath(t *testing.T) {
 
 func TestReadSourceCode(t *testing.T) {
 	t.Parallel()
-	tempDir := createTempDir(t, "source_code_test")
+	tempDir := t.TempDir()
 
 	testFile := filepath.Join(tempDir, "test.go")
 	content := "package main\n\nfunc main() {\n\tprintln(\"Hello, World!\")\n}"
@@ -535,7 +535,7 @@ func (f *fakeConfigurableRule) ParseConfig(raw any) error {
 func TestIssueFilenameIsOriginalPath(t *testing.T) {
 	t.Parallel()
 
-	tempDir := createTempDir(t, "issue_filename_test")
+	tempDir := t.TempDir()
 
 	gnoFile := filepath.Join(tempDir, "src.gno")
 	content := `package main
@@ -581,7 +581,7 @@ func main() {
 func TestRunHonoursContextCancel(t *testing.T) {
 	t.Parallel()
 
-	tempDir := createTempDir(t, "ctx_cancel_test")
+	tempDir := t.TempDir()
 	gnoFile := filepath.Join(tempDir, "src.gno")
 	require.NoError(t, os.WriteFile(gnoFile, []byte("package main\nfunc main() {}\n"), 0o644))
 
@@ -615,19 +615,11 @@ func TestTimeoutLeakFree(t *testing.T) {
 	_, _ = engine.RunSourceWithContext(ctx, []byte("package main\n"))
 }
 
-func createTempDir(tb testing.TB, prefix string) string {
-	tb.Helper()
-	tempDir, err := os.MkdirTemp("", prefix)
-	require.NoError(tb, err)
-	tb.Cleanup(func() { os.RemoveAll(tempDir) })
-	return tempDir
-}
-
 // TestGnoFileMapping tests that issues from .gno files are correctly mapped back
 func TestGnoFileMapping(t *testing.T) {
 	t.Parallel()
 
-	tempDir := createTempDir(t, "gno_mapping_test")
+	tempDir := t.TempDir()
 
 	// Create a .gno file with known issues
 	gnoFile := filepath.Join(tempDir, "test.gno")
@@ -677,7 +669,7 @@ func test() {
 func TestNolintIsolation(t *testing.T) {
 	t.Parallel()
 
-	tempDir := createTempDir(t, "nolint_isolation_test")
+	tempDir := t.TempDir()
 
 	// Create two files with a detectable issue
 	file1 := filepath.Join(tempDir, "file1.go")
@@ -739,7 +731,7 @@ func test2() {
 func TestConcurrentRuns(t *testing.T) {
 	t.Parallel()
 
-	tempDir := createTempDir(t, "concurrent_test")
+	tempDir := t.TempDir()
 
 	// Create multiple test files with deterministic issues
 	numFiles := 10

@@ -41,7 +41,7 @@ var RepeatedRegexCompilationAnalyzer = &analysis.Analyzer{
 // The imports-only pre-scan short-circuits the common case where no
 // file in the package imports regexp; packages.Load is much more
 // expensive than parser.ParseFile(ImportsOnly).
-func (repeatedRegexCompilationRule) CheckPackage(_ context.Context, pctx *rule.PackageContext) ([]tt.Issue, error) {
+func (repeatedRegexCompilationRule) CheckPackage(ctx context.Context, pctx *rule.PackageContext) ([]tt.Issue, error) {
 	if len(pctx.WorkingPaths) == 0 {
 		return nil, nil
 	}
@@ -50,8 +50,9 @@ func (repeatedRegexCompilationRule) CheckPackage(_ context.Context, pctx *rule.P
 	}
 
 	cfg := &packages.Config{
-		Mode:  packages.NeedFiles | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedTypes,
-		Tests: false,
+		Mode:    packages.NeedFiles | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedTypes,
+		Tests:   false,
+		Context: ctx,
 	}
 
 	// Load via the file paths (not "." against cfg.Dir) so orphan

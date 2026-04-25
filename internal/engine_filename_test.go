@@ -13,7 +13,7 @@ import (
 func TestCrossFileIssueFilenames(t *testing.T) {
 	t.Parallel()
 
-	tempDir := createTempDir(t, "crossfile_test")
+	tempDir := t.TempDir()
 
 	// Create two .go files that might have cross-file issues
 	file1 := filepath.Join(tempDir, "file1.go")
@@ -60,7 +60,7 @@ func Function2() {
 func TestGnoTempFileRemapping(t *testing.T) {
 	t.Parallel()
 
-	tempDir := createTempDir(t, "gno_temp_test")
+	tempDir := t.TempDir()
 
 	// Create a .gno file
 	gnoFile := filepath.Join(tempDir, "test.gno")
