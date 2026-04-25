@@ -115,9 +115,6 @@ func (simplifyForRangeRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error)
 // or mutation of the loop variable.
 //
 // All other counter-based loops remain untouched.
-//
-// All callers go through ctx.TypesInfo() so the type checker runs
-// once per file and is shared across rules.
 func DetectSimplifiableForLoops(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
 	info := ctx.TypesInfo()
 

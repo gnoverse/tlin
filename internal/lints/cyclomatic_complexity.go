@@ -3,7 +3,6 @@ package lints
 import (
 	"fmt"
 	"go/ast"
-	"go/token"
 
 	"github.com/fzipp/gocyclo"
 	"github.com/gnolang/tlin/internal/rule"
@@ -36,7 +35,7 @@ func (r *cyclomaticComplexityRule) Name() string                 { return "high-
 func (r *cyclomaticComplexityRule) DefaultSeverity() tt.Severity { return tt.SeverityOff }
 
 func (r *cyclomaticComplexityRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return analyzeCyclomatic(ctx.WorkingPath, ctx.File, ctx.Fset, r.threshold, ctx.Severity)
+	return analyzeCyclomatic(ctx, r.threshold)
 }
 
 // ParseConfig accepts {"threshold": <int>}. A missing threshold key
@@ -69,11 +68,11 @@ func (r *cyclomaticComplexityRule) ParseConfig(raw any) error {
 	return nil
 }
 
-func analyzeCyclomatic(filename string, file *ast.File, fset *token.FileSet, threshold int, severity tt.Severity) ([]tt.Issue, error) {
-	stats := gocyclo.AnalyzeASTFile(file, fset, nil)
+func analyzeCyclomatic(ctx *rule.AnalysisContext, threshold int) ([]tt.Issue, error) {
+	stats := gocyclo.AnalyzeASTFile(ctx.File, ctx.Fset, nil)
 
 	funcNodes := make(map[string]*ast.FuncDecl)
-	ast.Inspect(file, func(n ast.Node) bool {
+	ast.Inspect(ctx.File, func(n ast.Node) bool {
 		if fn, ok := n.(*ast.FuncDecl); ok {
 			funcNodes[fn.Name.Name] = fn
 		}
@@ -89,16 +88,11 @@ func analyzeCyclomatic(filename string, file *ast.File, fset *token.FileSet, thr
 		if !ok {
 			continue
 		}
-		issues = append(issues, tt.Issue{
-			Rule:       "high-cyclomatic-complexity",
-			Filename:   filename,
-			Start:      fset.Position(funcNode.Pos()),
-			End:        fset.Position(funcNode.End()),
-			Message:    fmt.Sprintf("function %s has a cyclomatic complexity of %d (threshold %d)", stat.FuncName, stat.Complexity, threshold),
-			Suggestion: "consider refactoring this function to reduce its complexity. you can split it into smaller functions or simplify the logic.\n",
-			Note:       "high cyclomatic complexity can make the code harder to understand, test, and maintain. aim for a complexity score of 10 or less for most functions.\n",
-			Severity:   severity,
-		})
+		issue := ctx.NewIssue("high-cyclomatic-complexity", funcNode.Pos(), funcNode.End())
+		issue.Message = fmt.Sprintf("function %s has a cyclomatic complexity of %d (threshold %d)", stat.FuncName, stat.Complexity, threshold)
+		issue.Suggestion = "consider refactoring this function to reduce its complexity. you can split it into smaller functions or simplify the logic.\n"
+		issue.Note = "high cyclomatic complexity can make the code harder to understand, test, and maintain. aim for a complexity score of 10 or less for most functions.\n"
+		issues = append(issues, issue)
 	}
 	return issues, nil
 }
