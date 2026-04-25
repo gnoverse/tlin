@@ -178,7 +178,7 @@ func main() {
 			node, err := parser.ParseFile(fset, filepath.ToSlash(tt.filename), tt.code, parser.ParseComments)
 			require.NoError(t, err)
 
-			issues, err := DetectFormatWithoutVerb(tt.filename, node, fset, types.SeverityWarning)
+			issues, err := DetectFormatWithoutVerb(tt.filename, []byte(tt.code), node, fset, types.SeverityWarning)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), "unexpected issue count")

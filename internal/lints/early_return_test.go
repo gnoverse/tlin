@@ -240,7 +240,7 @@ func example(x, y int) int {
 				t.Fatalf("Failed to parse code: %v", err)
 			}
 
-			issues, err := DetectEarlyReturnOpportunities(tmpfile, node, fset, types.SeverityError)
+			issues, err := DetectEarlyReturnOpportunities(tmpfile, []byte(tt.code), node, fset, types.SeverityError)
 			require.NoError(t, err)
 
 			if len(issues) != tt.totalIssues {

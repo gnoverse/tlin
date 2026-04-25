@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/constant"
-	"go/importer"
 	"go/token"
 	"go/types"
 
@@ -22,7 +21,7 @@ func (simplifyForRangeRule) Name() string                 { return "simplify-for
 func (simplifyForRangeRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
 
 func (simplifyForRangeRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return DetectSimplifiableForLoops(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+	return DetectSimplifiableForLoops(ctx.WorkingPath, ctx.TypesInfo(), ctx.File, ctx.Fset, ctx.Severity)
 }
 
 // DetectSimplifiableForLoops detects counter-based for-loops that can be safely
@@ -116,17 +115,10 @@ func (simplifyForRangeRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error)
 // or mutation of the loop variable.
 //
 // All other counter-based loops remain untouched.
-func DetectSimplifiableForLoops(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
-	info := &types.Info{
-		Types: make(map[ast.Expr]types.TypeAndValue),
-		Uses:  make(map[*ast.Ident]types.Object),
-		Defs:  make(map[*ast.Ident]types.Object),
-	}
-
-	conf := types.Config{Importer: importer.Default()}
-	// ignore type-checking errors to keep linting best-effort.
-	_, _ = conf.Check(node.Name.Name, fset, []*ast.File{node}, info)
-
+//
+// info must be non-nil and populated with at least Types entries
+// for the file. Production callers go through ctx.TypesInfo().
+func DetectSimplifiableForLoops(filename string, info *types.Info, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	var issues []tt.Issue
 
 	ast.Inspect(node, func(n ast.Node) bool {

@@ -66,6 +66,7 @@ func WithRegistry(reg *rule.Registry) Option {
 type runContext struct {
 	originalPath string          // Original filename (.gno or .go)
 	tempPath     string          // Temporary file path if converted from .gno
+	source       []byte          // Raw bytes the parser read (read once, shared with rules)
 	node         *ast.File       // Parsed AST
 	fset         *token.FileSet  // Token file set
 	nolintMgr    *nolint.Manager // Nolint manager for this specific run
@@ -225,8 +226,14 @@ func (e *Engine) createRunContext(filename string) (*runContext, error) {
 	}
 	ctx.tempPath = tempFile
 
-	// Parse file
-	node, fset, err := lints.ParseFile(tempFile, nil)
+	source, err := os.ReadFile(tempFile)
+	if err != nil {
+		e.cleanupTemp(tempFile)
+		return nil, fmt.Errorf("error reading file: %w", err)
+	}
+	ctx.source = source
+
+	node, fset, err := lints.ParseFile(tempFile, source)
 	if err != nil {
 		e.cleanupTemp(tempFile)
 		return nil, fmt.Errorf("error parsing file: %w", err)
@@ -249,6 +256,7 @@ func (e *Engine) createRunContextFromSource(source []byte) (*runContext, error) 
 	ctx := &runContext{
 		originalPath: "",
 		tempPath:     "",
+		source:       source,
 		node:         node,
 		fset:         fset,
 		nolintMgr:    nolint.ParseComments(node, fset),
@@ -278,6 +286,15 @@ func (e *Engine) runWithContext(ctx *runContext) ([]tt.Issue, error) {
 		workingPath = ctx.originalPath
 	}
 
+	actx := &rule.AnalysisContext{
+		OriginalPath: ctx.originalPath,
+		WorkingPath:  workingPath,
+		File:         ctx.node,
+		Fset:         ctx.fset,
+		NolintMgr:    ctx.nolintMgr,
+		Source:       ctx.source,
+	}
+
 	var allIssues []tt.Issue
 	for _, r := range e.rules {
 		if e.ignoredRules[r.Name()] {
@@ -293,14 +310,7 @@ func (e *Engine) runWithContext(ctx *runContext) ([]tt.Issue, error) {
 		if sev == tt.SeverityOff {
 			continue
 		}
-		actx := &rule.AnalysisContext{
-			OriginalPath: ctx.originalPath,
-			WorkingPath:  workingPath,
-			File:         ctx.node,
-			Fset:         ctx.fset,
-			NolintMgr:    ctx.nolintMgr,
-			Severity:     sev,
-		}
+		actx.Severity = sev
 		issues, err := r.Check(actx)
 		if err != nil {
 			e.logger.Warn("rule check failed",
@@ -315,9 +325,8 @@ func (e *Engine) runWithContext(ctx *runContext) ([]tt.Issue, error) {
 		allIssues = append(allIssues, noIgnoredPaths...)
 	}
 
-	// Map issues back to original filename only if we used a temp file that differs from the original.
-	// This ensures we only remap for .gno -> .go conversions, not for regular .go files.
-	// EPR-3 will replace this post-hoc loop with a structural ctx.NewIssue helper.
+	// Remap temp .go paths back to the original .gno path on issues
+	// produced via the .gno → .go temp conversion.
 	if ctx.tempPath != "" && ctx.originalPath != "" && ctx.tempPath != ctx.originalPath {
 		for i := range allIssues {
 			// Only remap if the issue is pointing to the temp file

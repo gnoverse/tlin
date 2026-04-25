@@ -3,7 +3,6 @@ package lints
 import (
 	"fmt"
 	"go/ast"
-	"go/importer"
 	"go/token"
 	"go/types"
 
@@ -21,21 +20,14 @@ func (unnecessaryTypeConversionRule) Name() string                 { return "unn
 func (unnecessaryTypeConversionRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
 
 func (unnecessaryTypeConversionRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return DetectUnnecessaryConversions(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+	return DetectUnnecessaryConversions(ctx.WorkingPath, ctx.TypesInfo(), ctx.File, ctx.Fset, ctx.Severity)
 }
 
-func DetectUnnecessaryConversions(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
-	info := &types.Info{
-		Types: make(map[ast.Expr]types.TypeAndValue),
-		Uses:  make(map[*ast.Ident]types.Object),
-		Defs:  make(map[*ast.Ident]types.Object),
-	}
-
-	conf := types.Config{Importer: importer.Default()}
-	//! DO NOT CHECK ERROR HERE.
-	//! error check may broke the lint formatting process.
-	conf.Check("", fset, []*ast.File{node}, info)
-
+// DetectUnnecessaryConversions reports `T(x)` calls where x is
+// already of type T. info must be non-nil and populated with at
+// least Types/Defs/Uses entries for the file. Production callers
+// go through ctx.TypesInfo().
+func DetectUnnecessaryConversions(filename string, info *types.Info, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	var issues []tt.Issue
 	varDecls := make(map[*types.Var]ast.Node)
 

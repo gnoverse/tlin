@@ -5,6 +5,7 @@ import (
 	"go/token"
 	"testing"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/require"
 )
@@ -358,7 +359,8 @@ func main() {
 			file, err := parser.ParseFile(fset, "test.go", test.code, parser.ParseComments)
 			require.NoError(t, err)
 
-			issues, err := DetectSimplifiableForLoops("test.go", file, fset, tt.SeverityWarning)
+			actx := &rule.AnalysisContext{File: file, Fset: fset}
+			issues, err := DetectSimplifiableForLoops("test.go", actx.TypesInfo(), file, fset, tt.SeverityWarning)
 			require.NoError(t, err)
 
 			require.Len(t, issues, test.expectedIssue)

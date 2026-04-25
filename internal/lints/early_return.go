@@ -7,7 +7,6 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
-	"os"
 	"strings"
 
 	"github.com/gnolang/tlin/internal/rule"
@@ -24,7 +23,7 @@ func (earlyReturnOpportunityRule) Name() string                 { return "early-
 func (earlyReturnOpportunityRule) DefaultSeverity() tt.Severity { return tt.SeverityInfo }
 
 func (earlyReturnOpportunityRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return DetectEarlyReturnOpportunities(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+	return DetectEarlyReturnOpportunities(ctx.WorkingPath, ctx.Source, ctx.File, ctx.Fset, ctx.Severity)
 }
 
 var errNoFunctionBody = errors.New("function body not found")
@@ -85,13 +84,9 @@ func isQualifiedChain(chain *ifChain) bool {
 
 // DetectEarlyReturnOpportunities traverses the AST of functions in the file,
 // constructs if-else chains as binary tree models, and generates early-return suggestions
-// only for the top-level chains.
-func DetectEarlyReturnOpportunities(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
+// only for the top-level chains. content is the raw bytes of the
+// file, used to slice the original snippet for the suggestion.
+func DetectEarlyReturnOpportunities(filename string, content []byte, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
 	var issues []tt.Issue
 	ctx := &traversalContext{
 		processed: make(map[*ast.IfStmt]bool),

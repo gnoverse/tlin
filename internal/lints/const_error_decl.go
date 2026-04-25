@@ -3,7 +3,6 @@ package lints
 import (
 	"go/ast"
 	"go/token"
-	"os"
 	"strings"
 
 	"github.com/gnolang/tlin/internal/rule"
@@ -20,21 +19,20 @@ func (constErrorDeclarationRule) Name() string                 { return "const-e
 func (constErrorDeclarationRule) DefaultSeverity() tt.Severity { return tt.SeverityError }
 
 func (constErrorDeclarationRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return DetectConstErrorDeclaration(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+	return DetectConstErrorDeclaration(ctx.WorkingPath, ctx.Source, ctx.File, ctx.Fset, ctx.Severity)
 }
 
+// DetectConstErrorDeclaration flags `const x = errors.New(...)` blocks
+// and emits a `var`-form suggestion. src is the raw bytes of the
+// file used to slice the original snippet for the suggestion.
 func DetectConstErrorDeclaration(
 	filename string,
+	src []byte,
 	node *ast.File,
 	fset *token.FileSet,
 	severity tt.Severity,
 ) ([]tt.Issue, error) {
 	var issues []tt.Issue
-
-	src, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
 
 	ast.Inspect(node, func(n ast.Node) bool {
 		genDecl, ok := n.(*ast.GenDecl)

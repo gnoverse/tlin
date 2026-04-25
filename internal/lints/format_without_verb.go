@@ -3,7 +3,6 @@ package lints
 import (
 	"go/ast"
 	"go/token"
-	"os"
 	"strconv"
 	"strings"
 	"unicode"
@@ -22,7 +21,7 @@ func (formatWithoutVerbRule) Name() string                 { return "format-with
 func (formatWithoutVerbRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
 
 func (formatWithoutVerbRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return DetectFormatWithoutVerb(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+	return DetectFormatWithoutVerb(ctx.WorkingPath, ctx.Source, ctx.File, ctx.Fset, ctx.Severity)
 }
 
 type formatFuncInfo struct {
@@ -37,10 +36,13 @@ var formatFunctions = map[string]formatFuncInfo{
 	"Fprintf": {formatArgIndex: 1, suggestion: "use io.WriteString() instead"},
 }
 
-// DetectFormatWithoutVerb reports formatting calls whose format string has no verbs.
-// It targets ufmt (always) and fmt (only in *_test files).
+// DetectFormatWithoutVerb reports formatting calls whose format string
+// has no verbs. It targets ufmt (always) and fmt (only in *_test
+// files). src is the raw bytes of the file; an empty src degrades
+// the suggestion to the shorter call-only form.
 func DetectFormatWithoutVerb(
 	filename string,
+	src []byte,
 	node *ast.File,
 	fset *token.FileSet,
 	severity tt.Severity,
@@ -56,8 +58,6 @@ func DetectFormatWithoutVerb(
 	if !hasAllowedImports(aliasMap, allowPaths) {
 		return nil, nil
 	}
-
-	src, _ := os.ReadFile(filename)
 
 	constants := collectStringConstants(node)
 

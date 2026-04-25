@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/gnolang/tlin/internal/rule"
 	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -198,7 +199,8 @@ func example() {
 			node, fset, err := ParseFile(tmpfile, nil)
 			require.NoError(t, err)
 
-			issues, err := DetectUnnecessaryConversions(tmpfile, node, fset, types.SeverityError)
+			actx := &rule.AnalysisContext{File: node, Fset: fset}
+			issues, err := DetectUnnecessaryConversions(tmpfile, actx.TypesInfo(), node, fset, types.SeverityError)
 			require.NoError(t, err)
 
 			assert.Equal(
@@ -520,7 +522,7 @@ var err = errors.New("error")
 			node, fset, err := ParseFile(tmpfile, nil)
 			require.NoError(t, err)
 
-			issues, err := DetectConstErrorDeclaration(tmpfile, node, fset, types.SeverityError)
+			issues, err := DetectConstErrorDeclaration(tmpfile, []byte(tt.code), node, fset, types.SeverityError)
 			require.NoError(t, err)
 
 			assert.Equal(
