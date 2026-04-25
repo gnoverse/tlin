@@ -3,7 +3,6 @@ package lints
 import (
 	"fmt"
 	"go/ast"
-	"go/token"
 
 	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
@@ -19,23 +18,17 @@ func (cycleDetectionRule) Name() string                 { return "cycle-detectio
 func (cycleDetectionRule) DefaultSeverity() tt.Severity { return tt.SeverityError }
 
 func (cycleDetectionRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return DetectCycle(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+	return DetectCycle(ctx)
 }
 
-func DetectCycle(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
+func DetectCycle(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
 	c := newCycle()
-	cycles := c.detectCycles(node)
+	cycles := c.detectCycles(ctx.File)
 
 	issues := make([]tt.Issue, 0, len(cycles))
 	for _, cycle := range cycles {
-		issue := tt.Issue{
-			Rule:     "cycle-detection",
-			Filename: filename,
-			Start:    fset.Position(node.Pos()),
-			End:      fset.Position(node.End()),
-			Message:  "detected cycle in function call: " + cycle,
-			Severity: severity,
-		}
+		issue := ctx.NewIssue("cycle-detection", ctx.File.Pos(), ctx.File.End())
+		issue.Message = "detected cycle in function call: " + cycle
 		issues = append(issues, issue)
 	}
 	return issues, nil

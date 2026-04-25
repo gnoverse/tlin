@@ -20,7 +20,7 @@ func (simplifySliceRangeRule) Name() string                 { return "simplify-s
 func (simplifySliceRangeRule) DefaultSeverity() tt.Severity { return tt.SeverityError }
 
 func (simplifySliceRangeRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return DetectUnnecessarySliceLength(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+	return DetectUnnecessarySliceLength(ctx)
 }
 
 const (
@@ -39,16 +39,16 @@ const (
 
 // DetectUnnecessarySliceLength detects unnecessary len() calls in slice expressions.
 // Example: a[:len(a)] -> a[:]
-func DetectUnnecessarySliceLength(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
+func DetectUnnecessarySliceLength(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
 	var issues []tt.Issue
 
-	ast.Inspect(node, func(n ast.Node) bool {
+	ast.Inspect(ctx.File, func(n ast.Node) bool {
 		switch stmt := n.(type) {
 		case *ast.AssignStmt:
-			issues = append(issues, processAssignStmt(stmt, filename, fset, severity)...)
+			issues = append(issues, processAssignStmt(ctx, stmt)...)
 		case *ast.ValueSpec:
 			// XXX: I'm not sure about we need to process this case.
-			issues = append(issues, processValueSpec(stmt, filename, fset, severity)...)
+			issues = append(issues, processValueSpec(ctx, stmt)...)
 		}
 		return true
 	})
@@ -57,7 +57,7 @@ func DetectUnnecessarySliceLength(filename string, node *ast.File, fset *token.F
 }
 
 // processAssignStmt processes assignment statements to find unnecessary len() calls.
-func processAssignStmt(stmt *ast.AssignStmt, filename string, fset *token.FileSet, severity tt.Severity) []tt.Issue {
+func processAssignStmt(ctx *rule.AnalysisContext, stmt *ast.AssignStmt) []tt.Issue {
 	issues := make([]tt.Issue, 0, len(stmt.Rhs))
 
 	for i, rhs := range stmt.Rhs {
@@ -66,7 +66,7 @@ func processAssignStmt(stmt *ast.AssignStmt, filename string, fset *token.FileSe
 			continue
 		}
 
-		issue, found := checkUnnecessaryLenInSliceExpr(sliceExpr, filename, fset, severity)
+		issue, found := checkUnnecessaryLenInSliceExpr(ctx, sliceExpr)
 		if !found {
 			continue
 		}
@@ -86,7 +86,7 @@ func processAssignStmt(stmt *ast.AssignStmt, filename string, fset *token.FileSe
 }
 
 // processValueSpec processes variable declarations to find unnecessary len() calls.
-func processValueSpec(stmt *ast.ValueSpec, filename string, fset *token.FileSet, severity tt.Severity) []tt.Issue {
+func processValueSpec(ctx *rule.AnalysisContext, stmt *ast.ValueSpec) []tt.Issue {
 	issues := make([]tt.Issue, 0, len(stmt.Values))
 
 	for i, value := range stmt.Values {
@@ -95,7 +95,7 @@ func processValueSpec(stmt *ast.ValueSpec, filename string, fset *token.FileSet,
 			continue
 		}
 
-		issue, found := checkUnnecessaryLenInSliceExpr(sliceExpr, filename, fset, severity)
+		issue, found := checkUnnecessaryLenInSliceExpr(ctx, sliceExpr)
 		if !found {
 			continue
 		}
@@ -132,7 +132,7 @@ func formatSuggestion(name string, operator string, suggestion string) string {
 }
 
 // checkUnnecessaryLenInSliceExpr checks a slice expression for unnecessary len() calls.
-func checkUnnecessaryLenInSliceExpr(sliceExpr *ast.SliceExpr, filename string, fset *token.FileSet, severity tt.Severity) (tt.Issue, bool) {
+func checkUnnecessaryLenInSliceExpr(ctx *rule.AnalysisContext, sliceExpr *ast.SliceExpr) (tt.Issue, bool) {
 	// skip 3-index slices as they always require the 2nd and 3rd index
 	if sliceExpr.Max != nil {
 		return tt.Issue{}, false
@@ -145,16 +145,11 @@ func checkUnnecessaryLenInSliceExpr(sliceExpr *ast.SliceExpr, filename string, f
 	sliceIdent := sliceExpr.X.(*ast.Ident)
 	suggestion, detailedMessage := createSuggestionAndMessage(sliceExpr, sliceIdent)
 
-	return tt.Issue{
-		Rule:       ruleName,
-		Filename:   filename,
-		Start:      fset.Position(sliceExpr.Pos()),
-		End:        fset.Position(sliceExpr.End()),
-		Message:    baseMessageUnnecessaryLen,
-		Suggestion: suggestion,
-		Note:       detailedMessage,
-		Severity:   severity,
-	}, true
+	issue := ctx.NewIssue(ruleName, sliceExpr.Pos(), sliceExpr.End())
+	issue.Message = baseMessageUnnecessaryLen
+	issue.Suggestion = suggestion
+	issue.Note = detailedMessage
+	return issue, true
 }
 
 // isSliceWithLenCall checks if the slice expression has unnecessary len() call.

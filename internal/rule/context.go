@@ -44,6 +44,41 @@ type AnalysisContext struct {
 	typesInfo     *types.Info
 }
 
+// NewIssue builds a tt.Issue with Filename, Start, and End all
+// remapped from WorkingPath to OriginalPath, so user-visible paths
+// stay consistent even when the engine ran the parser against a
+// temporary .go file copied from a .gno source.
+func (ctx *AnalysisContext) NewIssue(ruleName string, start, end token.Pos) tt.Issue {
+	return tt.Issue{
+		Rule:     ruleName,
+		Filename: ctx.OriginalPath,
+		Start:    ctx.Position(start),
+		End:      ctx.Position(end),
+		Severity: ctx.Severity,
+	}
+}
+
+// Position returns Fset.Position(p) with Filename remapped from
+// WorkingPath to OriginalPath.
+func (ctx *AnalysisContext) Position(p token.Pos) token.Position {
+	if ctx.Fset == nil {
+		return token.Position{Filename: ctx.OriginalPath}
+	}
+	pos := ctx.Fset.Position(p)
+	pos.Filename = ctx.RemapFilename(pos.Filename)
+	return pos
+}
+
+// RemapFilename returns OriginalPath when name equals WorkingPath,
+// otherwise name unchanged. Empty WorkingPath disables the remap so
+// source-only runs (RunSource) pass through.
+func (ctx *AnalysisContext) RemapFilename(name string) string {
+	if ctx.WorkingPath == "" || name != ctx.WorkingPath {
+		return name
+	}
+	return ctx.OriginalPath
+}
+
 // TypesInfo returns a *types.Info populated by a single types.Check
 // pass on File, computed lazily and cached for the lifetime of the
 // context. Type-check errors are swallowed — the result is

@@ -16,6 +16,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func newTestContext(filename string, node *ast.File, fset *token.FileSet) *rule.AnalysisContext {
+	return &rule.AnalysisContext{
+		OriginalPath: filename,
+		WorkingPath:  filename,
+		File:         node,
+		Fset:         fset,
+		Severity:     types.SeverityError,
+	}
+}
+
 func TestDetectUnnecessarySliceLength(t *testing.T) {
 	t.Parallel()
 	baseMsg := "unnecessary use of len() in slice expression, can be simplified"
@@ -90,7 +100,7 @@ func main() {
 			node, fset, err := ParseFile(tmpfile, nil)
 			require.NoError(t, err)
 
-			issues, err := DetectUnnecessarySliceLength(tmpfile, node, fset, types.SeverityError)
+			issues, err := DetectUnnecessarySliceLength(newTestContext(tmpfile, node, fset))
 			require.NoError(t, err)
 
 			assert.Equal(
@@ -272,7 +282,7 @@ func TestDetectEmitFormat(t *testing.T) {
 			node, fset, err := ParseFile(tmpfile, nil)
 			require.NoError(t, err)
 
-			issues, err := DetectEmitFormat(tmpfile, node, fset, types.SeverityError)
+			issues, err := DetectEmitFormat(newTestContext(tmpfile, node, fset))
 			require.NoError(t, err)
 
 			assert.Equal(
@@ -441,7 +451,7 @@ outer:
 			node, err := parser.ParseFile(fset, "test.go", tt.code, parser.ParseComments)
 			require.NoError(t, err)
 
-			issues, err := DetectUselessBreak("test.go", node, fset, types.SeverityError)
+			issues, err := DetectUselessBreak(newTestContext("test.go", node, fset))
 			require.NoError(t, err)
 
 			assert.Equal(
