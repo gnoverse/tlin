@@ -94,7 +94,8 @@ func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 	}
 
 	for key, cfg := range rules {
-		if _, ok := e.rules[key]; !ok {
+		r, ok := e.rules[key]
+		if !ok {
 			continue
 		}
 		if cfg.Severity == tt.SeverityOff {
@@ -102,6 +103,21 @@ func (e *Engine) applyRules(rules map[string]tt.ConfigRule) {
 			continue
 		}
 		e.severityOverrides[key] = cfg.Severity
+		if cfg.Data == nil {
+			continue
+		}
+		// Fail-open on a per-rule config error: the rule keeps its
+		// defaults and the engine still runs. Hard-failing here would
+		// take down a whole tlin invocation over one bad config block.
+		cr, ok := r.(rule.ConfigurableRule)
+		if !ok {
+			continue
+		}
+		if err := cr.ParseConfig(cfg.Data); err != nil {
+			e.logger.Warn("rule config parse failed",
+				zap.String("rule", key),
+				zap.Error(err))
+		}
 	}
 }
 

@@ -520,6 +520,76 @@ func (failingFakeRule) Check(*rule.AnalysisContext) ([]types.Issue, error) {
 	return nil, errors.New("synthetic failure")
 }
 
+// TestConfigurableRuleReceivesData pins the contract that ConfigRule.Data
+// from .tlin.yaml flows into a rule's ParseConfig at engine
+// construction. Without this wiring the `data:` block in the YAML
+// would be silently ignored.
+func TestConfigurableRuleReceivesData(t *testing.T) {
+	reg := rule.NewRegistry()
+	cr := &fakeConfigurableRule{name: "configurable-rule", sev: types.SeverityInfo}
+	reg.Register(cr)
+
+	cfg := map[string]types.ConfigRule{
+		"configurable-rule": {
+			Severity: types.SeverityWarning,
+			Data:     map[string]any{"threshold": 5},
+		},
+	}
+	_, err := NewEngine(cfg, WithRegistry(reg))
+	require.NoError(t, err)
+
+	require.NotNil(t, cr.captured, "ParseConfig must be called when Data is non-nil")
+	captured, ok := cr.captured.(map[string]any)
+	require.True(t, ok, "captured raw should be the YAML-decoded value, got %T", cr.captured)
+	assert.Equal(t, 5, captured["threshold"])
+}
+
+// TestConfigurableRuleParseErrorLogsWarn pins the fail-open contract:
+// a rule whose ParseConfig returns an error must not stop NewEngine.
+// The engine logs Warn and the rule keeps its default behavior.
+func TestConfigurableRuleParseErrorLogsWarn(t *testing.T) {
+	core, observed := observer.New(zap.WarnLevel)
+	logger := zap.New(core)
+
+	reg := rule.NewRegistry()
+	reg.Register(&fakeConfigurableRule{
+		name:     "broken-rule",
+		sev:      types.SeverityInfo,
+		parseErr: errors.New("invalid threshold"),
+	})
+
+	_, err := NewEngine(
+		map[string]types.ConfigRule{
+			"broken-rule": {Severity: types.SeverityInfo, Data: "anything"},
+		},
+		WithRegistry(reg),
+		WithLogger(logger),
+	)
+	require.NoError(t, err, "engine init must not propagate ParseConfig errors")
+
+	entries := observed.FilterMessage("rule config parse failed").All()
+	require.Len(t, entries, 1, "engine must emit exactly one Warn for the failing ParseConfig")
+	assert.Equal(t, "broken-rule", entries[0].ContextMap()["rule"])
+}
+
+// fakeConfigurableRule satisfies both rule.Rule and
+// rule.ConfigurableRule for the tests above. captured holds the raw
+// data ParseConfig saw; parseErr lets a test simulate config failure.
+type fakeConfigurableRule struct {
+	name     string
+	sev      types.Severity
+	captured any
+	parseErr error
+}
+
+func (f *fakeConfigurableRule) Name() string                                        { return f.name }
+func (f *fakeConfigurableRule) DefaultSeverity() types.Severity                     { return f.sev }
+func (f *fakeConfigurableRule) Check(*rule.AnalysisContext) ([]types.Issue, error)  { return nil, nil }
+func (f *fakeConfigurableRule) ParseConfig(raw any) error {
+	f.captured = raw
+	return f.parseErr
+}
+
 // TestIssueFilenameIsOriginalPath anchors the EPR-3 contract that all
 // issues emit Filename as the user-supplied path (.gno included),
 // structurally — not via the after-the-fact remap loop currently in
