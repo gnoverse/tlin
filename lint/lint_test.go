@@ -5,6 +5,8 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"slices"
+	"sync"
 	"testing"
 
 	"github.com/gnolang/tlin/internal/types"
@@ -33,6 +35,14 @@ func (m *mockLintEngine) RunWithContext(_ context.Context, filePath string) ([]t
 
 func (m *mockLintEngine) RunSourceWithContext(_ context.Context, source []byte) ([]types.Issue, error) {
 	return m.RunSource(source)
+}
+
+func (m *mockLintEngine) RunFile(_ context.Context, filePath string) ([]types.Issue, error) {
+	return m.Run(filePath)
+}
+
+func (m *mockLintEngine) RunPackage(_ context.Context, _ string, _ []string) ([]types.Issue, error) {
+	return nil, nil
 }
 
 func (m *mockLintEngine) IgnoreRule(rule string) {
@@ -130,7 +140,66 @@ func TestProcessFiles(t *testing.T) {
 	assert.Contains(t, issues, expectedIssues[1])
 	mockEngine.AssertExpectations(t)
 }
+// processDirectory must amortize PackageRule dispatch to one
+// engine.RunPackage call per parent directory, no matter how many
+// files in the directory match.
+func TestPackageRuleRunsOncePerPackage(t *testing.T) {
+	t.Parallel()
 
+	tempDir, err := os.MkdirTemp("", "package-rule-test")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	pkgADir := filepath.Join(tempDir, "pkg_a")
+	pkgBDir := filepath.Join(tempDir, "pkg_b")
+	assert.NoError(t, os.Mkdir(pkgADir, 0o755))
+	assert.NoError(t, os.Mkdir(pkgBDir, 0o755))
+
+	pkgAFiles := createTempFiles(t, pkgADir, "a1.go", "a2.go", "a3.go")
+	pkgBFiles := createTempFiles(t, pkgBDir, "b1.go")
+
+	engine := newPackageCountingEngine()
+	for _, p := range slices.Concat(pkgAFiles, pkgBFiles) {
+		engine.On("Run", p).Return([]types.Issue{}, nil)
+	}
+
+	// Pass the parent dir, not individual files, so the call goes
+	// through processDirectory (the path that splits package vs file
+	// dispatch).
+	_, err = ProcessFiles(context.Background(), zap.NewNop(), engine, []string{tempDir}, nil)
+	assert.NoError(t, err)
+	engine.AssertExpectations(t)
+
+	assert.ElementsMatch(t, []packageCall{
+		{dir: pkgADir, count: 3},
+		{dir: pkgBDir, count: 1},
+	}, engine.packageCalls)
+}
+
+// packageCountingEngine wraps mockLintEngine so RunPackage records
+// every invocation; using a slice keeps both "which dirs" and "how
+// many" assertable in one shot.
+type packageCountingEngine struct {
+	*mockLintEngine
+	mu           sync.Mutex
+	packageCalls []packageCall
+}
+
+type packageCall struct {
+	dir   string
+	count int
+}
+
+func newPackageCountingEngine() *packageCountingEngine {
+	return &packageCountingEngine{mockLintEngine: new(mockLintEngine)}
+}
+
+func (e *packageCountingEngine) RunPackage(_ context.Context, dir string, paths []string) ([]types.Issue, error) {
+	e.mu.Lock()
+	e.packageCalls = append(e.packageCalls, packageCall{dir: dir, count: len(paths)})
+	e.mu.Unlock()
+	return nil, nil
+}
 
 func TestHasDesiredExtension(t *testing.T) {
 	t.Parallel()

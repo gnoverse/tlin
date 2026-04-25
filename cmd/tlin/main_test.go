@@ -46,6 +46,14 @@ func (m *mockLintEngine) RunSourceWithContext(_ context.Context, source []byte) 
 	return m.RunSource(source)
 }
 
+func (m *mockLintEngine) RunFile(_ context.Context, filePath string) ([]tt.Issue, error) {
+	return m.Run(filePath)
+}
+
+func (m *mockLintEngine) RunPackage(_ context.Context, _ string, _ []string) ([]tt.Issue, error) {
+	return nil, nil
+}
+
 func (m *mockLintEngine) IgnoreRule(rule string) {
 	m.Called(rule)
 }

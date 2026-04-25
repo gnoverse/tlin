@@ -160,6 +160,12 @@ func (e *Engine) RunSource(source []byte) ([]tt.Issue, error) {
 // Cancellation is observed at rule boundaries (~one rule of latency);
 // a cancelled run returns ctx.Err() alongside whatever issues were
 // collected before the cancellation took effect.
+//
+// Both file-level Rule.Check and PackageRule.CheckPackage fire here:
+// the latter receives a one-file PackageContext via SinglePackage so
+// engine.Run callers (single-file paths, tests) keep emitting the
+// same issues a directory walk would. Directory walks should call
+// RunFile + RunPackage to amortize PackageRule work across siblings.
 func (e *Engine) RunWithContext(ctx context.Context, filename string) ([]tt.Issue, error) {
 	state, err := e.createRunContext(filename)
 	if err != nil {
@@ -167,7 +173,7 @@ func (e *Engine) RunWithContext(ctx context.Context, filename string) ([]tt.Issu
 	}
 	defer e.cleanupContext(state)
 
-	return e.runWithContext(ctx, state)
+	return e.runWithContext(ctx, state, false)
 }
 
 func (e *Engine) RunSourceWithContext(ctx context.Context, source []byte) ([]tt.Issue, error) {
@@ -175,7 +181,103 @@ func (e *Engine) RunSourceWithContext(ctx context.Context, source []byte) ([]tt.
 	if err != nil {
 		return nil, err
 	}
-	return e.runWithContext(ctx, state)
+	return e.runWithContext(ctx, state, false)
+}
+
+// RunFile applies only file-level rules to filename, skipping any
+// PackageRule. Intended for directory walks that pair RunFile with
+// RunPackage so package-level work runs once per directory rather
+// than once per file.
+func (e *Engine) RunFile(ctx context.Context, filename string) ([]tt.Issue, error) {
+	state, err := e.createRunContext(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer e.cleanupContext(state)
+
+	return e.runWithContext(ctx, state, true)
+}
+
+// RunPackage runs every PackageRule once across the supplied paths,
+// which must all live in dir. The engine handles .gno → temp .go
+// conversion and per-file nolint manager construction for filtering.
+// File-level rules are not dispatched here — pair with RunFile per
+// path to cover both layers.
+func (e *Engine) RunPackage(ctx context.Context, dir string, paths []string) ([]tt.Issue, error) {
+	if len(paths) == 0 {
+		return nil, nil
+	}
+
+	workingPaths := make([]string, len(paths))
+	nolintMgrs := make(map[string]*nolint.Manager, len(paths))
+	var cleanups []string
+	defer func() {
+		for _, p := range cleanups {
+			e.cleanupTemp(p)
+		}
+	}()
+
+	for i, p := range paths {
+		wp, err := e.prepareFile(p)
+		if err != nil {
+			return nil, fmt.Errorf("error preparing %s: %w", p, err)
+		}
+		workingPaths[i] = wp
+		if wp != p {
+			cleanups = append(cleanups, wp)
+		}
+		// Best-effort nolint manager: if parsing fails the rule still
+		// runs, the file just won't honor //nolint directives. This
+		// matches the per-file path's behavior (createRunContext
+		// returns an error there, but here we'd rather keep the rest
+		// of the package on the floor).
+		source, readErr := os.ReadFile(wp)
+		if readErr != nil {
+			continue
+		}
+		node, fset, parseErr := lints.ParseFile(wp, source)
+		if parseErr != nil {
+			continue
+		}
+		nolintMgrs[wp] = nolint.ParseComments(node, fset)
+	}
+
+	pctx := &rule.PackageContext{
+		Dir:           dir,
+		OriginalPaths: paths,
+		WorkingPaths:  workingPaths,
+	}
+
+	var allIssues []tt.Issue
+	for _, r := range e.rules {
+		if err := ctx.Err(); err != nil {
+			return allIssues, err
+		}
+		pr, ok := r.(rule.PackageRule)
+		if !ok {
+			continue
+		}
+		if e.ignoredRules[r.Name()] {
+			continue
+		}
+		sev := e.effectiveSeverity(r)
+		if sev == tt.SeverityOff {
+			continue
+		}
+		pctx.Severity = sev
+		issues, err := pr.CheckPackage(ctx, pctx)
+		if err != nil {
+			e.logger.Warn("rule check failed",
+				zap.String("rule", r.Name()),
+				zap.String("dir", dir),
+				zap.Error(err))
+			continue
+		}
+		nolinted := e.filterPackageNolint(issues, pctx, nolintMgrs)
+		noIgnoredPaths := e.filterIgnoredPaths(nolinted)
+		allIssues = append(allIssues, noIgnoredPaths...)
+	}
+	return allIssues, nil
 }
 
 func (e *Engine) IgnoreRule(name string) {
@@ -292,7 +394,7 @@ func (e *Engine) cleanupContext(state *runContext) {
 // propagates within roughly one rule's worth of work. A cancelled
 // run returns ctx.Err() alongside whatever issues were already
 // collected before the cancellation took effect.
-func (e *Engine) runWithContext(ctx context.Context, state *runContext) ([]tt.Issue, error) {
+func (e *Engine) runWithContext(ctx context.Context, state *runContext, skipPackageRules bool) ([]tt.Issue, error) {
 	// Use temp path for checking (golangci-lint needs .go files).
 	workingPath := state.tempPath
 	if workingPath == "" {
@@ -327,7 +429,21 @@ func (e *Engine) runWithContext(ctx context.Context, state *runContext) ([]tt.Is
 			continue
 		}
 		actx.Severity = sev
-		issues, err := r.Check(actx)
+
+		var (
+			issues []tt.Issue
+			err    error
+		)
+		if pr, isPkg := r.(rule.PackageRule); isPkg {
+			if skipPackageRules {
+				continue
+			}
+			// Engine path threads the real ctx into PackageRule;
+			// the rule's own Check would fall back to context.Background.
+			issues, err = pr.CheckPackage(ctx, actx.SinglePackage())
+		} else {
+			issues, err = r.Check(actx)
+		}
 		if err != nil {
 			e.logger.Warn("rule check failed",
 				zap.String("rule", r.Name()),
@@ -342,6 +458,34 @@ func (e *Engine) runWithContext(ctx context.Context, state *runContext) ([]tt.Is
 	}
 
 	return allIssues, nil
+}
+
+// filterPackageNolint applies the per-file nolint managers built in
+// RunPackage to issues emitted by a PackageRule. The issue's
+// Filename is OriginalPath (the rule emits via RemapFilename), so we
+// reverse that map back to WorkingPath to find the matching manager.
+func (e *Engine) filterPackageNolint(issues []tt.Issue, pctx *rule.PackageContext, mgrs map[string]*nolint.Manager) []tt.Issue {
+	if len(mgrs) == 0 || len(issues) == 0 {
+		return issues
+	}
+	o2w := make(map[string]string, len(pctx.OriginalPaths))
+	for i, op := range pctx.OriginalPaths {
+		o2w[op] = pctx.WorkingPaths[i]
+	}
+	filtered := make([]tt.Issue, 0, len(issues))
+	for _, issue := range issues {
+		wp := o2w[issue.Filename]
+		mgr := mgrs[wp]
+		if mgr == nil {
+			filtered = append(filtered, issue)
+			continue
+		}
+		pos := token.Position{Filename: wp, Line: issue.Start.Line}
+		if !mgr.IsNolint(pos, issue.Rule) {
+			filtered = append(filtered, issue)
+		}
+	}
+	return filtered
 }
 
 func (e *Engine) filterIgnoredPaths(issues []tt.Issue) []tt.Issue {

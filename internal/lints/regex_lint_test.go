@@ -94,7 +94,7 @@ func multipleRepeats() {
 				Fset:         fset,
 				Severity:     types.SeverityError,
 			}
-			issues, err := DetectRepeatedRegexCompilation(ctx)
+			issues, err := repeatedRegexCompilationRule{}.Check(ctx)
 			require.NoError(t, err)
 
 			assert.Len(t, issues, tt.expected)

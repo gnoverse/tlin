@@ -18,11 +18,19 @@ const maxShowRecentFiles = 25
 
 // LintEngine is the engine surface the lint package depends on.
 // Concrete production engine: *internal.Engine.
+//
+// RunFile / RunPackage are the directory-walk entry points: RunFile
+// dispatches only file-level rules so processDirectory can pair it
+// with RunPackage (which dispatches PackageRule once per package).
+// Single-file callers should keep using RunWithContext, which
+// dispatches both layers via a one-file PackageContext fallback.
 type LintEngine interface {
 	Run(filePath string) ([]tt.Issue, error)
 	RunSource(source []byte) ([]tt.Issue, error)
 	RunWithContext(ctx context.Context, filePath string) ([]tt.Issue, error)
 	RunSourceWithContext(ctx context.Context, source []byte) ([]tt.Issue, error)
+	RunFile(ctx context.Context, filePath string) ([]tt.Issue, error)
+	RunPackage(ctx context.Context, dir string, paths []string) ([]tt.Issue, error)
 
 	// Deprecated: pass WithIgnoredRules to New instead.
 	IgnoreRule(rule string)
@@ -168,7 +176,10 @@ type fileResult struct {
 }
 
 // processDirectory handles concurrent processing of multiple files
-// in a directory.
+// in a directory. File-level rules dispatch per file inside a worker
+// pool; PackageRule dispatch is amortized to one call per package
+// directory via engine.RunPackage, run before the per-file pass so
+// any cancellation surfaces from there too.
 func processDirectory(
 	ctx context.Context,
 	logger *zap.Logger,
@@ -183,14 +194,20 @@ func processDirectory(
 	observer.OnStart(len(files))
 	defer observer.OnDone()
 
+	allIssues := []tt.Issue{}
+	var firstErr error
+
+	pkgIssues, err := runPackageRules(ctx, logger, engine, files)
+	if err != nil {
+		firstErr = err
+	}
+	allIssues = append(allIssues, pkgIssues...)
+
 	resultChan := make(chan fileResult)
 	maxWorkers := runtime.NumCPU()
 	sem := make(chan struct{}, maxWorkers)
 
 	var wg sync.WaitGroup
-
-	allIssues := []tt.Issue{}
-	var firstErr error
 
 	collectorDone := make(chan struct{})
 	go func() {
@@ -225,7 +242,7 @@ func processDirectory(
 			default:
 			}
 
-			fileIssues, err := engine.RunWithContext(ctx, fp)
+			fileIssues, err := engine.RunFile(ctx, fp)
 			if err != nil && logger != nil {
 				logger.Error("Error processing file", zap.String("file", fp), zap.Error(err))
 			}
@@ -246,6 +263,50 @@ func processDirectory(
 		return allIssues, ctx.Err()
 	}
 	return allIssues, firstErr
+}
+
+// runPackageRules groups files by their parent directory and calls
+// engine.RunPackage once per group. The grouping is by filepath.Dir
+// rather than by Go package import path because the directory walk
+// already reads files off the filesystem one dir at a time, and
+// packages.Load / golangci-lint accept directory paths directly.
+func runPackageRules(
+	ctx context.Context,
+	logger *zap.Logger,
+	engine LintEngine,
+	files []string,
+) ([]tt.Issue, error) {
+	if len(files) == 0 {
+		return nil, nil
+	}
+
+	// filepath.Dir is order-preserving when the input is, so the
+	// returned issue order is stable across runs over the same input.
+	groups := make(map[string][]string)
+	dirOrder := make([]string, 0)
+	for _, f := range files {
+		dir := filepath.Dir(f)
+		if _, seen := groups[dir]; !seen {
+			dirOrder = append(dirOrder, dir)
+		}
+		groups[dir] = append(groups[dir], f)
+	}
+
+	var allIssues []tt.Issue
+	for _, dir := range dirOrder {
+		if err := ctx.Err(); err != nil {
+			return allIssues, err
+		}
+		issues, err := engine.RunPackage(ctx, dir, groups[dir])
+		if err != nil {
+			if logger != nil {
+				logger.Error("Error processing package", zap.String("dir", dir), zap.Error(err))
+			}
+			return allIssues, err
+		}
+		allIssues = append(allIssues, issues...)
+	}
+	return allIssues, nil
 }
 
 var desiredExtensions = map[string]bool{

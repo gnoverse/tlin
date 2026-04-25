@@ -1,6 +1,7 @@
 package lints
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"go/ast"
@@ -21,8 +22,10 @@ type golangciLintRule struct{}
 func (golangciLintRule) Name() string                 { return "golangci-lint" }
 func (golangciLintRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
 
-func (golangciLintRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return RunGolangciLint(ctx)
+// Check is the single-file fallback for non-engine callers; engine
+// dispatch goes straight to CheckPackage with the live ctx.
+func (r golangciLintRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return r.CheckPackage(context.Background(), ctx.SinglePackage())
 }
 
 func ParseFile(filename string, content []byte) (*ast.File, *token.FileSet, error) {
@@ -53,8 +56,16 @@ type golangciOutput struct {
 	} `json:"Issues"`
 }
 
-func RunGolangciLint(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	cmd := exec.Command("golangci-lint", "run", "--config=./.golangci.yml", "--out-format=json", ctx.WorkingPath)
+// CheckPackage runs golangci-lint once against the package directory
+// and filters its output to files in pctx scope. ctx is wired into
+// exec.CommandContext so a cancelled run kills the child too.
+func (golangciLintRule) CheckPackage(ctx context.Context, pctx *rule.PackageContext) ([]tt.Issue, error) {
+	target := pctx.Dir
+	if target == "" && len(pctx.WorkingPaths) > 0 {
+		target = pctx.WorkingPaths[0]
+	}
+
+	cmd := exec.CommandContext(ctx, "golangci-lint", "run", "--config=./.golangci.yml", "--out-format=json", target)
 	output, _ := cmd.CombinedOutput()
 
 	var golangciResult golangciOutput
@@ -65,22 +76,22 @@ func RunGolangciLint(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
 	// logs Warn via WithLogger; partial Issues are not returned because
 	// any successful decode would mean no error.
 	if err := json.Unmarshal(output, &golangciResult); err != nil {
-		return nil, fmt.Errorf("decode golangci-lint output for %s: %w", ctx.WorkingPath, err)
+		return nil, fmt.Errorf("decode golangci-lint output for %s: %w", target, err)
 	}
 
-	// golangci-lint reports Filename as the path it was invoked on
-	// (WorkingPath). Remap to OriginalPath so users see the path they
-	// supplied instead of the engine's temp .go.
 	issues := make([]tt.Issue, 0, len(golangciResult.Issues))
 	for _, gi := range golangciResult.Issues {
-		filename := ctx.RemapFilename(gi.Pos.Filename)
+		if !pctx.InScope(gi.Pos.Filename) {
+			continue
+		}
+		filename := pctx.RemapFilename(gi.Pos.Filename)
 		issues = append(issues, tt.Issue{
 			Rule:     gi.FromLinter,
 			Filename: filename,
 			Start:    token.Position{Filename: filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
 			End:      token.Position{Filename: filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1},
 			Message:  gi.Text,
-			Severity: ctx.Severity,
+			Severity: pctx.Severity,
 		})
 	}
 
