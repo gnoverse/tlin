@@ -43,7 +43,7 @@ func test() {
 	cancel() // Cancel immediately before calling ProcessPath
 
 	// Process files with cancelled context
-	issues, err := ProcessPath(ctx, nil, engine, tempDir, ProcessFile)
+	issues, err := ProcessPath(ctx, nil, engine, tempDir, nil)
 
 	// Should return context cancelled error
 	assert.ErrorIs(t, err, context.Canceled)
@@ -88,7 +88,7 @@ func test%d() {
 
 	// Process files
 	ctx := context.Background()
-	issues, err := ProcessPath(ctx, nil, engine, tempDir, ProcessFile)
+	issues, err := ProcessPath(ctx, nil, engine, tempDir, nil)
 	assert.NoError(t, err)
 
 	// Verify we got issues from all files
@@ -131,7 +131,7 @@ func main() {}
 
 	// Process files - should handle errors gracefully
 	ctx := context.Background()
-	issues, err := ProcessPath(ctx, nil, engine, tempDir, ProcessFile)
+	issues, err := ProcessPath(ctx, nil, engine, tempDir, nil)
 
 	// Should continue processing other files even if one has an error
 	// but should return the error
@@ -160,7 +160,7 @@ func TestErrorPropagationSingleFile(t *testing.T) {
 
 	// Process single invalid file
 	ctx := context.Background()
-	issues, err := ProcessPath(ctx, nil, engine, invalidFile, ProcessFile)
+	issues, err := ProcessPath(ctx, nil, engine, invalidFile, nil)
 
 	// Should return error for single file
 	assert.Error(t, err, "Should return parsing error")

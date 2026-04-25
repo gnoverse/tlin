@@ -67,23 +67,17 @@ func main() {
 		return
 	}
 
-	engine, err := lint.NewWithLogger(config.ConfigurationPath, logger)
+	opts := []lint.Option{lint.WithLogger(logger)}
+	if config.IgnoreRules != "" {
+		opts = append(opts, lint.WithIgnoredRules(splitAndTrim(config.IgnoreRules)...))
+	}
+	if config.IgnorePaths != "" {
+		opts = append(opts, lint.WithIgnoredPaths(splitAndTrim(config.IgnorePaths)...))
+	}
+
+	engine, err := lint.New(config.ConfigurationPath, opts...)
 	if err != nil {
 		logger.Fatal("Failed to initialize lint engine", zap.Error(err))
-	}
-
-	if config.IgnoreRules != "" {
-		rules := strings.Split(config.IgnoreRules, ",")
-		for _, rule := range rules {
-			engine.IgnoreRule(strings.TrimSpace(rule))
-		}
-	}
-
-	if config.IgnorePaths != "" {
-		paths := strings.Split(config.IgnorePaths, ",")
-		for _, path := range paths {
-			engine.IgnorePath(strings.TrimSpace(path))
-		}
 	}
 
 	switch {
@@ -137,8 +131,28 @@ func parseFlags(args []string) Config {
 	return config
 }
 
+// splitAndTrim splits s on commas and trims whitespace from each
+// element. Empty entries (from leading / trailing / doubled commas)
+// are dropped so the engine never sees a blank rule or path name.
+func splitAndTrim(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
 func runNormalLintProcess(ctx context.Context, logger *zap.Logger, engine lint.LintEngine, paths []string, isJson bool, jsonOutput string) {
-	issues, err := lint.ProcessFiles(ctx, logger, engine, paths, lint.ProcessFile)
+	// JSON output keeps stdout machine-readable; the TUI observer
+	// would otherwise sprinkle ANSI escapes into the JSON payload.
+	var observer lint.ProgressObserver
+	if !isJson {
+		observer = lint.NewTUIObserver(strings.Join(paths, " "))
+	}
+	issues, err := lint.ProcessFiles(ctx, logger, engine, paths, observer)
 	if err != nil {
 		logger.Error("Error processing files", zap.Error(err))
 		os.Exit(1)
@@ -240,7 +254,7 @@ func runAutoFix(ctx context.Context, logger *zap.Logger, engine lint.LintEngine,
 					return nil
 				}
 
-				issues, err := lint.ProcessPath(ctx, logger, engine, filePath, lint.ProcessFile)
+				issues, err := lint.ProcessPath(ctx, logger, engine, filePath, nil)
 				if err != nil {
 					logger.Error("error processing path", zap.String("path", filePath), zap.Error(err))
 					return nil
@@ -258,7 +272,7 @@ func runAutoFix(ctx context.Context, logger *zap.Logger, engine lint.LintEngine,
 			continue
 		}
 
-		issues, err := lint.ProcessPath(ctx, logger, engine, path, lint.ProcessFile)
+		issues, err := lint.ProcessPath(ctx, logger, engine, path, nil)
 		if err != nil {
 			logger.Error("error processing path", zap.String("path", path), zap.Error(err))
 			continue
