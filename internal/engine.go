@@ -2,15 +2,13 @@ package internal
 
 import (
 	"context"
-	"fmt"
-	"go/ast"
 	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
-	"github.com/gnolang/tlin/internal/lints"
+	_ "github.com/gnolang/tlin/internal/lints" // side-effect: rule.Register(...) in init()
 	"github.com/gnolang/tlin/internal/nolint"
 	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
@@ -60,17 +58,6 @@ func WithRegistry(reg *rule.Registry) Option {
 	return func(e *Engine) {
 		e.registry = reg
 	}
-}
-
-// runContext holds per-run state to ensure thread safety during concurrent linting.
-// Each call to Run or RunSource creates its own context.
-type runContext struct {
-	originalPath string          // Original filename (.gno or .go)
-	tempPath     string          // Temporary file path if converted from .gno
-	source       []byte          // Raw bytes the parser read (read once, shared with rules)
-	node         *ast.File       // Parsed AST
-	fset         *token.FileSet  // Token file set
-	nolintMgr    *nolint.Manager // Nolint manager for this specific run
 }
 
 // NewEngine creates a new lint engine. Options run before rule
@@ -167,21 +154,21 @@ func (e *Engine) RunSource(source []byte) ([]tt.Issue, error) {
 // same issues a directory walk would. Directory walks should call
 // RunFile + RunPackage to amortize PackageRule work across siblings.
 func (e *Engine) RunWithContext(ctx context.Context, filename string) ([]tt.Issue, error) {
-	state, err := e.createRunContext(filename)
+	src, err := rule.LoadSource(filename)
 	if err != nil {
 		return nil, err
 	}
-	defer e.cleanupContext(state)
+	defer src.Close()
 
-	return e.runWithContext(ctx, state, false)
+	return e.runWithContext(ctx, src, false)
 }
 
 func (e *Engine) RunSourceWithContext(ctx context.Context, source []byte) ([]tt.Issue, error) {
-	state, err := e.createRunContextFromSource(source)
+	src, err := rule.LoadSourceFromBytes(source)
 	if err != nil {
 		return nil, err
 	}
-	return e.runWithContext(ctx, state, false)
+	return e.runWithContext(ctx, src, false)
 }
 
 // RunFile applies only file-level rules to filename, skipping any
@@ -189,13 +176,13 @@ func (e *Engine) RunSourceWithContext(ctx context.Context, source []byte) ([]tt.
 // RunPackage so package-level work runs once per directory rather
 // than once per file.
 func (e *Engine) RunFile(ctx context.Context, filename string) ([]tt.Issue, error) {
-	state, err := e.createRunContext(filename)
+	src, err := rule.LoadSource(filename)
 	if err != nil {
 		return nil, err
 	}
-	defer e.cleanupContext(state)
+	defer src.Close()
 
-	return e.runWithContext(ctx, state, true)
+	return e.runWithContext(ctx, src, true)
 }
 
 // RunPackage runs every PackageRule once across the supplied paths,
@@ -210,36 +197,28 @@ func (e *Engine) RunPackage(ctx context.Context, dir string, paths []string) ([]
 
 	workingPaths := make([]string, len(paths))
 	nolintMgrs := make(map[string]*nolint.Manager, len(paths))
-	var cleanups []string
+	sources := make([]*rule.Source, 0, len(paths))
 	defer func() {
-		for _, p := range cleanups {
-			e.cleanupTemp(p)
+		for _, s := range sources {
+			_ = s.Close()
 		}
 	}()
 
 	for i, p := range paths {
-		wp, err := e.prepareFile(p)
+		// Best-effort load: a parse failure for one file still lets
+		// the rest of the package run. The failed file just won't
+		// honor //nolint directives and won't appear in WorkingPaths
+		// (left empty so RemapFilename / InScope skip it).
+		s, err := rule.LoadSource(p)
 		if err != nil {
-			return nil, fmt.Errorf("error preparing %s: %w", p, err)
-		}
-		workingPaths[i] = wp
-		if wp != p {
-			cleanups = append(cleanups, wp)
-		}
-		// Best-effort nolint manager: if parsing fails the rule still
-		// runs, the file just won't honor //nolint directives. This
-		// matches the per-file path's behavior (createRunContext
-		// returns an error there, but here we'd rather keep the rest
-		// of the package on the floor).
-		source, readErr := os.ReadFile(wp)
-		if readErr != nil {
+			e.logger.Warn("source load failed",
+				zap.String("file", p),
+				zap.Error(err))
 			continue
 		}
-		node, fset, parseErr := lints.ParseFile(wp, source)
-		if parseErr != nil {
-			continue
-		}
-		nolintMgrs[wp] = nolint.ParseComments(node, fset)
+		sources = append(sources, s)
+		workingPaths[i] = s.WorkingPath
+		nolintMgrs[s.WorkingPath] = s.NolintMgr
 	}
 
 	pctx := &rule.PackageContext{
@@ -314,74 +293,6 @@ func normalizeIgnorePattern(pattern string) string {
 	return abs
 }
 
-func (e *Engine) prepareFile(filename string) (string, error) {
-	if strings.HasSuffix(filename, ".gno") {
-		return createTempGoFile(filename)
-	}
-	return filename, nil
-}
-
-func (e *Engine) cleanupTemp(temp string) {
-	if temp != "" && strings.HasPrefix(filepath.Base(temp), "temp_") {
-		_ = os.Remove(temp)
-	}
-}
-
-// createRunContext creates a new run context for a file.
-func (e *Engine) createRunContext(filename string) (*runContext, error) {
-	state := &runContext{
-		originalPath: filename,
-	}
-
-	// Prepare temp file if needed
-	tempFile, err := e.prepareFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	state.tempPath = tempFile
-
-	source, err := os.ReadFile(tempFile)
-	if err != nil {
-		e.cleanupTemp(tempFile)
-		return nil, fmt.Errorf("error reading file: %w", err)
-	}
-	state.source = source
-
-	node, fset, err := lints.ParseFile(tempFile, source)
-	if err != nil {
-		e.cleanupTemp(tempFile)
-		return nil, fmt.Errorf("error parsing file: %w", err)
-	}
-
-	state.node = node
-	state.fset = fset
-	state.nolintMgr = nolint.ParseComments(node, fset)
-
-	return state, nil
-}
-
-// createRunContextFromSource creates a new run context from source bytes.
-func (e *Engine) createRunContextFromSource(source []byte) (*runContext, error) {
-	node, fset, err := lints.ParseFile("", source)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing content: %w", err)
-	}
-
-	return &runContext{
-		source:    source,
-		node:      node,
-		fset:      fset,
-		nolintMgr: nolint.ParseComments(node, fset),
-	}, nil
-}
-
-// cleanupContext cleans up resources associated with a run context.
-func (e *Engine) cleanupContext(state *runContext) {
-	if state.tempPath != "" {
-		e.cleanupTemp(state.tempPath)
-	}
-}
-
 // runWithContext executes all lint rules using the provided context.
 //
 // Rules run sequentially. The previous fan-out spawned len(rules)
@@ -394,20 +305,14 @@ func (e *Engine) cleanupContext(state *runContext) {
 // propagates within roughly one rule's worth of work. A cancelled
 // run returns ctx.Err() alongside whatever issues were already
 // collected before the cancellation took effect.
-func (e *Engine) runWithContext(ctx context.Context, state *runContext, skipPackageRules bool) ([]tt.Issue, error) {
-	// Use temp path for checking (golangci-lint needs .go files).
-	workingPath := state.tempPath
-	if workingPath == "" {
-		workingPath = state.originalPath
-	}
-
+func (e *Engine) runWithContext(ctx context.Context, src *rule.Source, skipPackageRules bool) ([]tt.Issue, error) {
 	actx := &rule.AnalysisContext{
-		OriginalPath: state.originalPath,
-		WorkingPath:  workingPath,
-		File:         state.node,
-		Fset:         state.fset,
-		NolintMgr:    state.nolintMgr,
-		Source:       state.source,
+		OriginalPath: src.OriginalPath,
+		WorkingPath:  src.WorkingPath,
+		File:         src.File,
+		Fset:         src.Fset,
+		NolintMgr:    src.NolintMgr,
+		Source:       src.Bytes,
 	}
 
 	var allIssues []tt.Issue
@@ -447,12 +352,12 @@ func (e *Engine) runWithContext(ctx context.Context, state *runContext, skipPack
 		if err != nil {
 			e.logger.Warn("rule check failed",
 				zap.String("rule", r.Name()),
-				zap.String("file", state.originalPath),
+				zap.String("file", src.OriginalPath),
 				zap.Error(err))
 			continue
 		}
 
-		nolinted := e.filterNolintIssues(issues, state)
+		nolinted := e.filterNolintIssues(issues, src)
 		noIgnoredPaths := e.filterIgnoredPaths(nolinted)
 		allIssues = append(allIssues, noIgnoredPaths...)
 	}
@@ -522,13 +427,13 @@ func (e *Engine) isIgnoredPath(path string) bool {
 // the parser actually saw — that's WorkingPath when the engine
 // converted .gno → temp .go. We swap back to WorkingPath when the
 // run had a temp file so the manager finds the scope.
-func (e *Engine) filterNolintIssues(issues []tt.Issue, state *runContext) []tt.Issue {
-	if state.nolintMgr == nil {
+func (e *Engine) filterNolintIssues(issues []tt.Issue, src *rule.Source) []tt.Issue {
+	if src.NolintMgr == nil {
 		return issues
 	}
 	lookupFilename := func(emitted string) string {
-		if state.tempPath != "" && state.tempPath != state.originalPath && emitted == state.originalPath {
-			return state.tempPath
+		if src.WorkingPath != "" && src.WorkingPath != src.OriginalPath && emitted == src.OriginalPath {
+			return src.WorkingPath
 		}
 		return emitted
 	}
@@ -538,41 +443,11 @@ func (e *Engine) filterNolintIssues(issues []tt.Issue, state *runContext) []tt.I
 			Filename: lookupFilename(issue.Filename),
 			Line:     issue.Start.Line,
 		}
-		if !state.nolintMgr.IsNolint(pos, issue.Rule) {
+		if !src.NolintMgr.IsNolint(pos, issue.Rule) {
 			filtered = append(filtered, issue)
 		}
 	}
 	return filtered
-}
-
-// createTempGoFile converts a .gno file to a .go file.
-// Since golangci-lint does not support .gno file, we need to convert it to .go file.
-// gno has a identical syntax to go, so it is possible to convert it to go file.
-func createTempGoFile(gnoFile string) (string, error) {
-	content, err := os.ReadFile(gnoFile)
-	if err != nil {
-		return "", fmt.Errorf("error reading .gno file: %w", err)
-	}
-
-	dir := filepath.Dir(gnoFile)
-	tempFile, err := os.CreateTemp(dir, "temp_*.go")
-	if err != nil {
-		return "", fmt.Errorf("error creating temp file: %w", err)
-	}
-
-	_, err = tempFile.Write(content)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		return "", fmt.Errorf("error writing to temp file: %w", err)
-	}
-
-	err = tempFile.Close()
-	if err != nil {
-		os.Remove(tempFile.Name())
-		return "", fmt.Errorf("error closing temp file: %w", err)
-	}
-
-	return tempFile.Name(), nil
 }
 
 // SourceCode stores the content of a source code file.
