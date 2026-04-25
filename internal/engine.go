@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -142,28 +143,39 @@ func (e *Engine) effectiveSeverity(r rule.Rule) tt.Severity {
 	return r.DefaultSeverity()
 }
 
-// Run applies all lint rules to the given file and returns a slice of Issues.
+// Run applies all lint rules to the given file without cancellation.
+// Prefer RunWithContext when a context is available.
 func (e *Engine) Run(filename string) ([]tt.Issue, error) {
-	// Create run context for this specific run
-	ctx, err := e.createRunContext(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer e.cleanupContext(ctx)
-
-	return e.runWithContext(ctx)
+	return e.RunWithContext(context.Background(), filename)
 }
 
-// RunSource applies all lint rules to the given source and returns a slice of Issues.
+// RunSource applies all lint rules to the given source without
+// cancellation. Prefer RunSourceWithContext when a context is
+// available.
 func (e *Engine) RunSource(source []byte) ([]tt.Issue, error) {
-	// Create run context for source
-	ctx, err := e.createRunContextFromSource(source)
+	return e.RunSourceWithContext(context.Background(), source)
+}
+
+// RunWithContext applies all lint rules to the file at filename.
+// Cancellation is observed at rule boundaries (~one rule of latency);
+// a cancelled run returns ctx.Err() alongside whatever issues were
+// collected before the cancellation took effect.
+func (e *Engine) RunWithContext(ctx context.Context, filename string) ([]tt.Issue, error) {
+	state, err := e.createRunContext(filename)
 	if err != nil {
 		return nil, err
 	}
-	// No cleanup needed for source-based runs
+	defer e.cleanupContext(state)
 
-	return e.runWithContext(ctx)
+	return e.runWithContext(ctx, state)
+}
+
+func (e *Engine) RunSourceWithContext(ctx context.Context, source []byte) ([]tt.Issue, error) {
+	state, err := e.createRunContextFromSource(source)
+	if err != nil {
+		return nil, err
+	}
+	return e.runWithContext(ctx, state)
 }
 
 func (e *Engine) IgnoreRule(name string) {
@@ -215,7 +227,7 @@ func (e *Engine) cleanupTemp(temp string) {
 
 // createRunContext creates a new run context for a file.
 func (e *Engine) createRunContext(filename string) (*runContext, error) {
-	ctx := &runContext{
+	state := &runContext{
 		originalPath: filename,
 	}
 
@@ -224,14 +236,14 @@ func (e *Engine) createRunContext(filename string) (*runContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctx.tempPath = tempFile
+	state.tempPath = tempFile
 
 	source, err := os.ReadFile(tempFile)
 	if err != nil {
 		e.cleanupTemp(tempFile)
 		return nil, fmt.Errorf("error reading file: %w", err)
 	}
-	ctx.source = source
+	state.source = source
 
 	node, fset, err := lints.ParseFile(tempFile, source)
 	if err != nil {
@@ -239,11 +251,11 @@ func (e *Engine) createRunContext(filename string) (*runContext, error) {
 		return nil, fmt.Errorf("error parsing file: %w", err)
 	}
 
-	ctx.node = node
-	ctx.fset = fset
-	ctx.nolintMgr = nolint.ParseComments(node, fset)
+	state.node = node
+	state.fset = fset
+	state.nolintMgr = nolint.ParseComments(node, fset)
 
-	return ctx, nil
+	return state, nil
 }
 
 // createRunContextFromSource creates a new run context from source bytes.
@@ -253,22 +265,18 @@ func (e *Engine) createRunContextFromSource(source []byte) (*runContext, error) 
 		return nil, fmt.Errorf("error parsing content: %w", err)
 	}
 
-	ctx := &runContext{
-		originalPath: "",
-		tempPath:     "",
-		source:       source,
-		node:         node,
-		fset:         fset,
-		nolintMgr:    nolint.ParseComments(node, fset),
-	}
-
-	return ctx, nil
+	return &runContext{
+		source:    source,
+		node:      node,
+		fset:      fset,
+		nolintMgr: nolint.ParseComments(node, fset),
+	}, nil
 }
 
 // cleanupContext cleans up resources associated with a run context.
-func (e *Engine) cleanupContext(ctx *runContext) {
-	if ctx.tempPath != "" {
-		e.cleanupTemp(ctx.tempPath)
+func (e *Engine) cleanupContext(state *runContext) {
+	if state.tempPath != "" {
+		e.cleanupTemp(state.tempPath)
 	}
 }
 
@@ -279,24 +287,32 @@ func (e *Engine) cleanupContext(ctx *runContext) {
 // worker pool — multiplying total goroutines by ~12. File-level
 // parallelism (the outer worker pool) is preserved; only the inner
 // per-rule fan-out is gone.
-func (e *Engine) runWithContext(ctx *runContext) ([]tt.Issue, error) {
+//
+// runWithContext checks ctx.Done() between rules so a cancellation
+// propagates within roughly one rule's worth of work. A cancelled
+// run returns ctx.Err() alongside whatever issues were already
+// collected before the cancellation took effect.
+func (e *Engine) runWithContext(ctx context.Context, state *runContext) ([]tt.Issue, error) {
 	// Use temp path for checking (golangci-lint needs .go files).
-	workingPath := ctx.tempPath
+	workingPath := state.tempPath
 	if workingPath == "" {
-		workingPath = ctx.originalPath
+		workingPath = state.originalPath
 	}
 
 	actx := &rule.AnalysisContext{
-		OriginalPath: ctx.originalPath,
+		OriginalPath: state.originalPath,
 		WorkingPath:  workingPath,
-		File:         ctx.node,
-		Fset:         ctx.fset,
-		NolintMgr:    ctx.nolintMgr,
-		Source:       ctx.source,
+		File:         state.node,
+		Fset:         state.fset,
+		NolintMgr:    state.nolintMgr,
+		Source:       state.source,
 	}
 
 	var allIssues []tt.Issue
 	for _, r := range e.rules {
+		if err := ctx.Err(); err != nil {
+			return allIssues, err
+		}
 		if e.ignoredRules[r.Name()] {
 			continue
 		}
@@ -315,12 +331,12 @@ func (e *Engine) runWithContext(ctx *runContext) ([]tt.Issue, error) {
 		if err != nil {
 			e.logger.Warn("rule check failed",
 				zap.String("rule", r.Name()),
-				zap.String("file", ctx.originalPath),
+				zap.String("file", state.originalPath),
 				zap.Error(err))
 			continue
 		}
 
-		nolinted := e.filterNolintIssues(issues, ctx)
+		nolinted := e.filterNolintIssues(issues, state)
 		noIgnoredPaths := e.filterIgnoredPaths(nolinted)
 		allIssues = append(allIssues, noIgnoredPaths...)
 	}
@@ -362,13 +378,13 @@ func (e *Engine) isIgnoredPath(path string) bool {
 // the parser actually saw — that's WorkingPath when the engine
 // converted .gno → temp .go. We swap back to WorkingPath when the
 // run had a temp file so the manager finds the scope.
-func (e *Engine) filterNolintIssues(issues []tt.Issue, ctx *runContext) []tt.Issue {
-	if ctx.nolintMgr == nil {
+func (e *Engine) filterNolintIssues(issues []tt.Issue, state *runContext) []tt.Issue {
+	if state.nolintMgr == nil {
 		return issues
 	}
 	lookupFilename := func(emitted string) string {
-		if ctx.tempPath != "" && ctx.tempPath != ctx.originalPath && emitted == ctx.originalPath {
-			return ctx.tempPath
+		if state.tempPath != "" && state.tempPath != state.originalPath && emitted == state.originalPath {
+			return state.tempPath
 		}
 		return emitted
 	}
@@ -378,7 +394,7 @@ func (e *Engine) filterNolintIssues(issues []tt.Issue, ctx *runContext) []tt.Iss
 			Filename: lookupFilename(issue.Filename),
 			Line:     issue.Start.Line,
 		}
-		if !ctx.nolintMgr.IsNolint(pos, issue.Rule) {
+		if !state.nolintMgr.IsNolint(pos, issue.Rule) {
 			filtered = append(filtered, issue)
 		}
 	}

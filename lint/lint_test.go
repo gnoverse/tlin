@@ -27,6 +27,14 @@ func (m *mockLintEngine) RunSource(source []byte) ([]types.Issue, error) {
 	return args.Get(0).([]types.Issue), args.Error(1)
 }
 
+func (m *mockLintEngine) RunWithContext(_ context.Context, filePath string) ([]types.Issue, error) {
+	return m.Run(filePath)
+}
+
+func (m *mockLintEngine) RunSourceWithContext(_ context.Context, source []byte) ([]types.Issue, error) {
+	return m.RunSource(source)
+}
+
 func (m *mockLintEngine) IgnoreRule(rule string) {
 	m.Called(rule)
 }
@@ -60,7 +68,7 @@ func TestProcessFile(t *testing.T) {
 	}
 	mockEngine := setupMockEngine(expectedIssues, "test.go")
 
-	issues, err := ProcessFile(mockEngine, "test.go")
+	issues, err := ProcessFile(context.Background(), mockEngine, "test.go")
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedIssues, issues)
@@ -80,7 +88,7 @@ func TestProcessSource(t *testing.T) {
 	}
 	mockEngine := setupSourceMockEngine(expectedIssues, []byte("package main"))
 
-	issues, err := ProcessSource(mockEngine, []byte("package main"))
+	issues, err := ProcessSource(context.Background(), mockEngine, []byte("package main"))
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedIssues, issues)

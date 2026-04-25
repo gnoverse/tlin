@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -637,16 +639,45 @@ func main() {
 	}
 }
 
-// TestRunHonoursContextCancel anchors the EPR-4 contract that the
-// engine respects context.Context cancellation. Today there is no ctx
-// parameter; cancellation cannot reach inner loops or sub-processes.
-// EPR-4 introduces Engine.RunWithContext / RunSourceWithContext.
+// TestRunHonoursContextCancel pins the EPR-4 contract that the
+// engine respects context.Context cancellation. A pre-cancelled
+// context returned to RunWithContext / RunSourceWithContext stops
+// dispatch on the next rule boundary and surfaces ctx.Err().
 func TestRunHonoursContextCancel(t *testing.T) {
-	t.Skip("anchor for EPR-4: requires Engine.RunWithContext + ctx propagation")
+	t.Parallel()
 
-	// TODO(EPR-4): create a cancelled context.Context, call
-	// engine.RunWithContext(ctx, file), assert err is context.Canceled
-	// and no leaked goroutines (go.uber.org/goleak in test body).
+	tempDir := createTempDir(t, "ctx_cancel_test")
+	gnoFile := filepath.Join(tempDir, "src.gno")
+	require.NoError(t, os.WriteFile(gnoFile, []byte("package main\nfunc main() {}\n"), 0o644))
+
+	engine, err := NewEngine(nil)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = engine.RunWithContext(ctx, gnoFile)
+	assert.ErrorIs(t, err, context.Canceled,
+		"RunWithContext on a cancelled ctx must surface ctx.Err()")
+
+	_, err = engine.RunSourceWithContext(ctx, []byte("package main\n"))
+	assert.ErrorIs(t, err, context.Canceled,
+		"RunSourceWithContext on a cancelled ctx must surface ctx.Err()")
+}
+
+// A cancelled engine run must leave no dangling goroutines — a
+// guard against reintroducing the pre-EPR-1 goroutine-per-rule
+// fan-out that the old runWithTimeout orphaned on os.Exit.
+func TestTimeoutLeakFree(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	engine, err := NewEngine(nil)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, _ = engine.RunSourceWithContext(ctx, []byte("package main\n"))
 }
 
 func createTempDir(tb testing.TB, prefix string) string {

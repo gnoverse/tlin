@@ -15,7 +15,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	tt "github.com/gnolang/tlin/internal/types"
 	"github.com/gnolang/tlin/lint"
@@ -37,6 +36,14 @@ func (m *mockLintEngine) Run(filePath string) ([]tt.Issue, error) {
 func (m *mockLintEngine) RunSource(source []byte) ([]tt.Issue, error) {
 	args := m.Called(source)
 	return args.Get(0).([]tt.Issue), args.Error(1)
+}
+
+func (m *mockLintEngine) RunWithContext(_ context.Context, filePath string) ([]tt.Issue, error) {
+	return m.Run(filePath)
+}
+
+func (m *mockLintEngine) RunSourceWithContext(_ context.Context, source []byte) ([]tt.Issue, error) {
+	return m.RunSource(source)
 }
 
 func (m *mockLintEngine) IgnoreRule(rule string) {
@@ -136,27 +143,6 @@ func TestParseFlags(t *testing.T) {
 			assert.Equal(t, tt.expected.Output, config.Output)
 			assert.Equal(t, tt.expected.ConfigurationPath, config.ConfigurationPath)
 		})
-	}
-}
-
-func TestRunWithTimeout(t *testing.T) {
-	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	done := make(chan bool)
-	go func() {
-		runWithTimeout(ctx, func() {
-			time.Sleep(1 * time.Second)
-			done <- true
-		})
-	}()
-
-	select {
-	case <-done:
-		// no problem
-	case <-ctx.Done():
-		t.Fatal("function unexpectedly timed out")
 	}
 }
 

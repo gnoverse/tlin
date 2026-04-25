@@ -20,6 +20,8 @@ const maxShowRecentFiles = 25
 type LintEngine interface {
 	Run(filePath string) ([]tt.Issue, error)
 	RunSource(source []byte) ([]tt.Issue, error)
+	RunWithContext(ctx context.Context, filePath string) ([]tt.Issue, error)
+	RunSourceWithContext(ctx context.Context, source []byte) ([]tt.Issue, error)
 	IgnoreRule(rule string)
 	IgnorePath(path string)
 }
@@ -47,11 +49,11 @@ func ProcessSources(
 	logger *zap.Logger,
 	engine LintEngine,
 	sources [][]byte,
-	processor func(LintEngine, []byte) ([]tt.Issue, error),
+	processor func(context.Context, LintEngine, []byte) ([]tt.Issue, error),
 ) ([]tt.Issue, error) {
 	var allIssues []tt.Issue
 	for i, source := range sources {
-		issues, err := processor(engine, source)
+		issues, err := processor(ctx, engine, source)
 		if err != nil {
 			if logger != nil {
 				logger.Error("Error processing source", zap.Int("source", i), zap.Error(err))
@@ -69,7 +71,7 @@ func ProcessFiles(
 	logger *zap.Logger,
 	engine LintEngine,
 	paths []string,
-	processor func(LintEngine, string) ([]tt.Issue, error),
+	processor func(context.Context, LintEngine, string) ([]tt.Issue, error),
 ) ([]tt.Issue, error) {
 	var allIssues []tt.Issue
 	for _, path := range paths {
@@ -100,7 +102,7 @@ func processDirectory(
 	engine LintEngine,
 	path string,
 	files []string,
-	processor func(LintEngine, string) ([]tt.Issue, error),
+	processor func(context.Context, LintEngine, string) ([]tt.Issue, error),
 ) ([]tt.Issue, error) {
 	// Setup UI components
 	var recentFilesMutex sync.Mutex
@@ -205,7 +207,7 @@ func processDirectory(
 			default:
 			}
 
-			fileIssues, err := processor(engine, fp)
+			fileIssues, err := processor(ctx, engine, fp)
 			if err != nil && logger != nil {
 				logger.Error("Error processing file", zap.String("file", fp), zap.Error(err))
 			}
@@ -247,7 +249,7 @@ func ProcessPath(
 	logger *zap.Logger,
 	engine LintEngine,
 	path string,
-	processor func(LintEngine, string) ([]tt.Issue, error),
+	processor func(context.Context, LintEngine, string) ([]tt.Issue, error),
 ) ([]tt.Issue, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -277,7 +279,7 @@ func ProcessPath(
 		}
 		return issues, nil
 	} else if hasDesiredExtension(path) {
-		fileIssues, err := processor(engine, path)
+		fileIssues, err := processor(ctx, engine, path)
 		if err != nil {
 			return issues, err
 		}
@@ -287,12 +289,12 @@ func ProcessPath(
 	return issues, nil
 }
 
-func ProcessFile(engine LintEngine, filePath string) ([]tt.Issue, error) {
-	return engine.Run(filePath)
+func ProcessFile(ctx context.Context, engine LintEngine, filePath string) ([]tt.Issue, error) {
+	return engine.RunWithContext(ctx, filePath)
 }
 
-func ProcessSource(engine LintEngine, source []byte) ([]tt.Issue, error) {
-	return engine.RunSource(source)
+func ProcessSource(ctx context.Context, engine LintEngine, source []byte) ([]tt.Issue, error) {
+	return engine.RunSourceWithContext(ctx, source)
 }
 
 var desiredExtensions = map[string]bool{

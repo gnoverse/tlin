@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -85,22 +86,20 @@ func main() {
 		}
 	}
 
-	if config.CFGAnalysis {
-		runWithTimeout(ctx, func() {
-			runCFGAnalysis(ctx, logger, config.Paths, config.FuncName, config.Output)
-		})
-	} else if config.CyclomaticComplexity {
-		runWithTimeout(ctx, func() {
-			runCyclomaticComplexityAnalysis(ctx, logger, config.Paths, config.CyclomaticThreshold, config.JsonOutput, config.Output)
-		})
-	} else if config.AutoFix {
-		runWithTimeout(ctx, func() {
-			runAutoFix(ctx, logger, engine, config.Paths, config.DryRun, config.ConfidenceThreshold)
-		})
-	} else {
-		runWithTimeout(ctx, func() {
-			runNormalLintProcess(ctx, logger, engine, config.Paths, config.JsonOutput, config.Output)
-		})
+	switch {
+	case config.CFGAnalysis:
+		runCFGAnalysis(ctx, logger, config.Paths, config.FuncName, config.Output)
+	case config.CyclomaticComplexity:
+		runCyclomaticComplexityAnalysis(ctx, logger, config.Paths, config.CyclomaticThreshold, config.JsonOutput, config.Output)
+	case config.AutoFix:
+		runAutoFix(ctx, logger, engine, config.Paths, config.DryRun, config.ConfidenceThreshold)
+	default:
+		runNormalLintProcess(ctx, logger, engine, config.Paths, config.JsonOutput, config.Output)
+	}
+
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		fmt.Fprintln(os.Stderr, "linter timed out")
+		os.Exit(2)
 	}
 }
 
@@ -136,22 +135,6 @@ func parseFlags(args []string) Config {
 	}
 
 	return config
-}
-
-func runWithTimeout(ctx context.Context, f func()) {
-	done := make(chan struct{})
-	go func() {
-		f()
-		close(done)
-	}()
-
-	select {
-	case <-ctx.Done():
-		fmt.Println("Linter timed out")
-		os.Exit(1)
-	case <-done:
-		return
-	}
 }
 
 func runNormalLintProcess(ctx context.Context, logger *zap.Logger, engine lint.LintEngine, paths []string, isJson bool, jsonOutput string) {
