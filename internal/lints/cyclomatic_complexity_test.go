@@ -88,11 +88,11 @@ func TestCyclomaticComplexityRule_Check(t *testing.T) {
 func TestCyclomaticComplexityRule_ParseConfig(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name        string
-		raw         any
-		startThres  int
-		wantErr     bool
-		wantThres   int // expected threshold after ParseConfig (regardless of err)
+		name       string
+		raw        any
+		startThres int
+		wantErr    bool
+		wantThres  int // expected threshold after ParseConfig (regardless of err)
 	}{
 		{"int threshold", map[string]any{"threshold": 5}, 10, false, 5},
 		{"int64 threshold", map[string]any{"threshold": int64(7)}, 10, false, 7},

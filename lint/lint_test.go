@@ -53,12 +53,6 @@ func (m *mockLintEngine) IgnorePath(path string) {
 	m.Called(path)
 }
 
-func setupMockEngine(expectedIssues []types.Issue, filePath string) *mockLintEngine {
-	mockEngine := new(mockLintEngine)
-	mockEngine.On("Run", filePath).Return(expectedIssues, nil)
-	return mockEngine
-}
-
 func TestProcessPath(t *testing.T) {
 	t.Parallel()
 	logger, _ := zap.NewProduction()
@@ -140,6 +134,7 @@ func TestProcessFiles(t *testing.T) {
 	assert.Contains(t, issues, expectedIssues[1])
 	mockEngine.AssertExpectations(t)
 }
+
 // processDirectory must amortize PackageRule dispatch to one
 // engine.RunPackage call per parent directory, no matter how many
 // files in the directory match.

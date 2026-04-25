@@ -100,7 +100,7 @@ func extractDependencies(file *ast.File) Dependencies {
 }
 
 func runGnoPackageLinter(ctx *rule.AnalysisContext, deps Dependencies) []tt.Issue {
-	var issues []tt.Issue
+	issues := make([]tt.Issue, 0, len(deps))
 	for imp, dep := range deps {
 		if dep.IsUsed || dep.IsIgnored {
 			continue

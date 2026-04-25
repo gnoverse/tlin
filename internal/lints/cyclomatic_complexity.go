@@ -79,7 +79,7 @@ func analyzeCyclomatic(ctx *rule.AnalysisContext, threshold int) ([]tt.Issue, er
 		return true
 	})
 
-	var issues []tt.Issue
+	issues := make([]tt.Issue, 0, len(stats))
 	for _, stat := range stats {
 		if stat.Complexity <= threshold {
 			continue

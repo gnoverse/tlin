@@ -13,9 +13,9 @@ type fakeRule struct {
 	sev  tt.Severity
 }
 
-func (f *fakeRule) Name() string                                { return f.name }
-func (f *fakeRule) DefaultSeverity() tt.Severity                { return f.sev }
-func (f *fakeRule) Check(*AnalysisContext) ([]tt.Issue, error)  { return nil, nil }
+func (f *fakeRule) Name() string                               { return f.name }
+func (f *fakeRule) DefaultSeverity() tt.Severity               { return f.sev }
+func (f *fakeRule) Check(*AnalysisContext) ([]tt.Issue, error) { return nil, nil }
 
 func TestRegistryRegisterAndAll(t *testing.T) {
 	t.Parallel()
@@ -58,4 +58,3 @@ func TestRegistryAllReturnsCopy(t *testing.T) {
 	assert.Len(t, again, 1,
 		"All() must return a copy; mutating the returned map must not affect the registry")
 }
-

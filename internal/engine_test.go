@@ -451,8 +451,8 @@ func TestEngineGoroutineFootprint(t *testing.T) {
 // from Check, used by TestRuleErrorsAreLogged to drive the Warn path.
 type failingFakeRule struct{}
 
-func (failingFakeRule) Name() string                                        { return "test-failing-rule" }
-func (failingFakeRule) DefaultSeverity() types.Severity                     { return types.SeverityError }
+func (failingFakeRule) Name() string                    { return "test-failing-rule" }
+func (failingFakeRule) DefaultSeverity() types.Severity { return types.SeverityError }
 func (failingFakeRule) Check(*rule.AnalysisContext) ([]types.Issue, error) {
 	return nil, errors.New("synthetic failure")
 }
@@ -519,9 +519,9 @@ type fakeConfigurableRule struct {
 	parseErr error
 }
 
-func (f *fakeConfigurableRule) Name() string                                        { return f.name }
-func (f *fakeConfigurableRule) DefaultSeverity() types.Severity                     { return f.sev }
-func (f *fakeConfigurableRule) Check(*rule.AnalysisContext) ([]types.Issue, error)  { return nil, nil }
+func (f *fakeConfigurableRule) Name() string                                       { return f.name }
+func (f *fakeConfigurableRule) DefaultSeverity() types.Severity                    { return f.sev }
+func (f *fakeConfigurableRule) Check(*rule.AnalysisContext) ([]types.Issue, error) { return nil, nil }
 func (f *fakeConfigurableRule) ParseConfig(raw any) error {
 	f.captured = raw
 	return f.parseErr
