@@ -21,7 +21,7 @@ func (simplifyForRangeRule) Name() string                 { return "simplify-for
 func (simplifyForRangeRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
 
 func (simplifyForRangeRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return DetectSimplifiableForLoops(ctx.WorkingPath, ctx.TypesInfo(), ctx.File, ctx.Fset, ctx.Severity)
+	return DetectSimplifiableForLoops(ctx)
 }
 
 // DetectSimplifiableForLoops detects counter-based for-loops that can be safely
@@ -116,12 +116,13 @@ func (simplifyForRangeRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error)
 //
 // All other counter-based loops remain untouched.
 //
-// info must be non-nil and populated with at least Types entries
-// for the file. Production callers go through ctx.TypesInfo().
-func DetectSimplifiableForLoops(filename string, info *types.Info, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
-	var issues []tt.Issue
+// All callers go through ctx.TypesInfo() so the type checker runs
+// once per file and is shared across rules.
+func DetectSimplifiableForLoops(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	info := ctx.TypesInfo()
 
-	ast.Inspect(node, func(n ast.Node) bool {
+	var issues []tt.Issue
+	ast.Inspect(ctx.File, func(n ast.Node) bool {
 		forStmt, ok := n.(*ast.ForStmt)
 		if !ok {
 			return true
@@ -136,7 +137,7 @@ func DetectSimplifiableForLoops(filename string, info *types.Info, node *ast.Fil
 			return true
 		}
 
-		if loopVarUsedAfter(node, forStmt, idxIdent) {
+		if loopVarUsedAfter(ctx.File, forStmt, idxIdent) {
 			return true
 		}
 
@@ -148,16 +149,11 @@ func DetectSimplifiableForLoops(filename string, info *types.Info, node *ast.Fil
 			bodyStr,
 		)
 
-		issues = append(issues, tt.Issue{
-			Rule:       "simplify-for-range",
-			Filename:   filename,
-			Message:    "counter-based for loop can be simplified to range-based loop",
-			Category:   "style",
-			Start:      fset.Position(forStmt.Pos()),
-			End:        fset.Position(forStmt.End()),
-			Severity:   severity,
-			Suggestion: suggestion,
-		})
+		issue := ctx.NewIssue("simplify-for-range", forStmt.Pos(), forStmt.End())
+		issue.Message = "counter-based for loop can be simplified to range-based loop"
+		issue.Category = "style"
+		issue.Suggestion = suggestion
+		issues = append(issues, issue)
 
 		return true
 	})

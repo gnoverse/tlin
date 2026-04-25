@@ -20,7 +20,7 @@ func (repeatedRegexCompilationRule) Name() string                 { return "repe
 func (repeatedRegexCompilationRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
 
 func (repeatedRegexCompilationRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return DetectRepeatedRegexCompilation(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+	return DetectRepeatedRegexCompilation(ctx)
 }
 
 var RepeatedRegexCompilationAnalyzer = &analysis.Analyzer{
@@ -29,8 +29,8 @@ var RepeatedRegexCompilationAnalyzer = &analysis.Analyzer{
 	Run:  runRepeatedRegexCompilation,
 }
 
-func DetectRepeatedRegexCompilation(filename string, node *ast.File, _ *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
-	imports := extractImports(node, func(path string) bool {
+func DetectRepeatedRegexCompilation(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	imports := extractImports(ctx.File, func(path string) bool {
 		return path == "regexp"
 	})
 
@@ -38,20 +38,21 @@ func DetectRepeatedRegexCompilation(filename string, node *ast.File, _ *token.Fi
 		return nil, nil
 	}
 
-	issues, err := runAnalyzer(filename, RepeatedRegexCompilationAnalyzer, severity)
-	if err != nil {
-		return nil, err
-	}
-	return issues, nil
+	return runAnalyzer(ctx, RepeatedRegexCompilationAnalyzer)
 }
 
-func runAnalyzer(filename string, a *analysis.Analyzer, severity tt.Severity) ([]tt.Issue, error) {
+// runAnalyzer drives a golang.org/x/tools/go/analysis Analyzer. The
+// analyzer's Pass owns its own *token.FileSet (loaded by
+// packages.Load) so we can't go through ctx.NewIssue/ctx.Position.
+// Instead we manually swap the Pass's Filename for ctx.OriginalPath
+// when constructing each Issue, preserving the same convention.
+func runAnalyzer(ctx *rule.AnalysisContext, a *analysis.Analyzer) ([]tt.Issue, error) {
 	cfg := &packages.Config{
 		Mode:  packages.NeedFiles | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedTypes,
 		Tests: false,
 	}
 
-	pkgs, err := packages.Load(cfg, filename)
+	pkgs, err := packages.Load(cfg, ctx.WorkingPath)
 	if err != nil {
 		return nil, err
 	}
@@ -76,13 +77,17 @@ func runAnalyzer(filename string, a *analysis.Analyzer, severity tt.Severity) ([
 
 	issues := make([]tt.Issue, 0, len(diagnostics))
 	for _, diag := range diagnostics {
+		start := pass.Fset.Position(diag.Pos)
+		end := pass.Fset.Position(diag.End)
+		start.Filename = ctx.RemapFilename(start.Filename)
+		end.Filename = ctx.RemapFilename(end.Filename)
 		issues = append(issues, tt.Issue{
 			Rule:     a.Name,
-			Filename: filename,
-			Start:    pass.Fset.Position(diag.Pos),
-			End:      pass.Fset.Position(diag.End),
+			Filename: ctx.OriginalPath,
+			Start:    start,
+			End:      end,
 			Message:  diag.Message,
-			Severity: severity,
+			Severity: ctx.Severity,
 		})
 	}
 

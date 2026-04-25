@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gnolang/tlin/internal/rule"
 	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,7 +87,14 @@ func multipleRepeats() {
 			node, err := parser.ParseFile(fset, tempFile, nil, parser.ParseComments)
 			require.NoError(t, err)
 
-			issues, err := DetectRepeatedRegexCompilation(tempFile, node, fset, types.SeverityError)
+			ctx := &rule.AnalysisContext{
+				OriginalPath: tempFile,
+				WorkingPath:  tempFile,
+				File:         node,
+				Fset:         fset,
+				Severity:     types.SeverityError,
+			}
+			issues, err := DetectRepeatedRegexCompilation(ctx)
 			require.NoError(t, err)
 
 			assert.Len(t, issues, tt.expected)

@@ -590,18 +590,51 @@ func (f *fakeConfigurableRule) ParseConfig(raw any) error {
 	return f.parseErr
 }
 
-// TestIssueFilenameIsOriginalPath anchors the EPR-3 contract that all
-// issues emit Filename as the user-supplied path (.gno included),
-// structurally — not via the after-the-fact remap loop currently in
-// runWithContext (engine.go:219-228). Once EPR-3 introduces
-// ctx.NewIssue, the remap loop is removed and this test becomes the
-// guarantee of the convention.
+// TestIssueFilenameIsOriginalPath pins the EPR-3 contract that
+// every issue's Filename is the user-supplied path, structurally
+// — not via an after-the-fact remap loop in the engine. With every
+// rule built around ctx.NewIssue, the loop is gone and this test is
+// the guarantee.
 func TestIssueFilenameIsOriginalPath(t *testing.T) {
-	t.Skip("anchor for EPR-3: requires ctx.NewIssue helper that pins Filename to OriginalPath")
+	t.Parallel()
 
-	// TODO(EPR-3): write a .gno file with a triggerable issue, run
-	// engine, assert every issue.Filename ends in ".gno" and equals
-	// the user-supplied path (not the temp .go workingPath).
+	tempDir := createTempDir(t, "issue_filename_test")
+
+	gnoFile := filepath.Join(tempDir, "src.gno")
+	content := `package main
+
+func main() {
+	x := 5
+	y := int(x) // unnecessary type conversion
+	_ = y
+
+	for i := 0; i < 5; i++ {
+		if i == 0 {
+			break
+		}
+		break
+	}
+}
+`
+	require.NoError(t, os.WriteFile(gnoFile, []byte(content), 0o644))
+
+	engine, err := NewEngine(nil)
+	require.NoError(t, err)
+
+	issues, err := engine.Run(gnoFile)
+	require.NoError(t, err)
+	require.NotEmpty(t, issues, "fixture should trigger at least one rule")
+
+	for _, issue := range issues {
+		assert.Equal(t, gnoFile, issue.Filename,
+			"top-level Filename must be the original .gno path (rule %q)", issue.Rule)
+		assert.Equal(t, gnoFile, issue.Start.Filename,
+			"Start.Filename must be remapped (rule %q)", issue.Rule)
+		assert.Equal(t, gnoFile, issue.End.Filename,
+			"End.Filename must be remapped (rule %q)", issue.Rule)
+		assert.True(t, strings.HasSuffix(issue.Filename, ".gno"),
+			"Filename must keep the .gno suffix; rule %q produced %q", issue.Rule, issue.Filename)
+	}
 }
 
 // TestRunHonoursContextCancel anchors the EPR-4 contract that the

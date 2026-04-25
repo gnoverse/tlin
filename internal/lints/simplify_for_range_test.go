@@ -359,8 +359,14 @@ func main() {
 			file, err := parser.ParseFile(fset, "test.go", test.code, parser.ParseComments)
 			require.NoError(t, err)
 
-			actx := &rule.AnalysisContext{File: file, Fset: fset}
-			issues, err := DetectSimplifiableForLoops("test.go", actx.TypesInfo(), file, fset, tt.SeverityWarning)
+			actx := &rule.AnalysisContext{
+				OriginalPath: "test.go",
+				WorkingPath:  "test.go",
+				File:         file,
+				Fset:         fset,
+				Severity:     tt.SeverityWarning,
+			}
+			issues, err := DetectSimplifiableForLoops(actx)
 			require.NoError(t, err)
 
 			require.Len(t, issues, test.expectedIssue)

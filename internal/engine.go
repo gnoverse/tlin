@@ -321,33 +321,17 @@ func (e *Engine) runWithContext(ctx *runContext) ([]tt.Issue, error) {
 		}
 
 		nolinted := e.filterNolintIssues(issues, ctx)
-		noIgnoredPaths := e.filterIgnoredPaths(nolinted, ctx)
+		noIgnoredPaths := e.filterIgnoredPaths(nolinted)
 		allIssues = append(allIssues, noIgnoredPaths...)
-	}
-
-	// Remap temp .go paths back to the original .gno path on issues
-	// produced via the .gno → .go temp conversion.
-	if ctx.tempPath != "" && ctx.originalPath != "" && ctx.tempPath != ctx.originalPath {
-		for i := range allIssues {
-			// Only remap if the issue is pointing to the temp file
-			if allIssues[i].Filename == ctx.tempPath {
-				allIssues[i].Filename = ctx.originalPath
-			}
-		}
 	}
 
 	return allIssues, nil
 }
 
-func (e *Engine) filterIgnoredPaths(issues []tt.Issue, ctx *runContext) []tt.Issue {
+func (e *Engine) filterIgnoredPaths(issues []tt.Issue) []tt.Issue {
 	filtered := make([]tt.Issue, 0, len(issues))
 	for _, issue := range issues {
-		// Use original path for ignored path checking
-		checkPath := issue.Filename
-		if ctx.originalPath != "" && ctx.tempPath != "" && issue.Filename == ctx.tempPath {
-			checkPath = ctx.originalPath
-		}
-		if !e.isIgnoredPath(checkPath) {
+		if !e.isIgnoredPath(issue.Filename) {
 			filtered = append(filtered, issue)
 		}
 	}
@@ -372,14 +356,26 @@ func (e *Engine) isIgnoredPath(path string) bool {
 }
 
 // filterNolintIssues filters issues based on nolint comments.
+//
+// Issue.Filename is OriginalPath (the convention every rule emits
+// post-EPR-3), but the nolint manager keyed its scopes off the path
+// the parser actually saw — that's WorkingPath when the engine
+// converted .gno → temp .go. We swap back to WorkingPath when the
+// run had a temp file so the manager finds the scope.
 func (e *Engine) filterNolintIssues(issues []tt.Issue, ctx *runContext) []tt.Issue {
 	if ctx.nolintMgr == nil {
 		return issues
 	}
+	lookupFilename := func(emitted string) string {
+		if ctx.tempPath != "" && ctx.tempPath != ctx.originalPath && emitted == ctx.originalPath {
+			return ctx.tempPath
+		}
+		return emitted
+	}
 	filtered := make([]tt.Issue, 0, len(issues))
 	for _, issue := range issues {
 		pos := token.Position{
-			Filename: issue.Filename,
+			Filename: lookupFilename(issue.Filename),
 			Line:     issue.Start.Line,
 		}
 		if !ctx.nolintMgr.IsNolint(pos, issue.Rule) {

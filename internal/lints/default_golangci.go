@@ -22,7 +22,7 @@ func (golangciLintRule) Name() string                 { return "golangci-lint" }
 func (golangciLintRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
 
 func (golangciLintRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return RunGolangciLint(ctx.WorkingPath, ctx.File, ctx.Fset, ctx.Severity)
+	return RunGolangciLint(ctx)
 }
 
 func ParseFile(filename string, content []byte) (*ast.File, *token.FileSet, error) {
@@ -53,8 +53,8 @@ type golangciOutput struct {
 	} `json:"Issues"`
 }
 
-func RunGolangciLint(filename string, _ *ast.File, _ *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
-	cmd := exec.Command("golangci-lint", "run", "--config=./.golangci.yml", "--out-format=json", filename)
+func RunGolangciLint(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	cmd := exec.Command("golangci-lint", "run", "--config=./.golangci.yml", "--out-format=json", ctx.WorkingPath)
 	output, _ := cmd.CombinedOutput()
 
 	var golangciResult golangciOutput
@@ -65,18 +65,22 @@ func RunGolangciLint(filename string, _ *ast.File, _ *token.FileSet, severity tt
 	// logs Warn via WithLogger; partial Issues are not returned because
 	// any successful decode would mean no error.
 	if err := json.Unmarshal(output, &golangciResult); err != nil {
-		return nil, fmt.Errorf("decode golangci-lint output for %s: %w", filename, err)
+		return nil, fmt.Errorf("decode golangci-lint output for %s: %w", ctx.WorkingPath, err)
 	}
 
+	// golangci-lint reports Filename as the path it was invoked on
+	// (WorkingPath). Remap to OriginalPath so users see the path they
+	// supplied instead of the engine's temp .go.
 	issues := make([]tt.Issue, 0, len(golangciResult.Issues))
 	for _, gi := range golangciResult.Issues {
+		filename := ctx.RemapFilename(gi.Pos.Filename)
 		issues = append(issues, tt.Issue{
 			Rule:     gi.FromLinter,
-			Filename: gi.Pos.Filename, // Use the filename from golangci-lint output
-			Start:    token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
-			End:      token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1},
+			Filename: filename,
+			Start:    token.Position{Filename: filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
+			End:      token.Position{Filename: filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1},
 			Message:  gi.Text,
-			Severity: severity,
+			Severity: ctx.Severity,
 		})
 	}
 
