@@ -23,18 +23,17 @@ func (earlyReturnOpportunityRule) Name() string                 { return "early-
 func (earlyReturnOpportunityRule) DefaultSeverity() tt.Severity { return tt.SeverityInfo }
 
 func (earlyReturnOpportunityRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return DetectEarlyReturnOpportunities(ctx.WorkingPath, ctx.Source, ctx.File, ctx.Fset, ctx.Severity)
+	return DetectEarlyReturnOpportunities(ctx)
 }
 
 var errNoFunctionBody = errors.New("function body not found")
 
-// TraversalContext holds shared data for AST traversal
+// traversalContext carries per-traversal state across the recursive
+// helpers: the rule's AnalysisContext, the set of if-statements
+// already emitted as part of a chain, and the issues slice.
 type traversalContext struct {
 	processed map[*ast.IfStmt]bool
-	fset      *token.FileSet
-	filename  string
-	content   []byte
-	severity  tt.Severity
+	actx      *rule.AnalysisContext
 	issues    *[]tt.Issue
 }
 
@@ -82,23 +81,19 @@ func isQualifiedChain(chain *ifChain) bool {
 	return chain.root.Else != nil && ifChainAllBodiesTerminate(chain.root)
 }
 
-// DetectEarlyReturnOpportunities traverses the AST of functions in the file,
-// constructs if-else chains as binary tree models, and generates early-return suggestions
-// only for the top-level chains. content is the raw bytes of the
-// file, used to slice the original snippet for the suggestion.
-func DetectEarlyReturnOpportunities(filename string, content []byte, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
+// DetectEarlyReturnOpportunities traverses the AST of functions in
+// the file, constructs if-else chains as binary tree models, and
+// generates early-return suggestions only for the top-level chains.
+func DetectEarlyReturnOpportunities(actx *rule.AnalysisContext) ([]tt.Issue, error) {
 	var issues []tt.Issue
 	ctx := &traversalContext{
 		processed: make(map[*ast.IfStmt]bool),
-		fset:      fset,
-		filename:  filename,
-		content:   content,
-		severity:  severity,
+		actx:      actx,
 		issues:    &issues,
 	}
 
 	// Traverse the body of all function declarations in the file
-	for _, decl := range node.Decls {
+	for _, decl := range actx.File.Decls {
 		funcDecl, ok := decl.(*ast.FuncDecl)
 		if !ok || funcDecl.Body == nil {
 			continue
@@ -161,21 +156,15 @@ func processQualifiedChain(chain *ifChain, ctx *traversalContext) {
 		return
 	}
 
-	snippet := extractSnippet(chain.root, ctx.fset, ctx.content)
+	snippet := extractSnippet(chain.root, ctx.actx.Fset, ctx.actx.Source)
 	suggestion, err := generateEarlyReturnSuggestion(snippet)
 	if err != nil {
 		return
 	}
 
-	issue := tt.Issue{
-		Rule:       "early-return-opportunity",
-		Filename:   ctx.filename,
-		Start:      ctx.fset.Position(chain.root.Pos()),
-		End:        ctx.fset.Position(chain.root.End()),
-		Message:    "this if-else chain can be simplified using early returns",
-		Suggestion: suggestion,
-		Severity:   ctx.severity,
-	}
+	issue := ctx.actx.NewIssue("early-return-opportunity", chain.root.Pos(), chain.root.End())
+	issue.Message = "this if-else chain can be simplified using early returns"
+	issue.Suggestion = suggestion
 
 	*ctx.issues = append(*ctx.issues, issue)
 	markChain(chain, ctx.processed)

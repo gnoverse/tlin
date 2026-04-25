@@ -21,7 +21,7 @@ func (formatWithoutVerbRule) Name() string                 { return "format-with
 func (formatWithoutVerbRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
 
 func (formatWithoutVerbRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return DetectFormatWithoutVerb(ctx.WorkingPath, ctx.Source, ctx.File, ctx.Fset, ctx.Severity)
+	return DetectFormatWithoutVerb(ctx)
 }
 
 type formatFuncInfo struct {
@@ -36,22 +36,18 @@ var formatFunctions = map[string]formatFuncInfo{
 	"Fprintf": {formatArgIndex: 1, suggestion: "use io.WriteString() instead"},
 }
 
-// DetectFormatWithoutVerb reports formatting calls whose format string
-// has no verbs. It targets ufmt (always) and fmt (only in *_test
-// files). src is the raw bytes of the file; an empty src degrades
-// the suggestion to the shorter call-only form.
-func DetectFormatWithoutVerb(
-	filename string,
-	src []byte,
-	node *ast.File,
-	fset *token.FileSet,
-	severity tt.Severity,
-) ([]tt.Issue, error) {
-	aliasMap := BuildImportAliasMap(node)
+// DetectFormatWithoutVerb reports formatting calls whose format
+// string has no verbs. It targets ufmt (always) and fmt (only in
+// *_test files).
+func DetectFormatWithoutVerb(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	aliasMap := BuildImportAliasMap(ctx.File)
 	allowPaths := map[string]bool{
 		"gno.land/p/nt/ufmt": true,
 	}
-	if isTestFile(filename) {
+	// isTestFile checks the .gno-aware suffix on OriginalPath, not
+	// WorkingPath — a temp_*.go derived from a *_test.gno would
+	// otherwise lose its test-file status.
+	if isTestFile(ctx.OriginalPath) {
 		allowPaths["fmt"] = true
 	}
 
@@ -59,10 +55,10 @@ func DetectFormatWithoutVerb(
 		return nil, nil
 	}
 
-	constants := collectStringConstants(node)
+	constants := collectStringConstants(ctx.File)
 
 	issues := make([]tt.Issue, 0)
-	ast.Inspect(node, func(n ast.Node) bool {
+	ast.Inspect(ctx.File, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
@@ -102,30 +98,14 @@ func DetectFormatWithoutVerb(
 		}
 
 		funcName := sel.Sel.Name
-		message := "format string has no verbs; " + info.suggestion
-
-		startPos := fset.Position(call.Pos())
-		endPos := fset.Position(call.End())
-
-		// Build suggestion by replacing the call expression in the original line
-		suggestion := buildLineSuggestion(src, startPos, endPos, funcName, formatVal)
-
-		// Determine required imports based on the replacement
-		var requiredImports []string
+		issue := ctx.NewIssue("format-without-verb", call.Pos(), call.End())
+		issue.Message = "format string has no verbs; " + info.suggestion
+		issue.Suggestion = buildLineSuggestion(ctx.Source, issue.Start, issue.End, funcName, formatVal)
 		if funcName == "Errorf" {
-			requiredImports = []string{"errors"}
+			issue.RequiredImports = []string{"errors"}
 		}
 
-		issues = append(issues, tt.Issue{
-			Rule:            "format-without-verb",
-			Filename:        filename,
-			Start:           startPos,
-			End:             endPos,
-			Message:         message,
-			Suggestion:      suggestion,
-			Severity:        severity,
-			RequiredImports: requiredImports,
-		})
+		issues = append(issues, issue)
 
 		return true
 	})

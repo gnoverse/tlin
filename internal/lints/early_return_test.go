@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -240,7 +239,7 @@ func example(x, y int) int {
 				t.Fatalf("Failed to parse code: %v", err)
 			}
 
-			issues, err := DetectEarlyReturnOpportunities(tmpfile, []byte(tt.code), node, fset, types.SeverityError)
+			issues, err := DetectEarlyReturnOpportunities(newTestContext(tmpfile, node, fset, []byte(tt.code)))
 			require.NoError(t, err)
 
 			if len(issues) != tt.totalIssues {

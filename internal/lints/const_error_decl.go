@@ -19,22 +19,15 @@ func (constErrorDeclarationRule) Name() string                 { return "const-e
 func (constErrorDeclarationRule) DefaultSeverity() tt.Severity { return tt.SeverityError }
 
 func (constErrorDeclarationRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return DetectConstErrorDeclaration(ctx.WorkingPath, ctx.Source, ctx.File, ctx.Fset, ctx.Severity)
+	return DetectConstErrorDeclaration(ctx)
 }
 
 // DetectConstErrorDeclaration flags `const x = errors.New(...)` blocks
-// and emits a `var`-form suggestion. src is the raw bytes of the
-// file used to slice the original snippet for the suggestion.
-func DetectConstErrorDeclaration(
-	filename string,
-	src []byte,
-	node *ast.File,
-	fset *token.FileSet,
-	severity tt.Severity,
-) ([]tt.Issue, error) {
+// and emits a `var`-form suggestion.
+func DetectConstErrorDeclaration(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
 	var issues []tt.Issue
 
-	ast.Inspect(node, func(n ast.Node) bool {
+	ast.Inspect(ctx.File, func(n ast.Node) bool {
 		genDecl, ok := n.(*ast.GenDecl)
 		if !ok || genDecl.Tok != token.CONST {
 			return true
@@ -59,21 +52,15 @@ func DetectConstErrorDeclaration(
 		}
 
 		if containsErrorsNew {
-			startPos := fset.Position(genDecl.Pos()).Offset
-			endPos := fset.Position(genDecl.End()).Offset
-			origSnippet := src[startPos:endPos]
+			startPos := ctx.Fset.Position(genDecl.Pos()).Offset
+			endPos := ctx.Fset.Position(genDecl.End()).Offset
+			origSnippet := ctx.Source[startPos:endPos]
 
 			suggestion := strings.Replace(string(origSnippet), "const", "var", 1)
 
-			issue := tt.Issue{
-				Rule:       "const-error-declaration",
-				Filename:   filename,
-				Start:      fset.Position(genDecl.Pos()),
-				End:        fset.Position(genDecl.End()),
-				Message:    "avoid declaring constant errors",
-				Suggestion: suggestion,
-				Severity:   severity,
-			}
+			issue := ctx.NewIssue("const-error-declaration", genDecl.Pos(), genDecl.End())
+			issue.Message = "avoid declaring constant errors"
+			issue.Suggestion = suggestion
 			issues = append(issues, issue)
 		}
 

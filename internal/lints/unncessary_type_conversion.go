@@ -20,19 +20,19 @@ func (unnecessaryTypeConversionRule) Name() string                 { return "unn
 func (unnecessaryTypeConversionRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
 
 func (unnecessaryTypeConversionRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
-	return DetectUnnecessaryConversions(ctx.WorkingPath, ctx.TypesInfo(), ctx.File, ctx.Fset, ctx.Severity)
+	return DetectUnnecessaryConversions(ctx)
 }
 
 // DetectUnnecessaryConversions reports `T(x)` calls where x is
-// already of type T. info must be non-nil and populated with at
-// least Types/Defs/Uses entries for the file. Production callers
-// go through ctx.TypesInfo().
-func DetectUnnecessaryConversions(filename string, info *types.Info, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
+// already of type T.
+func DetectUnnecessaryConversions(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	info := ctx.TypesInfo()
+
 	var issues []tt.Issue
 	varDecls := make(map[*types.Var]ast.Node)
 
 	// First pass: collect variable declarations
-	ast.Inspect(node, func(n ast.Node) bool {
+	ast.Inspect(ctx.File, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.ValueSpec:
 			for _, name := range node.Names {
@@ -57,7 +57,7 @@ func DetectUnnecessaryConversions(filename string, info *types.Info, node *ast.F
 	})
 
 	// Second pass: check for unnecessary conversions
-	ast.Inspect(node, func(n ast.Node) bool {
+	ast.Inspect(ctx.File, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok || len(call.Args) != 1 {
 			return true
@@ -78,7 +78,7 @@ func DetectUnnecessaryConversions(filename string, info *types.Info, node *ast.F
 
 			// find parent node and retrieve the entire assignment statement
 			var parent ast.Node
-			ast.Inspect(node, func(node ast.Node) bool {
+			ast.Inspect(ctx.File, func(node ast.Node) bool {
 				if node == n {
 					return false
 				}
@@ -115,16 +115,11 @@ func DetectUnnecessaryConversions(filename string, info *types.Info, node *ast.F
 				}
 			}
 
-			issues = append(issues, tt.Issue{
-				Rule:       "unnecessary-type-conversion",
-				Filename:   filename,
-				Start:      fset.Position(call.Pos()),
-				End:        fset.Position(call.End()),
-				Message:    "unnecessary type conversion",
-				Suggestion: suggestion,
-				Note:       memo,
-				Severity:   severity,
-			})
+			issue := ctx.NewIssue("unnecessary-type-conversion", call.Pos(), call.End())
+			issue.Message = "unnecessary type conversion"
+			issue.Suggestion = suggestion
+			issue.Note = memo
+			issues = append(issues, issue)
 		}
 
 		return true
