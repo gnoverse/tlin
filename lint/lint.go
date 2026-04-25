@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/gnolang/tlin/internal"
-	"github.com/gnolang/tlin/internal/lints"
 	tt "github.com/gnolang/tlin/internal/types"
 	"github.com/schollz/progressbar/v3"
 	"go.uber.org/zap"
@@ -286,10 +285,6 @@ func ProcessPath(
 	}
 
 	return issues, nil
-}
-
-func ProcessCyclomaticComplexity(path string, threshold int) ([]tt.Issue, error) {
-	return lints.DetectHighCyclomaticComplexity(path, threshold, tt.SeverityError)
 }
 
 func ProcessFile(engine LintEngine, filePath string) ([]tt.Issue, error) {

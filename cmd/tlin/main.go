@@ -18,6 +18,7 @@ import (
 	"github.com/gnolang/tlin/internal"
 	"github.com/gnolang/tlin/internal/analysis/cfg"
 	"github.com/gnolang/tlin/internal/fixer"
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 	"github.com/gnolang/tlin/lint"
 	"go.uber.org/zap"
@@ -168,19 +169,34 @@ func runNormalLintProcess(ctx context.Context, logger *zap.Logger, engine lint.L
 }
 
 func runCyclomaticComplexityAnalysis(ctx context.Context, logger *zap.Logger, paths []string, threshold int, isJson bool, jsonOutput string) {
-	issues, err := lint.ProcessFiles(ctx, logger, nil, paths, func(_ lint.LintEngine, path string) ([]tt.Issue, error) {
-		return lint.ProcessCyclomaticComplexity(path, threshold)
-	})
+	cfg := cyclomaticOnlyConfig(threshold)
+	engine, err := internal.NewEngine(cfg, internal.WithLogger(logger))
 	if err != nil {
-		logger.Error("Error processing files for cyclomatic complexity", zap.Error(err))
-		os.Exit(1)
+		logger.Fatal("Failed to initialize cyclomatic engine", zap.Error(err))
 	}
+	runNormalLintProcess(ctx, logger, engine, paths, isJson, jsonOutput)
+}
 
-	printIssues(logger, issues, isJson, jsonOutput)
-
-	if len(issues) > 0 {
-		os.Exit(1)
+// cyclomaticOnlyConfig synthesizes a ConfigRule map that enables only
+// the cyclomatic complexity rule (with the user-supplied threshold)
+// and silences every other registered rule. The -cyclo CLI flag is
+// effectively a shorthand that builds this config and reuses the
+// normal lint pipeline.
+func cyclomaticOnlyConfig(threshold int) map[string]tt.ConfigRule {
+	const target = "high-cyclomatic-complexity"
+	cfg := map[string]tt.ConfigRule{
+		target: {
+			Severity: tt.SeverityError,
+			Data:     map[string]any{"threshold": threshold},
+		},
 	}
+	for name := range rule.All() {
+		if name == target {
+			continue
+		}
+		cfg[name] = tt.ConfigRule{Severity: tt.SeverityOff}
+	}
+	return cfg
 }
 
 func runCFGAnalysis(_ context.Context, logger *zap.Logger, paths []string, funcName string, output string) {

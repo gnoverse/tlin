@@ -283,13 +283,23 @@ func (e *Engine) runWithContext(ctx *runContext) ([]tt.Issue, error) {
 		if e.ignoredRules[r.Name()] {
 			continue
 		}
+		// A rule whose effective severity resolves to Off is silent
+		// for this run — either because the user set severity:off in
+		// .tlin.yaml, or because the rule's DefaultSeverity is Off
+		// and no config override opted it in. Skip dispatch entirely
+		// rather than letting it emit issues that would render as
+		// "OFF" severity.
+		sev := e.effectiveSeverity(r)
+		if sev == tt.SeverityOff {
+			continue
+		}
 		actx := &rule.AnalysisContext{
 			OriginalPath: ctx.originalPath,
 			WorkingPath:  workingPath,
 			File:         ctx.node,
 			Fset:         ctx.fset,
 			NolintMgr:    ctx.nolintMgr,
-			Severity:     e.effectiveSeverity(r),
+			Severity:     sev,
 		}
 		issues, err := r.Check(actx)
 		if err != nil {

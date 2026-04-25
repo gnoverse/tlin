@@ -1,16 +1,18 @@
 package lints
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 
+	"github.com/gnolang/tlin/internal/rule"
 	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDetectHighCyclomaticComplexity(t *testing.T) {
+func TestCyclomaticComplexityRule_Check(t *testing.T) {
 	t.Parallel()
 	_, current, _, ok := runtime.Caller(0)
 	require.True(t, ok)
@@ -53,8 +55,20 @@ func TestDetectHighCyclomaticComplexity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			path := filepath.Join(testDir, tt.filename)
+			content, err := os.ReadFile(path)
+			require.NoError(t, err)
 
-			issues, err := DetectHighCyclomaticComplexity(path, tt.threshold, types.SeverityError)
+			file, fset, err := ParseFile(path, content)
+			require.NoError(t, err)
+
+			r := &cyclomaticComplexityRule{threshold: tt.threshold}
+			issues, err := r.Check(&rule.AnalysisContext{
+				OriginalPath: path,
+				WorkingPath:  path,
+				File:         file,
+				Fset:         fset,
+				Severity:     types.SeverityError,
+			})
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues),
@@ -64,7 +78,45 @@ func TestDetectHighCyclomaticComplexity(t *testing.T) {
 			for _, issue := range issues {
 				assert.Equal(t, "high-cyclomatic-complexity", issue.Rule)
 				assert.Contains(t, issue.Message, "cyclomatic complexity")
+				assert.Equal(t, types.SeverityError, issue.Severity,
+					"Issue severity must reflect ctx.Severity, not the rule's DefaultSeverity")
 			}
+		})
+	}
+}
+
+func TestCyclomaticComplexityRule_ParseConfig(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		raw         any
+		startThres  int
+		wantErr     bool
+		wantThres   int // expected threshold after ParseConfig (regardless of err)
+	}{
+		{"int threshold", map[string]any{"threshold": 5}, 10, false, 5},
+		{"int64 threshold", map[string]any{"threshold": int64(7)}, 10, false, 7},
+		{"float64 threshold (yaml decoded)", map[string]any{"threshold": 8.0}, 10, false, 8},
+		{"missing threshold keeps default", map[string]any{}, 10, false, 10},
+		{"non-map raw", "ten", 10, true, 10},
+		{"non-numeric threshold", map[string]any{"threshold": "ten"}, 10, true, 10},
+		{"zero threshold rejected", map[string]any{"threshold": 0}, 10, true, 10},
+		{"negative threshold rejected", map[string]any{"threshold": -1}, 10, true, 10},
+	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r := &cyclomaticComplexityRule{threshold: tc.startThres}
+			err := r.ParseConfig(tc.raw)
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tc.wantThres, r.threshold,
+				"threshold field should be %d after ParseConfig (errors must not corrupt state)",
+				tc.wantThres)
 		})
 	}
 }
