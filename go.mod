@@ -1,13 +1,15 @@
 module github.com/gnolang/tlin
 
-go 1.24.0
+go 1.26.0
 
 require (
+	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/fatih/color v1.18.0
 	github.com/fzipp/gocyclo v0.6.0
 	github.com/goccy/go-graphviz v0.2.10
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/stretchr/testify v1.11.1
+	go.uber.org/goleak v1.3.0
 	golang.org/x/tools v0.40.0
 )
 

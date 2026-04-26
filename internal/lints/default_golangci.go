@@ -1,30 +1,29 @@
 package lints
 
 import (
+	"context"
 	"encoding/json"
-	_ "fmt"
-	"go/ast"
-	"go/parser"
+	"fmt"
 	"go/token"
 	"os/exec"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-func ParseFile(filename string, content []byte) (*ast.File, *token.FileSet, error) {
-	fset := token.NewFileSet()
-	var node *ast.File
-	var err error
-	if content == nil {
-		node, err = parser.ParseFile(fset, filename, nil, parser.ParseComments)
-	} else {
-		node, err = parser.ParseFile(fset, filename, content, parser.ParseComments)
-	}
-	if err != nil {
-		return nil, nil, err
-	}
+func init() {
+	rule.Register(golangciLintRule{})
+}
 
-	return node, fset, nil
+type golangciLintRule struct{}
+
+func (golangciLintRule) Name() string                 { return "golangci-lint" }
+func (golangciLintRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
+
+// Check is the single-file fallback for non-engine callers; engine
+// dispatch goes straight to CheckPackage with the live ctx.
+func (r golangciLintRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return r.CheckPackage(context.Background(), ctx.SinglePackage())
 }
 
 type golangciOutput struct {
@@ -39,25 +38,42 @@ type golangciOutput struct {
 	} `json:"Issues"`
 }
 
-func RunGolangciLint(filename string, _ *ast.File, _ *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
-	cmd := exec.Command("golangci-lint", "run", "--config=./.golangci.yml", "--out-format=json", filename)
+// CheckPackage runs golangci-lint once against the package directory
+// and filters its output to files in pctx scope. ctx is wired into
+// exec.CommandContext so a cancelled run kills the child too.
+func (golangciLintRule) CheckPackage(ctx context.Context, pctx *rule.PackageContext) ([]tt.Issue, error) {
+	target := pctx.Dir
+	if target == "" && len(pctx.WorkingPaths) > 0 {
+		target = pctx.WorkingPaths[0]
+	}
+
+	cmd := exec.CommandContext(ctx, "golangci-lint", "run", "--config=./.golangci.yml", "--out-format=json", target)
 	output, _ := cmd.CombinedOutput()
 
 	var golangciResult golangciOutput
 
-	// @notJoon: Ignore Unmarshal error. We cannot unmarshal the output of golangci-lint
-	// when source code contains gno package imports (i.e. p/demo, r/demo, std). [07/25/24]
-	json.Unmarshal(output, &golangciResult)
+	// golangci-lint occasionally prints non-JSON output for files that
+	// contain gno package imports (p/demo, r/demo, std). When the
+	// output fails to decode we surface the error to the engine so it
+	// logs Warn via WithLogger; partial Issues are not returned because
+	// any successful decode would mean no error.
+	if err := json.Unmarshal(output, &golangciResult); err != nil {
+		return nil, fmt.Errorf("decode golangci-lint output for %s: %w", target, err)
+	}
 
 	issues := make([]tt.Issue, 0, len(golangciResult.Issues))
 	for _, gi := range golangciResult.Issues {
+		if !pctx.InScope(gi.Pos.Filename) {
+			continue
+		}
+		filename := pctx.RemapFilename(gi.Pos.Filename)
 		issues = append(issues, tt.Issue{
 			Rule:     gi.FromLinter,
-			Filename: gi.Pos.Filename, // Use the filename from golangci-lint output
-			Start:    token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
-			End:      token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1},
+			Filename: filename,
+			Start:    token.Position{Filename: filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
+			End:      token.Position{Filename: filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1},
 			Message:  gi.Text,
-			Severity: severity,
+			Severity: pctx.Severity,
 		})
 	}
 

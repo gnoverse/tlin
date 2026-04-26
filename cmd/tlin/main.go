@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -18,6 +19,7 @@ import (
 	"github.com/gnolang/tlin/internal"
 	"github.com/gnolang/tlin/internal/analysis/cfg"
 	"github.com/gnolang/tlin/internal/fixer"
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 	"github.com/gnolang/tlin/lint"
 	"go.uber.org/zap"
@@ -65,41 +67,33 @@ func main() {
 		return
 	}
 
-	engine, err := lint.New(".", nil, config.ConfigurationPath)
+	opts := []lint.Option{lint.WithLogger(logger)}
+	if config.IgnoreRules != "" {
+		opts = append(opts, lint.WithIgnoredRules(splitAndTrim(config.IgnoreRules)...))
+	}
+	if config.IgnorePaths != "" {
+		opts = append(opts, lint.WithIgnoredPaths(splitAndTrim(config.IgnorePaths)...))
+	}
+
+	engine, err := lint.New(config.ConfigurationPath, opts...)
 	if err != nil {
 		logger.Fatal("Failed to initialize lint engine", zap.Error(err))
 	}
 
-	if config.IgnoreRules != "" {
-		rules := strings.Split(config.IgnoreRules, ",")
-		for _, rule := range rules {
-			engine.IgnoreRule(strings.TrimSpace(rule))
-		}
+	switch {
+	case config.CFGAnalysis:
+		runCFGAnalysis(ctx, logger, config.Paths, config.FuncName, config.Output)
+	case config.CyclomaticComplexity:
+		runCyclomaticComplexityAnalysis(ctx, logger, config.Paths, config.CyclomaticThreshold, config.JsonOutput, config.Output)
+	case config.AutoFix:
+		runAutoFix(ctx, logger, engine, config.Paths, config.DryRun, config.ConfidenceThreshold)
+	default:
+		runNormalLintProcess(ctx, logger, engine, config.Paths, config.JsonOutput, config.Output)
 	}
 
-	if config.IgnorePaths != "" {
-		paths := strings.Split(config.IgnorePaths, ",")
-		for _, path := range paths {
-			engine.IgnorePath(strings.TrimSpace(path))
-		}
-	}
-
-	if config.CFGAnalysis {
-		runWithTimeout(ctx, func() {
-			runCFGAnalysis(ctx, logger, config.Paths, config.FuncName, config.Output)
-		})
-	} else if config.CyclomaticComplexity {
-		runWithTimeout(ctx, func() {
-			runCyclomaticComplexityAnalysis(ctx, logger, config.Paths, config.CyclomaticThreshold, config.JsonOutput, config.Output)
-		})
-	} else if config.AutoFix {
-		runWithTimeout(ctx, func() {
-			runAutoFix(ctx, logger, engine, config.Paths, config.DryRun, config.ConfidenceThreshold)
-		})
-	} else {
-		runWithTimeout(ctx, func() {
-			runNormalLintProcess(ctx, logger, engine, config.Paths, config.JsonOutput, config.Output)
-		})
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		fmt.Fprintln(os.Stderr, "linter timed out")
+		os.Exit(2)
 	}
 }
 
@@ -137,24 +131,28 @@ func parseFlags(args []string) Config {
 	return config
 }
 
-func runWithTimeout(ctx context.Context, f func()) {
-	done := make(chan struct{})
-	go func() {
-		f()
-		close(done)
-	}()
-
-	select {
-	case <-ctx.Done():
-		fmt.Println("Linter timed out")
-		os.Exit(1)
-	case <-done:
-		return
+// splitAndTrim splits s on commas and trims whitespace from each
+// element. Empty entries (from leading / trailing / doubled commas)
+// are dropped so the engine never sees a blank rule or path name.
+func splitAndTrim(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
 	}
+	return out
 }
 
 func runNormalLintProcess(ctx context.Context, logger *zap.Logger, engine lint.LintEngine, paths []string, isJson bool, jsonOutput string) {
-	issues, err := lint.ProcessFiles(ctx, logger, engine, paths, lint.ProcessFile)
+	// JSON output keeps stdout machine-readable; the TUI observer
+	// would otherwise sprinkle ANSI escapes into the JSON payload.
+	var observer lint.ProgressObserver
+	if !isJson {
+		observer = lint.NewTUIObserver(strings.Join(paths, " "))
+	}
+	issues, err := lint.ProcessFiles(ctx, logger, engine, paths, observer)
 	if err != nil {
 		logger.Error("Error processing files", zap.Error(err))
 		os.Exit(1)
@@ -168,19 +166,34 @@ func runNormalLintProcess(ctx context.Context, logger *zap.Logger, engine lint.L
 }
 
 func runCyclomaticComplexityAnalysis(ctx context.Context, logger *zap.Logger, paths []string, threshold int, isJson bool, jsonOutput string) {
-	issues, err := lint.ProcessFiles(ctx, logger, nil, paths, func(_ lint.LintEngine, path string) ([]tt.Issue, error) {
-		return lint.ProcessCyclomaticComplexity(path, threshold)
-	})
+	cfg := cyclomaticOnlyConfig(threshold)
+	engine, err := internal.NewEngine(cfg, internal.WithLogger(logger))
 	if err != nil {
-		logger.Error("Error processing files for cyclomatic complexity", zap.Error(err))
-		os.Exit(1)
+		logger.Fatal("Failed to initialize cyclomatic engine", zap.Error(err))
 	}
+	runNormalLintProcess(ctx, logger, engine, paths, isJson, jsonOutput)
+}
 
-	printIssues(logger, issues, isJson, jsonOutput)
-
-	if len(issues) > 0 {
-		os.Exit(1)
+// cyclomaticOnlyConfig synthesizes a ConfigRule map that enables only
+// the cyclomatic complexity rule (with the user-supplied threshold)
+// and silences every other registered rule. The -cyclo CLI flag is
+// effectively a shorthand that builds this config and reuses the
+// normal lint pipeline.
+func cyclomaticOnlyConfig(threshold int) map[string]tt.ConfigRule {
+	const target = "high-cyclomatic-complexity"
+	cfg := map[string]tt.ConfigRule{
+		target: {
+			Severity: tt.SeverityError,
+			Data:     map[string]any{"threshold": threshold},
+		},
 	}
+	for name := range rule.All() {
+		if name == target {
+			continue
+		}
+		cfg[name] = tt.ConfigRule{Severity: tt.SeverityOff}
+	}
+	return cfg
 }
 
 func runCFGAnalysis(_ context.Context, logger *zap.Logger, paths []string, funcName string, output string) {
@@ -241,7 +254,7 @@ func runAutoFix(ctx context.Context, logger *zap.Logger, engine lint.LintEngine,
 					return nil
 				}
 
-				issues, err := lint.ProcessPath(ctx, logger, engine, filePath, lint.ProcessFile)
+				issues, err := lint.ProcessPath(ctx, logger, engine, filePath, nil)
 				if err != nil {
 					logger.Error("error processing path", zap.String("path", filePath), zap.Error(err))
 					return nil
@@ -259,7 +272,7 @@ func runAutoFix(ctx context.Context, logger *zap.Logger, engine lint.LintEngine,
 			continue
 		}
 
-		issues, err := lint.ProcessPath(ctx, logger, engine, path, lint.ProcessFile)
+		issues, err := lint.ProcessPath(ctx, logger, engine, path, nil)
 		if err != nil {
 			logger.Error("error processing path", zap.String("path", path), zap.Error(err))
 			continue

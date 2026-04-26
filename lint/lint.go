@@ -9,61 +9,108 @@ import (
 	"sync"
 
 	"github.com/gnolang/tlin/internal"
-	"github.com/gnolang/tlin/internal/lints"
 	tt "github.com/gnolang/tlin/internal/types"
-	"github.com/schollz/progressbar/v3"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
 const maxShowRecentFiles = 25
 
+// LintEngine is the engine surface the lint package depends on.
+// Concrete production engine: *internal.Engine.
+//
+// RunFile / RunPackage are the directory-walk entry points: RunFile
+// dispatches only file-level rules so processDirectory can pair it
+// with RunPackage (which dispatches PackageRule once per package).
+// Single-file callers should keep using RunWithContext, which
+// dispatches both layers via a one-file PackageContext fallback.
 type LintEngine interface {
 	Run(filePath string) ([]tt.Issue, error)
 	RunSource(source []byte) ([]tt.Issue, error)
+	RunWithContext(ctx context.Context, filePath string) ([]tt.Issue, error)
+	RunSourceWithContext(ctx context.Context, source []byte) ([]tt.Issue, error)
+	RunFile(ctx context.Context, filePath string) ([]tt.Issue, error)
+	RunPackage(ctx context.Context, dir string, paths []string) ([]tt.Issue, error)
+
+	// Deprecated: pass WithIgnoredRules to New instead.
 	IgnoreRule(rule string)
+	// Deprecated: pass WithIgnoredPaths to New instead.
 	IgnorePath(path string)
 }
 
-// export the function NewEngine to be used in other packages
-func New(rootDir string, source []byte, configurationPath string) (*internal.Engine, error) {
-	// Do not return error here, because we want to continue the program
-	config, _ := parseConfigurationFile(configurationPath)
-	return internal.NewEngine(rootDir, source, config.Rules)
+// Option configures a lint engine at construction time.
+type Option func(*newOptions)
+
+type newOptions struct {
+	logger       *zap.Logger
+	ignoredRules []string
+	ignoredPaths []string
 }
 
-func ProcessSources(
-	ctx context.Context,
-	logger *zap.Logger,
-	engine LintEngine,
-	sources [][]byte,
-	processor func(LintEngine, []byte) ([]tt.Issue, error),
-) ([]tt.Issue, error) {
-	var allIssues []tt.Issue
-	for i, source := range sources {
-		issues, err := processor(engine, source)
-		if err != nil {
-			if logger != nil {
-				logger.Error("Error processing source", zap.Int("source", i), zap.Error(err))
-			}
-			return nil, err
+// WithLogger overrides the engine's logger. Default zap.NewNop().
+func WithLogger(logger *zap.Logger) Option {
+	return func(o *newOptions) {
+		if logger != nil {
+			o.logger = logger
 		}
-		allIssues = append(allIssues, issues...)
+	}
+}
+
+// WithIgnoredRules registers rule names to skip during dispatch.
+func WithIgnoredRules(names ...string) Option {
+	return func(o *newOptions) { o.ignoredRules = append(o.ignoredRules, names...) }
+}
+
+// WithIgnoredPaths registers glob patterns whose matching files are
+// excluded from issue output.
+func WithIgnoredPaths(paths ...string) Option {
+	return func(o *newOptions) { o.ignoredPaths = append(o.ignoredPaths, paths...) }
+}
+
+// New constructs a lint engine from the configuration file at
+// configurationPath, applying any options. A missing or unparseable
+// config file is tolerated so callers can run with defaults.
+func New(configurationPath string, opts ...Option) (*internal.Engine, error) {
+	resolved := newOptions{logger: zap.NewNop()}
+	for _, opt := range opts {
+		opt(&resolved)
 	}
 
-	return allIssues, nil
+	config, _ := parseConfigurationFile(configurationPath)
+	engine, err := internal.NewEngine(config.Rules, internal.WithLogger(resolved.logger))
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range resolved.ignoredRules {
+		engine.IgnoreRule(name)
+	}
+	for _, path := range resolved.ignoredPaths {
+		engine.IgnorePath(path)
+	}
+	return engine, nil
 }
 
+// NewWithLogger constructs a lint engine with the given logger.
+//
+// Deprecated: use New(path, WithLogger(logger)) instead.
+func NewWithLogger(configurationPath string, logger *zap.Logger) (*internal.Engine, error) {
+	return New(configurationPath, WithLogger(logger))
+}
+
+// ProcessFiles walks each path and returns the union of issues.
+// Pass a nil observer to disable progress rendering — callers
+// emitting JSON or other machine-readable output should do this
+// to keep stdout free of ANSI escapes.
 func ProcessFiles(
 	ctx context.Context,
 	logger *zap.Logger,
 	engine LintEngine,
 	paths []string,
-	processor func(LintEngine, string) ([]tt.Issue, error),
+	observer ProgressObserver,
 ) ([]tt.Issue, error) {
 	var allIssues []tt.Issue
 	for _, path := range paths {
-		issues, err := ProcessPath(ctx, logger, engine, path, processor)
+		issues, err := ProcessPath(ctx, logger, engine, path, observer)
 		if err != nil {
 			if logger != nil {
 				logger.Error("Error processing path", zap.String("path", path), zap.Error(err))
@@ -76,108 +123,109 @@ func ProcessFiles(
 	return allIssues, nil
 }
 
-// fileResult represents the result of processing a single file
+// ProcessPath processes a single file or directory path. Directories
+// are walked concurrently up to GOMAXPROCS workers; cancellation via
+// ctx is observed at file boundaries.
+func ProcessPath(
+	ctx context.Context,
+	logger *zap.Logger,
+	engine LintEngine,
+	path string,
+	observer ProgressObserver,
+) ([]tt.Issue, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("error accessing %s: %w", path, err)
+	}
+
+	if info.IsDir() {
+		var files []string
+		err = filepath.Walk(path, func(filePath string, fileInfo os.FileInfo, walkErr error) error {
+			if walkErr != nil {
+				return nil
+			}
+			if !fileInfo.IsDir() && hasDesiredExtension(filePath) {
+				files = append(files, filePath)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error walking directory: %w", err)
+		}
+
+		return processDirectory(ctx, logger, engine, path, files, observer)
+	}
+
+	if !hasDesiredExtension(path) {
+		return nil, nil
+	}
+	issues, err := engine.RunWithContext(ctx, path)
+	if issues == nil {
+		// Preserve the historical empty-slice (not nil) contract
+		// callers and tests rely on for the file-not-directory path.
+		issues = []tt.Issue{}
+	}
+	return issues, err
+}
+
+// fileResult is the channel payload between worker and collector.
 type fileResult struct {
 	filePath string
 	issues   []tt.Issue
 	err      error
 }
 
-// processDirectory handles concurrent processing of multiple files in a directory
+// processDirectory handles concurrent processing of multiple files
+// in a directory. File-level rules dispatch per file inside a worker
+// pool; PackageRule dispatch is amortized to one call per package
+// directory via engine.RunPackage, run before the per-file pass so
+// any cancellation surfaces from there too.
 func processDirectory(
 	ctx context.Context,
 	logger *zap.Logger,
 	engine LintEngine,
 	path string,
 	files []string,
-	processor func(LintEngine, string) ([]tt.Issue, error),
+	observer ProgressObserver,
 ) ([]tt.Issue, error) {
-	// Setup UI components
-	var recentFilesMutex sync.Mutex
-	recentFiles := make([]string, maxShowRecentFiles)
-
-	// Make space for recent files display
-	for range maxShowRecentFiles + 1 {
-		fmt.Println()
+	if observer == nil {
+		observer = nopObserver{}
 	}
-	fmt.Printf("\033[%dA", maxShowRecentFiles+1)
+	observer.OnStart(len(files))
+	defer observer.OnDone()
 
-	bar := progressbar.NewOptions(len(files),
-		progressbar.OptionSetDescription(path),
-		progressbar.OptionEnableColorCodes(true),
-		progressbar.OptionSetWidth(40),
-		progressbar.OptionShowCount(),
-		progressbar.OptionSetTheme(progressbar.Theme{
-			Saucer:        "[green]=[reset]",
-			SaucerHead:    "[green]>[reset]",
-			SaucerPadding: " ",
-			BarStart:      "[",
-			BarEnd:        "]",
-		}))
+	allIssues := []tt.Issue{}
+	var firstErr error
 
-	updateRecentFiles := func(filename string) {
-		recentFilesMutex.Lock()
-		defer recentFilesMutex.Unlock()
-
-		for j := maxShowRecentFiles - 1; j > 0; j-- {
-			recentFiles[j] = recentFiles[j-1]
-		}
-		recentFiles[0] = filename
-
-		fmt.Printf("\033[%dA", maxShowRecentFiles)
-		for j := range recentFiles {
-			if recentFiles[j] != "" {
-				fmt.Printf("\033[2K\r%s\n", recentFiles[j])
-			} else {
-				fmt.Printf("\033[2K\r\n")
-			}
-		}
+	pkgIssues, err := runPackageRules(ctx, logger, engine, files)
+	if err != nil {
+		firstErr = err
 	}
+	allIssues = append(allIssues, pkgIssues...)
 
-	// Channels and worker pool
 	resultChan := make(chan fileResult)
 	maxWorkers := runtime.NumCPU()
 	sem := make(chan struct{}, maxWorkers)
 
-	// WaitGroup to track all goroutines
 	var wg sync.WaitGroup
 
-	// Track errors and progress
-	allIssues := []tt.Issue{}
-	var firstErr error
-	var errorMutex sync.Mutex
-	var processedFiles int
-
-	// Start result collector goroutine
 	collectorDone := make(chan struct{})
 	go func() {
 		for result := range resultChan {
-			processedFiles++
 			if result.err == nil {
 				allIssues = append(allIssues, result.issues...)
-				updateRecentFiles(filepath.Base(result.filePath))
-			} else {
-				// Capture first error
-				errorMutex.Lock()
-				if firstErr == nil {
-					firstErr = result.err
-				}
-				errorMutex.Unlock()
+			} else if firstErr == nil {
+				firstErr = result.err
 			}
-			bar.Add(1)
+			observer.OnFile(filepath.Base(result.filePath))
 		}
 		close(collectorDone)
 	}()
 
-	// Process files
-	var scheduledCount int
 	for _, filePath := range files {
-		// Early exit if context is cancelled
 		if ctx.Err() != nil {
-			// Still need to wait for running goroutines
 			break
 		}
-		scheduledCount++
 
 		wg.Add(1)
 		sem <- struct{}{}
@@ -187,7 +235,6 @@ func processDirectory(
 				wg.Done()
 			}()
 
-			// Check context before processing
 			select {
 			case <-ctx.Done():
 				resultChan <- fileResult{filePath: fp, err: ctx.Err()}
@@ -195,7 +242,7 @@ func processDirectory(
 			default:
 			}
 
-			fileIssues, err := processor(engine, fp)
+			fileIssues, err := engine.RunFile(ctx, fp)
 			if err != nil && logger != nil {
 				logger.Error("Error processing file", zap.String("file", fp), zap.Error(err))
 			}
@@ -208,85 +255,58 @@ func processDirectory(
 		}(filePath)
 	}
 
-	// Wait for all workers to complete
 	wg.Wait()
 	close(resultChan)
-
-	// Wait for collector to finish
 	<-collectorDone
 
-	// Update progress bar if not all files were processed
-	if scheduledCount < len(files) {
-		// Fill remaining progress
-		for i := processedFiles; i < len(files); i++ {
-			bar.Add(1)
-		}
-	}
-
-	fmt.Println()
-
-	// Return context error if cancelled, otherwise first processing error
 	if ctx.Err() != nil {
 		return allIssues, ctx.Err()
 	}
 	return allIssues, firstErr
 }
 
-func ProcessPath(
+// runPackageRules groups files by their parent directory and calls
+// engine.RunPackage once per group. The grouping is by filepath.Dir
+// rather than by Go package import path because the directory walk
+// already reads files off the filesystem one dir at a time, and
+// packages.Load / golangci-lint accept directory paths directly.
+func runPackageRules(
 	ctx context.Context,
 	logger *zap.Logger,
 	engine LintEngine,
-	path string,
-	processor func(LintEngine, string) ([]tt.Issue, error),
+	files []string,
 ) ([]tt.Issue, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil, fmt.Errorf("error accessing %s: %w", path, err)
+	if len(files) == 0 {
+		return nil, nil
 	}
 
-	issues := []tt.Issue{}
-	if info.IsDir() {
-		var files []string
-		err = filepath.Walk(path, func(filePath string, fileInfo os.FileInfo, walkErr error) error {
-			if walkErr != nil {
-				return nil // Skip files with errors
-			}
-			if !fileInfo.IsDir() && hasDesiredExtension(filePath) {
-				files = append(files, filePath)
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, fmt.Errorf("error walking directory: %w", err)
+	// filepath.Dir is order-preserving when the input is, so the
+	// returned issue order is stable across runs over the same input.
+	groups := make(map[string][]string)
+	dirOrder := make([]string, 0)
+	for _, f := range files {
+		dir := filepath.Dir(f)
+		if _, seen := groups[dir]; !seen {
+			dirOrder = append(dirOrder, dir)
 		}
-
-		var dirErr error
-		issues, dirErr = processDirectory(ctx, logger, engine, path, files, processor)
-		if dirErr != nil {
-			return issues, dirErr
-		}
-		return issues, nil
-	} else if hasDesiredExtension(path) {
-		fileIssues, err := processor(engine, path)
-		if err != nil {
-			return issues, err
-		}
-		issues = append(issues, fileIssues...)
+		groups[dir] = append(groups[dir], f)
 	}
 
-	return issues, nil
-}
-
-func ProcessCyclomaticComplexity(path string, threshold int) ([]tt.Issue, error) {
-	return lints.DetectHighCyclomaticComplexity(path, threshold, tt.SeverityError)
-}
-
-func ProcessFile(engine LintEngine, filePath string) ([]tt.Issue, error) {
-	return engine.Run(filePath)
-}
-
-func ProcessSource(engine LintEngine, source []byte) ([]tt.Issue, error) {
-	return engine.RunSource(source)
+	var allIssues []tt.Issue
+	for _, dir := range dirOrder {
+		if err := ctx.Err(); err != nil {
+			return allIssues, err
+		}
+		issues, err := engine.RunPackage(ctx, dir, groups[dir])
+		if err != nil {
+			if logger != nil {
+				logger.Error("Error processing package", zap.String("dir", dir), zap.Error(err))
+			}
+			return allIssues, err
+		}
+		allIssues = append(allIssues, issues...)
+	}
+	return allIssues, nil
 }
 
 var desiredExtensions = map[string]bool{
@@ -307,14 +327,12 @@ type Config struct {
 func parseConfigurationFile(configurationPath string) (Config, error) {
 	var config Config
 
-	// Read the configuration file
 	f, err := os.Open(configurationPath)
 	if err != nil {
 		return config, err
 	}
 	defer f.Close()
 
-	// Parse the configuration file
 	decoder := yaml.NewDecoder(f)
 	err = decoder.Decode(&config)
 	if err != nil {

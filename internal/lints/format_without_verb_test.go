@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -178,7 +177,7 @@ func main() {
 			node, err := parser.ParseFile(fset, filepath.ToSlash(tt.filename), tt.code, parser.ParseComments)
 			require.NoError(t, err)
 
-			issues, err := DetectFormatWithoutVerb(tt.filename, node, fset, types.SeverityWarning)
+			issues, err := DetectFormatWithoutVerb(newTestContext(tt.filename, node, fset, []byte(tt.code)))
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expected, len(issues), "unexpected issue count")

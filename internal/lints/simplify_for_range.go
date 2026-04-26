@@ -4,12 +4,25 @@ import (
 	"fmt"
 	"go/ast"
 	"go/constant"
-	"go/importer"
 	"go/token"
 	"go/types"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
+
+func init() {
+	rule.Register(simplifyForRangeRule{})
+}
+
+type simplifyForRangeRule struct{}
+
+func (simplifyForRangeRule) Name() string                 { return "simplify-for-range" }
+func (simplifyForRangeRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
+
+func (simplifyForRangeRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectSimplifiableForLoops(ctx)
+}
 
 // DetectSimplifiableForLoops detects counter-based for-loops that can be safely
 // rewritten to Go/Gno-style range loops:
@@ -102,20 +115,11 @@ import (
 // or mutation of the loop variable.
 //
 // All other counter-based loops remain untouched.
-func DetectSimplifiableForLoops(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
-	info := &types.Info{
-		Types: make(map[ast.Expr]types.TypeAndValue),
-		Uses:  make(map[*ast.Ident]types.Object),
-		Defs:  make(map[*ast.Ident]types.Object),
-	}
-
-	conf := types.Config{Importer: importer.Default()}
-	// ignore type-checking errors to keep linting best-effort.
-	_, _ = conf.Check(node.Name.Name, fset, []*ast.File{node}, info)
+func DetectSimplifiableForLoops(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	info := ctx.TypesInfo()
 
 	var issues []tt.Issue
-
-	ast.Inspect(node, func(n ast.Node) bool {
+	ast.Inspect(ctx.File, func(n ast.Node) bool {
 		forStmt, ok := n.(*ast.ForStmt)
 		if !ok {
 			return true
@@ -130,7 +134,7 @@ func DetectSimplifiableForLoops(filename string, node *ast.File, fset *token.Fil
 			return true
 		}
 
-		if loopVarUsedAfter(node, forStmt, idxIdent) {
+		if loopVarUsedAfter(ctx.File, forStmt, idxIdent) {
 			return true
 		}
 
@@ -142,16 +146,11 @@ func DetectSimplifiableForLoops(filename string, node *ast.File, fset *token.Fil
 			bodyStr,
 		)
 
-		issues = append(issues, tt.Issue{
-			Rule:       "simplify_for_range",
-			Filename:   filename,
-			Message:    "counter-based for loop can be simplified to range-based loop",
-			Category:   "style",
-			Start:      fset.Position(forStmt.Pos()),
-			End:        fset.Position(forStmt.End()),
-			Severity:   severity,
-			Suggestion: suggestion,
-		})
+		issue := ctx.NewIssue("simplify-for-range", forStmt.Pos(), forStmt.End())
+		issue.Message = "counter-based for loop can be simplified to range-based loop"
+		issue.Category = "style"
+		issue.Suggestion = suggestion
+		issues = append(issues, issue)
 
 		return true
 	})

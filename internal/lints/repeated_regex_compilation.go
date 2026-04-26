@@ -1,78 +1,130 @@
 package lints
 
 import (
+	"context"
 	"go/ast"
+	"go/parser"
 	"go/token"
+	"strconv"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
 )
 
+func init() {
+	rule.Register(repeatedRegexCompilationRule{})
+}
+
+type repeatedRegexCompilationRule struct{}
+
+func (repeatedRegexCompilationRule) Name() string                 { return "repeated-regex-compilation" }
+func (repeatedRegexCompilationRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
+
+// Check is the single-file fallback for non-engine callers; engine
+// dispatch goes straight to CheckPackage with the live ctx.
+func (r repeatedRegexCompilationRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return r.CheckPackage(context.Background(), ctx.SinglePackage())
+}
+
 var RepeatedRegexCompilationAnalyzer = &analysis.Analyzer{
-	Name: "repeatedregexcompilation",
+	Name: "repeated-regex-compilation",
 	Doc:  "Checks for repeated compilation of the same regex pattern",
 	Run:  runRepeatedRegexCompilation,
 }
 
-func DetectRepeatedRegexCompilation(filename string, node *ast.File, _ *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
-	imports := extractImports(node, func(path string) bool {
-		return path == "regexp"
-	})
-
-	if !imports["regexp"] {
+// CheckPackage loads the package once and runs the analyzer across
+// every file in it. Issues are filtered to files in pctx scope so
+// loader-pulled siblings (e.g. _test.go) don't leak into output.
+//
+// The imports-only pre-scan short-circuits the common case where no
+// file in the package imports regexp; packages.Load is much more
+// expensive than parser.ParseFile(ImportsOnly).
+func (repeatedRegexCompilationRule) CheckPackage(ctx context.Context, pctx *rule.PackageContext) ([]tt.Issue, error) {
+	if len(pctx.WorkingPaths) == 0 {
+		return nil, nil
+	}
+	if !anyFileImportsRegexp(pctx.WorkingPaths) {
 		return nil, nil
 	}
 
-	issues, err := runAnalyzer(filename, RepeatedRegexCompilationAnalyzer, severity)
-	if err != nil {
-		return nil, err
-	}
-	return issues, nil
-}
-
-func runAnalyzer(filename string, a *analysis.Analyzer, severity tt.Severity) ([]tt.Issue, error) {
 	cfg := &packages.Config{
-		Mode:  packages.NeedFiles | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedTypes,
-		Tests: false,
+		Mode:    packages.NeedFiles | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedTypes,
+		Tests:   false,
+		Context: ctx,
 	}
 
-	pkgs, err := packages.Load(cfg, filename)
+	// Load via the file paths (not "." against cfg.Dir) so orphan
+	// files outside any go.mod still resolve — same calling pattern
+	// the pre-EPR-6 per-file path used.
+	pkgs, err := packages.Load(cfg, pctx.WorkingPaths...)
 	if err != nil {
 		return nil, err
 	}
+	if len(pkgs) == 0 {
+		return nil, nil
+	}
+	pkg := pkgs[0]
 
 	var diagnostics []analysis.Diagnostic
 	pass := &analysis.Pass{
-		Analyzer:  a,
-		Fset:      pkgs[0].Fset,
-		Files:     pkgs[0].Syntax,
-		Pkg:       pkgs[0].Types,
-		TypesInfo: pkgs[0].TypesInfo,
+		Analyzer:  RepeatedRegexCompilationAnalyzer,
+		Fset:      pkg.Fset,
+		Files:     pkg.Syntax,
+		Pkg:       pkg.Types,
+		TypesInfo: pkg.TypesInfo,
 		ResultOf:  make(map[*analysis.Analyzer]interface{}),
 		Report: func(d analysis.Diagnostic) {
 			diagnostics = append(diagnostics, d)
 		},
 	}
 
-	_, err = a.Run(pass)
-	if err != nil {
+	if _, err = RepeatedRegexCompilationAnalyzer.Run(pass); err != nil {
 		return nil, err
 	}
 
 	issues := make([]tt.Issue, 0, len(diagnostics))
 	for _, diag := range diagnostics {
+		start := pass.Fset.Position(diag.Pos)
+		end := pass.Fset.Position(diag.End)
+		if !pctx.InScope(start.Filename) {
+			continue
+		}
+		start.Filename = pctx.RemapFilename(start.Filename)
+		end.Filename = pctx.RemapFilename(end.Filename)
 		issues = append(issues, tt.Issue{
-			Rule:     a.Name,
-			Filename: filename,
-			Start:    pass.Fset.Position(diag.Pos),
-			End:      pass.Fset.Position(diag.End),
+			Rule:     RepeatedRegexCompilationAnalyzer.Name,
+			Filename: start.Filename,
+			Start:    start,
+			End:      end,
 			Message:  diag.Message,
-			Severity: severity,
+			Severity: pctx.Severity,
 		})
 	}
 
 	return issues, nil
+}
+
+// anyFileImportsRegexp parses each working path with parser.ImportsOnly
+// (cheap — stops after the import block) and returns true on the first
+// file that imports "regexp". Used as a fast gate in front of
+// packages.Load, which is much more expensive than parsing imports.
+func anyFileImportsRegexp(paths []string) bool {
+	fset := token.NewFileSet()
+	for _, p := range paths {
+		f, err := parser.ParseFile(fset, p, nil, parser.ImportsOnly)
+		if err != nil {
+			continue
+		}
+		for _, imp := range f.Imports {
+			path, err := strconv.Unquote(imp.Path.Value)
+			if err == nil && path == "regexp" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func runRepeatedRegexCompilation(pass *analysis.Pass) (interface{}, error) {

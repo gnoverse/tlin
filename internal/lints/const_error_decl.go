@@ -3,26 +3,31 @@ package lints
 import (
 	"go/ast"
 	"go/token"
-	"os"
 	"strings"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-func DetectConstErrorDeclaration(
-	filename string,
-	node *ast.File,
-	fset *token.FileSet,
-	severity tt.Severity,
-) ([]tt.Issue, error) {
+func init() {
+	rule.Register(constErrorDeclarationRule{})
+}
+
+type constErrorDeclarationRule struct{}
+
+func (constErrorDeclarationRule) Name() string                 { return "const-error-declaration" }
+func (constErrorDeclarationRule) DefaultSeverity() tt.Severity { return tt.SeverityError }
+
+func (constErrorDeclarationRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectConstErrorDeclaration(ctx)
+}
+
+// DetectConstErrorDeclaration flags `const x = errors.New(...)` blocks
+// and emits a `var`-form suggestion.
+func DetectConstErrorDeclaration(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
 	var issues []tt.Issue
 
-	src, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	ast.Inspect(node, func(n ast.Node) bool {
+	ast.Inspect(ctx.File, func(n ast.Node) bool {
 		genDecl, ok := n.(*ast.GenDecl)
 		if !ok || genDecl.Tok != token.CONST {
 			return true
@@ -47,21 +52,15 @@ func DetectConstErrorDeclaration(
 		}
 
 		if containsErrorsNew {
-			startPos := fset.Position(genDecl.Pos()).Offset
-			endPos := fset.Position(genDecl.End()).Offset
-			origSnippet := src[startPos:endPos]
+			startPos := ctx.Fset.Position(genDecl.Pos()).Offset
+			endPos := ctx.Fset.Position(genDecl.End()).Offset
+			origSnippet := ctx.Source[startPos:endPos]
 
 			suggestion := strings.Replace(string(origSnippet), "const", "var", 1)
 
-			issue := tt.Issue{
-				Rule:       "const-error-declaration",
-				Filename:   filename,
-				Start:      fset.Position(genDecl.Pos()),
-				End:        fset.Position(genDecl.End()),
-				Message:    "avoid declaring constant errors",
-				Suggestion: suggestion,
-				Severity:   severity,
-			}
+			issue := ctx.NewIssue("const-error-declaration", genDecl.Pos(), genDecl.End())
+			issue.Message = "avoid declaring constant errors"
+			issue.Suggestion = suggestion
 			issues = append(issues, issue)
 		}
 

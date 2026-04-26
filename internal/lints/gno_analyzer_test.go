@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/gnolang/tlin/internal/rule"
 	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +37,7 @@ func TestRunLinter(t *testing.T) {
 				rule    string
 				message string
 			}{
-				{"unused-import", "unused import: strings"},
+				{"unused-package", "unused import: strings"},
 			},
 			expectedDeps: map[string]struct {
 				isGno     bool
@@ -75,7 +76,14 @@ func TestRunLinter(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, file)
 
-			issues := runGnoPackageLinter(file, fset, deps, types.SeverityError)
+			ctx := &rule.AnalysisContext{
+				OriginalPath: tt.filename,
+				WorkingPath:  tt.filename,
+				File:         file,
+				Fset:         fset,
+				Severity:     types.SeverityError,
+			}
+			issues := runGnoPackageLinter(ctx, deps)
 
 			assert.Equal(t, len(tt.expectedIssues), len(issues), "Number of issues doesn't match expected for %s", tt.filename)
 
