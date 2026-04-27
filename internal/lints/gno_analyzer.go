@@ -6,11 +6,17 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
+
+// versionSuffix matches a trailing path segment of the form v0, v1, …
+// gno import paths use this convention (see gnolang/gno#5220), so the
+// real package name is the segment preceding it, not "vN".
+var versionSuffix = regexp.MustCompile(`^v\d+$`)
 
 func init() {
 	rule.Register(unusedPackageRule{})
@@ -87,7 +93,7 @@ func extractDependencies(file *ast.File) Dependencies {
 				for _, imp := range file.Imports {
 					if imp.Name != nil && imp.Name.Name == ident.Name {
 						deps[strings.Trim(imp.Path.Value, `"`)].IsUsed = true
-					} else if lastPart := getLastPart(strings.Trim(imp.Path.Value, `"`)); lastPart == ident.Name {
+					} else if pkgName := effectivePackageName(strings.Trim(imp.Path.Value, `"`)); pkgName == ident.Name {
 						deps[strings.Trim(imp.Path.Value, `"`)].IsUsed = true
 					}
 				}
@@ -116,7 +122,10 @@ func isGnoPackage(importPath string) bool {
 	return strings.HasPrefix(importPath, GNO_PKG_PREFIX) || importPath == GNO_STD_PACKAGE
 }
 
-func getLastPart(path string) string {
+func effectivePackageName(path string) string {
 	parts := strings.Split(path, "/")
+	if len(parts) >= 2 && versionSuffix.MatchString(parts[len(parts)-1]) {
+		return parts[len(parts)-2]
+	}
 	return parts[len(parts)-1]
 }

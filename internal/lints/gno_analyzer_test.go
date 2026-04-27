@@ -65,6 +65,20 @@ func TestRunLinter(t *testing.T) {
 				"strings": {false, true, false},
 			},
 		},
+		{
+			filename: filepath.Join(testDir, "pkg2.gno"),
+			expectedIssues: []struct {
+				rule    string
+				message string
+			}{},
+			expectedDeps: map[string]struct {
+				isGno     bool
+				isUsed    bool
+				isIgnored bool
+			}{
+				"gno.land/p/nt/ufmt/v0": {true, true, false},
+			},
+		},
 	}
 
 	for _, tt := range tests {
