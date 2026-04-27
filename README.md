@@ -44,6 +44,25 @@ To check the current directory, run:
 tlin .
 ```
 
+### Analyzing `.gno` packages with `golangci-lint`
+
+The bundled `golangci-lint` rule needs `go/packages` to resolve imports.
+Out of the box that fails for `.gno` files because `gno.land/...` paths
+are not real Go modules. tlin auto-wires
+[`gnopls`](https://github.com/gnoverse/gnopls) as the
+`GOPACKAGESDRIVER` when both are available:
+
+```bash
+go install github.com/gnoverse/gnopls@latest
+export GNOROOT=/path/to/gno
+tlin .
+```
+
+When `gnopls` or `GNOROOT` is missing tlin falls back to running
+`golangci-lint` without a custom driver — pure-`.gno` packages then
+produce no `golangci-lint` output, but other rules continue to run
+normally.
+
 ## Configuration
 
 tlin supports a configuration file (`.tlin.yaml`) to customize its behavior. You can generate a default configuration file by running:
