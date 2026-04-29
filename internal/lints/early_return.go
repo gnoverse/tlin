@@ -161,6 +161,9 @@ func processQualifiedChain(chain *ifChain, ctx *traversalContext) {
 	if err != nil {
 		return
 	}
+	if !verifyWithMiniLogic(snippet, suggestion) {
+		return
+	}
 
 	issue := ctx.actx.NewIssue("early-return-opportunity", chain.root.Pos(), chain.root.End())
 	issue.Message = "this if-else chain can be simplified using early returns"
