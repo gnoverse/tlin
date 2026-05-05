@@ -304,7 +304,7 @@ func TestRulesFireOnTestdata(t *testing.T) {
 	}{
 		{"simplify-slice-range", "slice0.gno"},
 		{"unnecessary-type-conversion", "coversion/conv0.gno"},
-		{"cycle-detection", "cycle/types.gno"},
+		{"cycle-detection", "cycle0.gno"},
 		{"emit-format", "emit/emit1.gno"},
 		{"useless-break", "break/break1.gno"},
 		{"early-return-opportunity", "early_return/a0.gno"},
