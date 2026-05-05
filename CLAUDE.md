@@ -55,7 +55,7 @@ The linter follows a pipeline architecture:
 - `golangci-lint` - Wrapper for golangci-lint tool
 - `simplify-slice-range` - Detects unnecessary slice length in range loops
 - `unnecessary-type-conversion` - Finds redundant type conversions
-- `cycle-detection` - Detects cyclic dependencies
+- `cycle-detection` - Detects cyclic dependencies (opt-in: enable via `.tlin.yaml`)
 - `emit-format` - Checks gno emit statement formatting
 - `useless-break` - Finds unnecessary break statements
 - `early-return-opportunity` - Suggests early returns to reduce nesting

@@ -292,6 +292,8 @@ func BenchmarkRun(b *testing.B) {
 //   - high-cyclomatic-complexity: not wired into the default Engine
 //     (uses the lint.ProcessCyclomaticComplexity special path; covered
 //     by TestDetectHighCyclomaticComplexity).
+//   - cycle-detection: opt-in (DefaultSeverity is SeverityOff);
+//     covered by TestRulesFireOnTestdata_OptIn.
 func TestRulesFireOnTestdata(t *testing.T) {
 	t.Parallel()
 	_, currentFile, _, ok := runtime.Caller(0)
@@ -304,7 +306,6 @@ func TestRulesFireOnTestdata(t *testing.T) {
 	}{
 		{"simplify-slice-range", "slice0.gno"},
 		{"unnecessary-type-conversion", "coversion/conv0.gno"},
-		{"cycle-detection", "cycle0.gno"},
 		{"emit-format", "emit/emit1.gno"},
 		{"useless-break", "break/break1.gno"},
 		{"early-return-opportunity", "early_return/a0.gno"},
@@ -334,6 +335,46 @@ func TestRulesFireOnTestdata(t *testing.T) {
 				rules = append(rules, issue.Rule)
 			}
 			t.Fatalf("rule %q did not fire on %s; rules that fired: %v",
+				tc.rule, tc.file, rules)
+		})
+	}
+}
+
+// TestRulesFireOnTestdata_OptIn is the opt-in counterpart to
+// TestRulesFireOnTestdata for rules whose DefaultSeverity is SeverityOff.
+func TestRulesFireOnTestdata_OptIn(t *testing.T) {
+	t.Parallel()
+	_, currentFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	testDataDir := filepath.Join(filepath.Dir(currentFile), "../testdata")
+
+	cases := []struct {
+		rule string
+		file string // relative to testDataDir
+	}{
+		{"cycle-detection", "cycle0.gno"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.rule, func(t *testing.T) {
+			t.Parallel()
+			engine, err := NewEngine(map[string]types.ConfigRule{
+				tc.rule: {Severity: types.SeverityWarning},
+			})
+			require.NoError(t, err)
+
+			path := filepath.Join(testDataDir, tc.file)
+			issues, err := engine.Run(path)
+			require.NoError(t, err)
+
+			rules := make([]string, 0, len(issues))
+			for _, issue := range issues {
+				if issue.Rule == tc.rule {
+					return
+				}
+				rules = append(rules, issue.Rule)
+			}
+			t.Fatalf("rule %q did not fire on %s when enabled via config; rules that fired: %v",
 				tc.rule, tc.file, rules)
 		})
 	}

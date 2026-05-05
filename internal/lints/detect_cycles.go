@@ -15,8 +15,10 @@ func init() {
 
 type cycleDetectionRule struct{}
 
-func (cycleDetectionRule) Name() string                 { return "cycle-detection" }
-func (cycleDetectionRule) DefaultSeverity() tt.Severity { return tt.SeverityError }
+func (cycleDetectionRule) Name() string { return "cycle-detection" }
+
+// SeverityOff: AST-only call-graph flags bounded mutual recursion as a cycle; opt in via .tlin.yaml.
+func (cycleDetectionRule) DefaultSeverity() tt.Severity { return tt.SeverityOff }
 
 func (cycleDetectionRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
 	return DetectCycle(ctx)
