@@ -2,6 +2,7 @@ package migration
 
 import (
 	"go/ast"
+	"go/token"
 )
 
 type Capability struct {
@@ -185,4 +186,12 @@ func firstArgIsCrossingMarker(call *ast.CallExpr) bool {
 	default:
 		return false
 	}
+}
+
+func firstArgIsZero(call *ast.CallExpr) bool {
+	if len(call.Args) == 0 {
+		return false
+	}
+	lit, ok := call.Args[0].(*ast.BasicLit)
+	return ok && lit.Kind == token.INT && lit.Value == "0"
 }

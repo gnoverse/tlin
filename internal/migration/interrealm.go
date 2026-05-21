@@ -243,7 +243,7 @@ func importedAliasSet(aliases map[string][]string) map[string]bool {
 }
 
 func shouldReportTellerCall(call *ast.CallExpr, sel *ast.SelectorExpr, importedAliases map[string]bool, parents map[ast.Node]ast.Node) bool {
-	if !tellerMethod(sel.Sel.Name) || firstArgIsCrossingMarker(call) {
+	if !tellerMethod(sel.Sel.Name) || firstArgIsCrossingMarker(call) || firstArgIsZero(call) {
 		return false
 	}
 	if id, ok := sel.X.(*ast.Ident); ok && importedAliases[id.Name] {

@@ -277,6 +277,26 @@ func Crossing(cur realm) {
 	require.Contains(t, string(got), "userTeller.Transfer(0, cur, to, 100)")
 }
 
+func TestInterrealmTellerReviewEditIsIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "teller_done.gno")
+	input := `package tellerdone
+
+import "gno.land/p/demo/grc/grc20"
+
+func Pay(cur realm) {
+	userTeller := grc20.CallerTeller()
+	userTeller.Transfer(0, cur, to, 100)
+}
+`
+	require.NoError(t, os.WriteFile(file, []byte(input), 0o644))
+
+	report, err := Run([]string{file}, Options{IncludeReview: true}, InterrealmMigrators())
+	require.NoError(t, err)
+	require.Empty(t, report.Files[0].Edits)
+	require.Empty(t, categories(report, "interrealm-3.6b-teller-method"))
+}
+
 func categories(report Report, category string) []Finding {
 	var findings []Finding
 	for _, file := range report.Files {
