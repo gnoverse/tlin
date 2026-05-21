@@ -133,3 +133,158 @@ func Transfer(cur realm) {}
 	require.Len(t, pFindings, 1)
 	require.Equal(t, "interrealm-3.5-p-helper", pFindings[0].Category)
 }
+
+func TestInterrealmTellerDetectorIgnoresAlreadyCrossingPackageCalls(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "swap.gno")
+	input := `package swap
+
+import foo "gno.land/r/demo/foo"
+
+func Swap(cur realm) {
+	foo.Approve(cross, poolAddr, 100)
+	foo.Transfer(cross(cur), to, 100)
+	foo.TransferFrom(cross, from, to, 100)
+}
+`
+	require.NoError(t, os.WriteFile(file, []byte(input), 0o644))
+
+	report, err := Run([]string{file}, Options{}, InterrealmMigrators())
+	require.NoError(t, err)
+	require.Empty(t, categories(report, "interrealm-3.6b-teller-method"))
+}
+
+func TestInterrealmTellerDetectorFindsKnownLocalTellerReceivers(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "teller.gno")
+	input := `package teller
+
+import "gno.land/p/demo/grc/grc20"
+
+func Pay(cur realm) {
+	userTeller := grc20.CallerTeller()
+	userTeller.Transfer(to, 100)
+	GetTokenTeller(path).Approve(spender, 100)
+}
+`
+	require.NoError(t, os.WriteFile(file, []byte(input), 0o644))
+
+	report, err := Run([]string{file}, Options{}, InterrealmMigrators())
+	require.NoError(t, err)
+	require.Len(t, categories(report, "interrealm-3.6b-teller-method"), 2)
+}
+
+func TestInterrealmRecoverIsNotReportedAsCrossRealmPanic(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "recover.gno")
+	input := `package recoverdemo
+
+func TestOverflow() {
+	defer func() {
+		if r := recover(); r == nil {
+			panic("expected panic")
+		}
+	}()
+	panic("overflow")
+}
+`
+	require.NoError(t, os.WriteFile(file, []byte(input), 0o644))
+
+	report, err := Run([]string{file}, Options{}, InterrealmMigrators())
+	require.NoError(t, err)
+	require.Empty(t, categories(report, "interrealm-3.7-cross-panic"))
+}
+
+func TestInterrealmRuntimeAPIFindingConfidenceDependsOnCapabilityScope(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "runtime.gno")
+	input := `package runtimedemo
+
+import "chain/runtime"
+
+func Crossing(cur realm) {
+	_ = runtime.PreviousRealm()
+}
+
+func Helper() {
+	_ = runtime.CurrentRealm()
+}
+`
+	require.NoError(t, os.WriteFile(file, []byte(input), 0o644))
+
+	report, err := Run([]string{file}, Options{}, InterrealmMigrators())
+	require.NoError(t, err)
+	findings := categories(report, "interrealm-3.1-runtime-api")
+	require.Len(t, findings, 2)
+	require.Equal(t, Review, findings[0].Confidence)
+	require.Equal(t, Manual, findings[1].Confidence)
+}
+
+func TestInterrealmIncludeReviewRewritesRuntimeAPIInCapabilityScope(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "runtime_fix.gno")
+	input := `package runtimefix
+
+import "chain/runtime"
+
+func Crossing(cur realm) {
+	caller := runtime.PreviousRealm().Address()
+	self := runtime.CurrentRealm()
+	_, _ = caller, self
+}
+`
+	require.NoError(t, os.WriteFile(file, []byte(input), 0o644))
+
+	report, err := Run([]string{file}, Options{Apply: true, IncludeReview: true}, InterrealmMigrators())
+	require.NoError(t, err)
+	require.Len(t, report.Files[0].Edits, 2)
+
+	got, err := os.ReadFile(file)
+	require.NoError(t, err)
+	require.NotContains(t, string(got), `"chain/runtime"`)
+	require.Contains(t, string(got), "caller := cur.Previous().Address()")
+	require.Contains(t, string(got), "self := cur")
+}
+
+func TestInterrealmIncludeReviewAddsCapabilityArguments(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "review_args.gno")
+	input := `package reviewargs
+
+import (
+	"chain/banker"
+	"gno.land/p/demo/grc/grc20"
+)
+
+func Crossing(cur realm) {
+	b := banker.NewBanker(banker.BankerTypeRealmSend)
+	token := grc20.NewToken("Foo", "FOO", 6)
+	userTeller := grc20.CallerTeller()
+	userTeller.Transfer(to, 100)
+	_, _ = b, token
+}
+`
+	require.NoError(t, os.WriteFile(file, []byte(input), 0o644))
+
+	report, err := Run([]string{file}, Options{Apply: true, IncludeReview: true}, InterrealmMigrators())
+	require.NoError(t, err)
+	require.Len(t, report.Files[0].Edits, 3)
+
+	got, err := os.ReadFile(file)
+	require.NoError(t, err)
+	require.Contains(t, string(got), "banker.NewBanker(banker.BankerTypeRealmSend, cur)")
+	require.Contains(t, string(got), `grc20.NewToken(0, cur, "Foo", "FOO", 6)`)
+	require.Contains(t, string(got), "userTeller.Transfer(0, cur, to, 100)")
+}
+
+func categories(report Report, category string) []Finding {
+	var findings []Finding
+	for _, file := range report.Files {
+		for _, finding := range file.Findings {
+			if finding.Category == category {
+				findings = append(findings, finding)
+			}
+		}
+	}
+	return findings
+}

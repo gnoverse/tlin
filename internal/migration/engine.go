@@ -15,11 +15,12 @@ import (
 )
 
 type Options struct {
-	Apply       bool
-	Force       bool
-	Diff        bool
-	ReportPath  string
-	IgnorePaths []string
+	Apply         bool
+	Force         bool
+	Diff          bool
+	IncludeReview bool
+	ReportPath    string
+	IgnorePaths   []string
 }
 
 type FileResult struct {
@@ -38,6 +39,7 @@ type Report struct {
 	FilesScanned   int          `json:"files_scanned"`
 	FilesChanged   int          `json:"files_changed"`
 	SafeEdits      int          `json:"safe_edits"`
+	ReviewEdits    int          `json:"review_edits"`
 	ManualFindings int          `json:"manual_findings"`
 }
 
@@ -54,7 +56,14 @@ func Run(paths []string, opts Options, migrators []Migrator) (Report, error) {
 		if res.Changed {
 			report.FilesChanged++
 		}
-		report.SafeEdits += len(res.Edits)
+		for _, edit := range res.Edits {
+			switch edit.Confidence {
+			case Safe:
+				report.SafeEdits++
+			case Review:
+				report.ReviewEdits++
+			}
+		}
 		report.ManualFindings += len(res.Findings)
 	}
 	if opts.ReportPath != "" {
@@ -80,7 +89,7 @@ func runFile(path string, opts Options, migrators []Migrator) FileResult {
 		res.ParseError = err.Error()
 		return res
 	}
-	ctx := &FileContext{Path: path, Source: src, FileSet: fset, File: file}
+	ctx := &FileContext{Path: path, Source: src, FileSet: fset, File: file, IncludeReview: opts.IncludeReview}
 	var edits []Edit
 	var findings []Finding
 	for _, migrator := range migrators {
@@ -89,6 +98,7 @@ func runFile(path string, opts Options, migrators []Migrator) FileResult {
 		findings = append(findings, fs...)
 	}
 	res.Findings = findings
+	edits = applicableEdits(edits, opts.IncludeReview)
 	if len(edits) == 0 {
 		return res
 	}
@@ -104,6 +114,8 @@ func runFile(path string, opts Options, migrators []Migrator) FileResult {
 		case "interrealm-3.4-origin-send":
 			imports.Add("chain/runtime/unsafe")
 			imports.RemoveIfAliasUnused("chain/banker", "banker")
+		case "interrealm-3.1-runtime-api":
+			imports.RemoveIfAliasUnused("chain/runtime", "runtime")
 		}
 	}
 	next, err = imports.Apply(path, next)
@@ -131,6 +143,16 @@ func runFile(path string, opts Options, migrators []Migrator) FileResult {
 		}
 	}
 	return res
+}
+
+func applicableEdits(edits []Edit, includeReview bool) []Edit {
+	out := edits[:0]
+	for _, edit := range edits {
+		if edit.Confidence == Safe || (includeReview && edit.Confidence == Review) {
+			out = append(out, edit)
+		}
+	}
+	return out
 }
 
 func collectFiles(paths []string, ignore []string) ([]string, error) {
@@ -211,7 +233,10 @@ func PrintSummary(report Report, showDiff bool) {
 			}
 		}
 	}
-	fmt.Printf("%d files scanned · Tier1 %d edits", report.FilesScanned, report.SafeEdits)
+	fmt.Printf("%d files scanned · safe %d edits", report.FilesScanned, report.SafeEdits)
+	if report.ReviewEdits > 0 {
+		fmt.Printf(" · review %d edits", report.ReviewEdits)
+	}
 	if report.FilesChanged > 0 {
 		fmt.Printf(" · %d files changed", report.FilesChanged)
 	}

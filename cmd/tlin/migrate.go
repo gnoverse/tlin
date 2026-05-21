@@ -23,6 +23,7 @@ func runMigrate(args []string) {
 	force := fs.Bool("force", false, "allow applying with a dirty git worktree")
 	reportPath := fs.String("report", "", "write JSON migration report")
 	showDiff := fs.Bool("diff", true, "print unified diff")
+	includeReview := fs.Bool("include-review", false, "include opt-in Review confidence migration edits")
 	ignorePaths := fs.String("ignore-paths", "", "comma-separated path patterns to ignore")
 	if err := fs.Parse(args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -41,11 +42,12 @@ func runMigrate(args []string) {
 	}
 
 	report, err := migration.Run(paths, migration.Options{
-		Apply:       shouldApply,
-		Force:       *force,
-		Diff:        *showDiff,
-		ReportPath:  *reportPath,
-		IgnorePaths: splitAndTrim(*ignorePaths),
+		Apply:         shouldApply,
+		Force:         *force,
+		Diff:          *showDiff,
+		IncludeReview: *includeReview,
+		ReportPath:    *reportPath,
+		IgnorePaths:   splitAndTrim(*ignorePaths),
 	}, migration.InterrealmMigrators())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

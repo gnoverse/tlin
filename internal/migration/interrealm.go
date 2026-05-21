@@ -21,6 +21,8 @@ func (interrealmMigrator) Run(ctx *FileContext) ([]Edit, []Finding) {
 	bankerAliases := aliasSet(aliases["chain/banker"])
 	runtimeAliases := aliasSet(aliases["chain/runtime"])
 	grc20Aliases := aliasSet(aliases["gno.land/p/demo/grc/grc20"])
+	importedAliases := importedAliasSet(aliases)
+	parents := parentMap(ctx.File)
 	var edits []Edit
 	var findings []Finding
 	ast.Inspect(ctx.File, func(n ast.Node) bool {
@@ -46,7 +48,11 @@ func (interrealmMigrator) Run(ctx *FileContext) ([]Edit, []Finding) {
 								Position:   NewPosition(pos),
 							})
 						} else if len(x.Args) == 1 {
-							findings = append(findings, finding(ctx, x.Pos(), "interrealm-3.2-new-banker", Review, "banker.NewBanker now requires a realm capability argument.", "Thread cur realm/rlm realm to this scope and call banker.NewBanker(bt, cur)."))
+							if edit, ok := reviewArgAppendEdit(ctx, parents, x, "interrealm-3.2-new-banker", "banker.NewBanker now requires a realm capability argument."); ok {
+								edits = append(edits, edit)
+							} else {
+								findings = append(findings, finding(ctx, x.Pos(), "interrealm-3.2-new-banker", Review, "banker.NewBanker now requires a realm capability argument.", "Thread cur realm/rlm realm to this scope and call banker.NewBanker(bt, cur)."))
+							}
 						}
 					case bankerAliases[pkg.Name] && sel.Sel.Name == "OriginSend":
 						pos := ctx.FileSet.Position(sel.Pos())
@@ -60,21 +66,37 @@ func (interrealmMigrator) Run(ctx *FileContext) ([]Edit, []Finding) {
 							Position:   NewPosition(pos),
 						})
 					case runtimeAliases[pkg.Name] && removedRuntimeAPI(sel.Sel.Name):
-						findings = append(findings, finding(ctx, sel.Pos(), "interrealm-3.1-runtime-api", Manual, "chain/runtime caller APIs were removed.", "Prefer cur realm threading and cur.Previous(); use chain/runtime/unsafe only for intentional tx-origin behavior."))
+						if edit, ok := reviewRuntimeAPIEdit(ctx, parents, x, sel.Sel.Name); ok {
+							edits = append(edits, edit)
+						} else {
+							findings = append(findings, runtimeAPIFinding(ctx, parents, x, sel.Pos(), sel.Sel.Name))
+						}
 					case grc20Aliases[pkg.Name] && sel.Sel.Name == "NewToken" && len(x.Args) == 3:
-						findings = append(findings, finding(ctx, x.Pos(), "interrealm-3.6a-grc20-new-token", Review, "grc20.NewToken now requires origin and realm capability arguments.", "Thread cur realm/rlm realm to this scope and call grc20.NewToken(0, cur, ...)."))
+						if edit, ok := reviewArgPrependEdit(ctx, parents, x, "interrealm-3.6a-grc20-new-token", "grc20.NewToken now requires origin and realm capability arguments."); ok {
+							edits = append(edits, edit)
+						} else {
+							findings = append(findings, finding(ctx, x.Pos(), "interrealm-3.6a-grc20-new-token", Review, "grc20.NewToken now requires origin and realm capability arguments.", "Thread cur realm/rlm realm to this scope and call grc20.NewToken(0, cur, ...)."))
+						}
 					case sel.Sel.Name == "Origin":
 						findings = append(findings, finding(ctx, sel.Pos(), "interrealm-3.8-realm-origin", Manual, "realm.Origin() was removed from the uverse realm interface.", "Remove this call or replace the design with explicit origin data."))
 					}
 				}
-				if tellerMethod(sel.Sel.Name) {
-					findings = append(findings, finding(ctx, sel.Pos(), "interrealm-3.6b-teller-method", Manual, "Teller/RealmTeller APIs changed for realm-capability-aware calls.", "Check whether this receiver is a Teller and migrate the call manually with the appropriate cur/rlm value."))
+				if shouldReportTellerCall(x, sel, importedAliases, parents) {
+					if edit, ok := reviewArgPrependEdit(ctx, parents, x, "interrealm-3.6b-teller-method", "Teller/RealmTeller APIs changed for realm-capability-aware calls."); ok {
+						edits = append(edits, edit)
+					} else {
+						findings = append(findings, finding(ctx, sel.Pos(), "interrealm-3.6b-teller-method", Manual, "Teller/RealmTeller APIs changed for realm-capability-aware calls.", "Check whether this receiver is a Teller and migrate the call manually with the appropriate cur/rlm value."))
+					}
 				}
 			}
 			if id, ok := x.Fun.(*ast.Ident); ok {
 				switch {
 				case runtimeAliases["."] && removedRuntimeAPI(id.Name):
-					findings = append(findings, finding(ctx, id.Pos(), "interrealm-3.1-runtime-api", Manual, "chain/runtime caller APIs were removed.", "Prefer cur realm threading and cur.Previous(); use chain/runtime/unsafe only for intentional tx-origin behavior."))
+					if edit, ok := reviewRuntimeAPIEdit(ctx, parents, x, id.Name); ok {
+						edits = append(edits, edit)
+					} else {
+						findings = append(findings, runtimeAPIFinding(ctx, parents, x, id.Pos(), id.Name))
+					}
 				case bankerAliases["."] && id.Name == "NewBanker" && len(x.Args) == 1:
 					if isReadonlyBankerArg(x.Args[0], bankerAliases) {
 						pos := ctx.FileSet.Position(x.Pos())
@@ -88,17 +110,19 @@ func (interrealmMigrator) Run(ctx *FileContext) ([]Edit, []Finding) {
 							Position:   NewPosition(pos),
 						})
 					} else {
-						findings = append(findings, finding(ctx, x.Pos(), "interrealm-3.2-new-banker", Review, "banker.NewBanker now requires a realm capability argument.", "Thread cur realm/rlm realm to this scope and call NewBanker(bt, cur)."))
+						if edit, ok := reviewArgAppendEdit(ctx, parents, x, "interrealm-3.2-new-banker", "banker.NewBanker now requires a realm capability argument."); ok {
+							edits = append(edits, edit)
+						} else {
+							findings = append(findings, finding(ctx, x.Pos(), "interrealm-3.2-new-banker", Review, "banker.NewBanker now requires a realm capability argument.", "Thread cur realm/rlm realm to this scope and call NewBanker(bt, cur)."))
+						}
 					}
 				case grc20Aliases["."] && id.Name == "NewToken" && len(x.Args) == 3:
-					findings = append(findings, finding(ctx, x.Pos(), "interrealm-3.6a-grc20-new-token", Review, "grc20.NewToken now requires origin and realm capability arguments.", "Thread cur realm/rlm realm to this scope and call NewToken(0, cur, ...)."))
-				case id.Name == "recover":
-					findings = append(findings, finding(ctx, id.Pos(), "interrealm-3.7-cross-panic", Manual, "cross-realm panics are aborts and are not handled by recover().", "Use revive(fn) or the updated testing assertion helpers where appropriate."))
+					if edit, ok := reviewArgPrependEdit(ctx, parents, x, "interrealm-3.6a-grc20-new-token", "grc20.NewToken now requires origin and realm capability arguments."); ok {
+						edits = append(edits, edit)
+					} else {
+						findings = append(findings, finding(ctx, x.Pos(), "interrealm-3.6a-grc20-new-token", Review, "grc20.NewToken now requires origin and realm capability arguments.", "Thread cur realm/rlm realm to this scope and call NewToken(0, cur, ...)."))
+					}
 				}
-			}
-		case *ast.Ident:
-			if x.Name == "RealmTeller" {
-				findings = append(findings, finding(ctx, x.Pos(), "interrealm-3.6b-teller-method", Manual, "RealmTeller was affected by the interrealm API migration.", "Migrate this type usage manually after deciding how cur/rlm should flow."))
 			}
 		case *ast.FuncDecl:
 			if isPPackagePath(ctx.Path) && firstParamIsRealm(x.Type) {
@@ -108,6 +132,84 @@ func (interrealmMigrator) Run(ctx *FileContext) ([]Edit, []Finding) {
 		return true
 	})
 	return edits, findings
+}
+
+func runtimeAPIFinding(ctx *FileContext, parents map[ast.Node]ast.Node, node ast.Node, pos token.Pos, name string) Finding {
+	confidence := Manual
+	if name != "OriginCaller" {
+		if _, ok := ResolveCapability(node, parents); ok {
+			confidence = Review
+		}
+	}
+	return finding(ctx, pos, "interrealm-3.1-runtime-api", confidence, "chain/runtime caller APIs were removed.", "Prefer cur realm threading and cur.Previous(); use chain/runtime/unsafe only for intentional tx-origin behavior.")
+}
+
+func reviewRuntimeAPIEdit(ctx *FileContext, parents map[ast.Node]ast.Node, call *ast.CallExpr, name string) (Edit, bool) {
+	if !ctx.IncludeReview || name == "OriginCaller" {
+		return Edit{}, false
+	}
+	cap, ok := ResolveCapability(call, parents)
+	if !ok {
+		return Edit{}, false
+	}
+	var replacement string
+	switch name {
+	case "CurrentRealm":
+		replacement = cap.Name
+	case "PreviousRealm":
+		replacement = cap.Name + ".Previous()"
+	default:
+		return Edit{}, false
+	}
+	return Edit{
+		Start:      call.Pos(),
+		End:        call.End(),
+		NewText:    replacement,
+		Category:   "interrealm-3.1-runtime-api",
+		Confidence: Review,
+		Rationale:  "runtime caller APIs can be replaced by the in-scope realm capability.",
+		Position:   NewPosition(ctx.FileSet.Position(call.Pos())),
+	}, true
+}
+
+func reviewArgAppendEdit(ctx *FileContext, parents map[ast.Node]ast.Node, call *ast.CallExpr, category, rationale string) (Edit, bool) {
+	if !ctx.IncludeReview || len(call.Args) == 0 {
+		return Edit{}, false
+	}
+	cap, ok := ResolveCapability(call, parents)
+	if !ok {
+		return Edit{}, false
+	}
+	pos := call.Args[len(call.Args)-1].End()
+	return Edit{
+		Start:      pos,
+		End:        pos,
+		NewText:    ", " + cap.Name,
+		Category:   category,
+		Confidence: Review,
+		Rationale:  rationale,
+		Position:   NewPosition(ctx.FileSet.Position(call.Pos())),
+	}, true
+}
+
+func reviewArgPrependEdit(ctx *FileContext, parents map[ast.Node]ast.Node, call *ast.CallExpr, category, rationale string) (Edit, bool) {
+	if !ctx.IncludeReview {
+		return Edit{}, false
+	}
+	cap, ok := ResolveCapability(call, parents)
+	if !ok {
+		return Edit{}, false
+	}
+	pos := call.Lparen + 1
+	return Edit{
+		Start:      pos,
+		End:        pos,
+		NewText:    "0, " + cap.Name + ", ",
+		Category:   category,
+		Confidence: Review,
+		Rationale:  rationale,
+		Position:   NewPosition(ctx.FileSet.Position(call.Pos())),
+	}, true
 }
 
 func finding(ctx *FileContext, pos token.Pos, category string, confidence Confidence, msg, suggestion string) Finding {
@@ -126,6 +228,30 @@ func aliasSet(names []string) map[string]bool {
 		set[name] = true
 	}
 	return set
+}
+
+func importedAliasSet(aliases map[string][]string) map[string]bool {
+	set := map[string]bool{}
+	for _, names := range aliases {
+		for _, name := range names {
+			if name != "." && name != "_" {
+				set[name] = true
+			}
+		}
+	}
+	return set
+}
+
+func shouldReportTellerCall(call *ast.CallExpr, sel *ast.SelectorExpr, importedAliases map[string]bool, parents map[ast.Node]ast.Node) bool {
+	if !tellerMethod(sel.Sel.Name) || firstArgIsCrossingMarker(call) {
+		return false
+	}
+	if id, ok := sel.X.(*ast.Ident); ok && importedAliases[id.Name] {
+		return false
+	}
+	fn := enclosingFunc(call, parents)
+	vars := knownTellerVars(fn)
+	return knownTellerExpr(sel.X, vars)
 }
 
 func removedRuntimeAPI(name string) bool {

@@ -6,10 +6,11 @@ import (
 )
 
 type FileContext struct {
-	Path    string
-	Source  []byte
-	FileSet *token.FileSet
-	File    *ast.File
+	Path          string
+	Source        []byte
+	FileSet       *token.FileSet
+	File          *ast.File
+	IncludeReview bool
 }
 
 type Migrator interface {
