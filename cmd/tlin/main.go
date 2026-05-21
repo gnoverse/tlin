@@ -53,6 +53,11 @@ func main() {
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		runMigrate(os.Args[2:])
+		return
+	}
+
 	config := parseFlags(os.Args[1:])
 
 	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
