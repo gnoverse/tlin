@@ -64,6 +64,10 @@ The linter follows a pipeline architecture:
 - `deprecated` - Warns about deprecated function usage
 - `unused-package` - Gno-specific rule for unused package imports
 - `simplify-for-range` - Simplifies for loops that can use range
+- `unsafe-previous-realm` - Flags `chain/runtime/unsafe` use in realms with crossing functions
+- `stored-realm` - Flags `realm`-typed package vars and struct fields (realm values are ephemeral)
+- `payment-guard` - Requires `IsUserCall()` (not `IsUser()`) in files calling `OriginSend`
+- `exported-mutable-pointer` - Flags exported functions returning pointers to package-level realm state (.gno only)
 
 ### Key Features
 - **Parallel Processing**: Files are processed concurrently for performance
