@@ -5,6 +5,10 @@ import (
 	"strings"
 )
 
+func init() {
+	Register("high-cyclomatic-complexity", &CyclomaticComplexityFormatter{})
+}
+
 type CyclomaticComplexityFormatter struct{}
 
 func (f *CyclomaticComplexityFormatter) IssueTemplate() string {

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gnolang/tlin/internal/rule"
 	"github.com/gnolang/tlin/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,14 +87,21 @@ func multipleRepeats() {
 			node, err := parser.ParseFile(fset, tempFile, nil, parser.ParseComments)
 			require.NoError(t, err)
 
-			issues, err := DetectRepeatedRegexCompilation(tempFile, node, fset, types.SeverityError)
+			ctx := &rule.AnalysisContext{
+				OriginalPath: tempFile,
+				WorkingPath:  tempFile,
+				File:         node,
+				Fset:         fset,
+				Severity:     types.SeverityError,
+			}
+			issues, err := repeatedRegexCompilationRule{}.Check(ctx)
 			require.NoError(t, err)
 
 			assert.Len(t, issues, tt.expected)
 
 			if tt.expected > 0 {
 				for _, issue := range issues {
-					assert.Equal(t, "repeatedregexcompilation", issue.Rule)
+					assert.Equal(t, "repeated-regex-compilation", issue.Rule)
 					assert.Contains(t, issue.Message, "regexp.Compile called with same pattern more than once")
 				}
 			}

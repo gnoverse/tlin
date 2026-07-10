@@ -1,5 +1,9 @@
 package formatter
 
+func init() {
+	Register("slice-bounds-check", &SliceBoundsCheckFormatter{})
+}
+
 type SliceBoundsCheckFormatter struct{}
 
 func (f *SliceBoundsCheckFormatter) IssueTemplate() string {

@@ -15,14 +15,6 @@ import (
 
 const tabWidth = 8
 
-// rule set
-const (
-	CycloComplexity   = "high-cyclomatic-complexity"
-	SliceBound        = "slice-bounds-check"
-	MissingModPackage = "gno-mod-tidy"
-	DeprecatedFunc    = "deprecated"
-)
-
 var (
 	errorStyle      = color.New(color.FgRed, color.Bold)
 	warningStyle    = color.New(color.FgHiYellow, color.Bold)
@@ -34,34 +26,20 @@ var (
 	noStyle         = color.New(color.FgWhite)
 )
 
-// issueFormatter is the interface that wraps the issueTemplate method.
-// Implementations of this interface are responsible for formatting specific types of lint issues.
+// issueFormatter is the contract every per-rule formatter implements.
+// Implementations register themselves with the package-level registry
+// in init() (see registry.go).
 type issueFormatter interface {
 	IssueTemplate() string
 }
 
-var formatterCache = map[string]issueFormatter{
-	CycloComplexity:   &CyclomaticComplexityFormatter{},
-	SliceBound:        &SliceBoundsCheckFormatter{},
-	MissingModPackage: &MissingModPackageFormatter{},
-}
-
-// getIssueFormatter is a factory function that returns the appropriate IssueFormatter
-// based on the given rule.
-// If no specific formatter is found for the given rule, it returns a GeneralIssueFormatter.
-func getIssueFormatter(rule string) issueFormatter {
-	if formatter, ok := formatterCache[rule]; ok {
-		return formatter
-	}
-	return &GeneralIssueFormatter{}
-}
-
 // GenerateFormattedIssue formats a slice of issues into a human-readable string.
-// It uses the appropriate formatter for each issue based on its rule.
+// Each issue's formatter comes from the registry; rules without a
+// registered formatter fall back to GeneralIssueFormatter.
 func GenerateFormattedIssue(issues []tt.Issue, snippet *internal.SourceCode) string {
 	var builder strings.Builder
 	for _, issue := range issues {
-		formatter := getIssueFormatter(issue.Rule)
+		formatter := Get(issue.Rule)
 		formattedIssue := buildIssue(issue, snippet, formatter)
 		builder.WriteString(formattedIssue)
 	}

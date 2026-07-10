@@ -10,13 +10,10 @@
 // Engine: The main linting engine that coordinates the linting process.
 // It manages a collection of lint rules and applies them to the given source files.
 //
-// LintRule: An interface that defines the contract for all lint rules.
-// Each lint rule must implement the Check method to analyze the code and return issues.
+// LintRule: A struct that defines the contract for all lint rules.
+// Each lint rule provides a Check function that analyzes the code and returns issues.
 //
 // Issue: Represents a single lint issue found in the code, including its location and description.
-//
-// SymbolTable: A data structure that keeps track of defined symbols across the codebase,
-// helping to reduce false positives in certain lint rules.
 //
 // SourceCode: A simple structure to represent the content of a source file as a collection of lines.
 //
@@ -25,13 +22,10 @@
 //
 // Usage:
 //
-//	engine, err := internal.NewEngine("path/to/root/dir")
+//	engine, err := internal.NewEngine(nil)
 //	if err != nil {
 //	    // handle error
 //	}
-//
-//	// Optionally add custom rules
-//	engine.AddRule(myCustomRule)
 //
 //	issues, err := engine.Run("path/to/file.go")
 //	if err != nil {

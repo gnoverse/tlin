@@ -5,12 +5,26 @@ import (
 	"go/token"
 	"strings"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-func DetectEmitFormat(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
+func init() {
+	rule.Register(emitFormatRule{})
+}
+
+type emitFormatRule struct{}
+
+func (emitFormatRule) Name() string                 { return "emit-format" }
+func (emitFormatRule) DefaultSeverity() tt.Severity { return tt.SeverityInfo }
+
+func (emitFormatRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectEmitFormat(ctx)
+}
+
+func DetectEmitFormat(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
 	// Check for both old "chain" and new "runtime/chain" import paths
-	imports := extractImports(node, func(path string) bool {
+	imports := extractImports(ctx.File, func(path string) bool {
 		return path == "chain" || path == "runtime/chain"
 	})
 
@@ -20,7 +34,7 @@ func DetectEmitFormat(filename string, node *ast.File, fset *token.FileSet, seve
 	}
 
 	issues := make([]tt.Issue, 0)
-	ast.Inspect(node, func(n ast.Node) bool {
+	ast.Inspect(ctx.File, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
@@ -28,16 +42,10 @@ func DetectEmitFormat(filename string, node *ast.File, fset *token.FileSet, seve
 
 		if fun, ok := call.Fun.(*ast.SelectorExpr); ok {
 			if x, ok := fun.X.(*ast.Ident); ok && x.Name == "chain" && fun.Sel.Name == "Emit" {
-				if len(call.Args) > 3 && !isEmitCorrectlyFormatted(call, fset) {
-					issue := tt.Issue{
-						Rule:       "emit-format",
-						Filename:   filename,
-						Start:      fset.Position(call.Pos()),
-						End:        fset.Position(call.End()),
-						Message:    "consider formatting chain.Emit call for better readability",
-						Suggestion: formatEmitCall(call),
-						Severity:   severity,
-					}
+				if len(call.Args) > 3 && !isEmitCorrectlyFormatted(call, ctx.Fset) {
+					issue := ctx.NewIssue("emit-format", call.Pos(), call.End())
+					issue.Message = "consider formatting chain.Emit call for better readability"
+					issue.Suggestion = formatEmitCall(call)
 					issues = append(issues, issue)
 				}
 			}

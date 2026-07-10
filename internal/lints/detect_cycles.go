@@ -3,25 +3,35 @@ package lints
 import (
 	"fmt"
 	"go/ast"
-	"go/token"
+	"slices"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-func DetectCycle(filename string, node *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
+func init() {
+	rule.Register(cycleDetectionRule{})
+}
+
+type cycleDetectionRule struct{}
+
+func (cycleDetectionRule) Name() string { return "cycle-detection" }
+
+// SeverityOff: AST-only call-graph flags bounded mutual recursion as a cycle; opt in via .tlin.yaml.
+func (cycleDetectionRule) DefaultSeverity() tt.Severity { return tt.SeverityOff }
+
+func (cycleDetectionRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectCycle(ctx)
+}
+
+func DetectCycle(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
 	c := newCycle()
-	cycles := c.detectCycles(node)
+	cycles := c.detectCycles(ctx.File)
 
 	issues := make([]tt.Issue, 0, len(cycles))
 	for _, cycle := range cycles {
-		issue := tt.Issue{
-			Rule:     "cycle-detection",
-			Filename: filename,
-			Start:    fset.Position(node.Pos()),
-			End:      fset.Position(node.End()),
-			Message:  "detected cycle in function call: " + cycle,
-			Severity: severity,
-		}
+		issue := ctx.NewIssue("cycle-detection", ctx.File.Pos(), ctx.File.End())
+		issue.Message = "detected cycle in function call: " + cycle
 		issues = append(issues, issue)
 	}
 	return issues, nil
@@ -41,46 +51,97 @@ func newCycle() *cycle {
 	}
 }
 
-func (c *cycle) analyzeFuncDecl(fn *ast.FuncDecl) {
-	name := fn.Name.Name
-	c.dependencies[name] = []string{}
-
-	// ignore bodyless function
-	if fn.Body != nil {
-		ast.Inspect(fn.Body, func(n ast.Node) bool {
-			switch x := n.(type) {
-			case *ast.CallExpr:
-				if ident, ok := x.Fun.(*ast.Ident); ok {
-					if ident.Name == name {
-						c.dependencies[name] = append(c.dependencies[name], ident.Name)
-					}
-				}
-			case *ast.FuncLit:
-				c.analyzeFuncLit(x, name)
-			}
-			return true
-		})
-	}
+// receiverInfo carries an enclosing method's receiver type and param
+// name so SelectorExpr callees of the form `r.method()` can be
+// resolved to "TypeName.method". Empty fields mean "no receiver" or
+// "anonymous receiver" — in either case selector callees won't be
+// resolved without go/types.
+type receiverInfo struct {
+	typeName  string
+	paramName string
 }
 
-func (c *cycle) analyzeFuncLit(fn *ast.FuncLit, parentName string) {
+func (c *cycle) analyzeFuncDecl(fn *ast.FuncDecl) {
+	name, recv := funcDeclNode(fn)
+	c.dependencies[name] = []string{}
+	if fn.Body == nil {
+		return
+	}
+	c.collectCallees(fn.Body, name, recv)
+}
+
+func (c *cycle) analyzeFuncLit(fn *ast.FuncLit, parentName string, recv receiverInfo) {
 	anonName := fmt.Sprintf("%s$anon%p", parentName, fn)
 	c.dependencies[anonName] = []string{}
+	c.collectCallees(fn.Body, anonName, recv)
+	c.dependencies[parentName] = append(c.dependencies[parentName], anonName)
+}
 
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
+func (c *cycle) collectCallees(body *ast.BlockStmt, owner string, recv receiverInfo) {
+	ast.Inspect(body, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.CallExpr:
-			if ident, ok := x.Fun.(*ast.Ident); ok {
-				c.dependencies[anonName] = append(c.dependencies[anonName], ident.Name)
+			if callee := resolveCallee(x.Fun, recv); callee != "" {
+				c.dependencies[owner] = append(c.dependencies[owner], callee)
 			}
 		case *ast.FuncLit:
-			c.analyzeFuncLit(x, anonName)
+			c.analyzeFuncLit(x, owner, recv)
+			return false
 		}
 		return true
 	})
+}
 
-	// add dependency from parent to anonymous function
-	c.dependencies[parentName] = append(c.dependencies[parentName], anonName)
+func resolveCallee(fn ast.Expr, recv receiverInfo) string {
+	switch e := fn.(type) {
+	case *ast.Ident:
+		return e.Name
+	case *ast.SelectorExpr:
+		if recv.paramName == "" || recv.typeName == "" {
+			return ""
+		}
+		x, ok := e.X.(*ast.Ident)
+		if !ok || x.Name != recv.paramName {
+			return ""
+		}
+		return recv.typeName + "." + e.Sel.Name
+	}
+	return ""
+}
+
+func funcDeclNode(fn *ast.FuncDecl) (string, receiverInfo) {
+	name := fn.Name.Name
+	if fn.Recv == nil || len(fn.Recv.List) == 0 {
+		return name, receiverInfo{}
+	}
+	typeName := receiverTypeName(fn.Recv.List[0].Type)
+	if typeName == "" {
+		return name, receiverInfo{}
+	}
+	paramName := ""
+	if names := fn.Recv.List[0].Names; len(names) > 0 {
+		paramName = names[0].Name
+	}
+	return typeName + "." + name, receiverInfo{typeName: typeName, paramName: paramName}
+}
+
+// receiverTypeName extracts T from receiver type expressions like
+// T, *T, T[U], *T[U, V]. Returns "" for unsupported shapes.
+func receiverTypeName(expr ast.Expr) string {
+	for {
+		switch e := expr.(type) {
+		case *ast.StarExpr:
+			expr = e.X
+		case *ast.IndexExpr:
+			expr = e.X
+		case *ast.IndexListExpr:
+			expr = e.X
+		case *ast.Ident:
+			return e.Name
+		default:
+			return ""
+		}
+	}
 }
 
 func (c *cycle) detectCycles(node ast.Node) []string {
@@ -88,13 +149,10 @@ func (c *cycle) detectCycles(node ast.Node) []string {
 		switch x := n.(type) {
 		case *ast.FuncDecl:
 			c.analyzeFuncDecl(x)
-		case *ast.TypeSpec:
-			c.analyzeTypeSpec(x)
-		case *ast.ValueSpec:
-			c.analyzeValueSpec(x)
+			return false
 		case *ast.FuncLit:
-			// handle top-level anonymous functions
-			c.analyzeFuncLit(x, "topLevel")
+			c.analyzeFuncLit(x, "topLevel", receiverInfo{})
+			return false
 		}
 		return true
 	})
@@ -108,32 +166,6 @@ func (c *cycle) detectCycles(node ast.Node) []string {
 	return c.cycles
 }
 
-func (c *cycle) analyzeTypeSpec(ts *ast.TypeSpec) {
-	name := ts.Name.Name
-	c.dependencies[name] = []string{}
-
-	ast.Inspect(ts.Type, func(n ast.Node) bool {
-		if ident, ok := n.(*ast.Ident); ok {
-			c.dependencies[name] = append(c.dependencies[name], ident.Name)
-		}
-		return true
-	})
-}
-
-func (c *cycle) analyzeValueSpec(vs *ast.ValueSpec) {
-	for i, name := range vs.Names {
-		c.dependencies[name.Name] = []string{}
-		if vs.Values != nil && i < len(vs.Values) {
-			ast.Inspect(vs.Values[i], func(n ast.Node) bool {
-				if ident, ok := n.(*ast.Ident); ok {
-					c.dependencies[name.Name] = append(c.dependencies[name.Name], ident.Name)
-				}
-				return true
-			})
-		}
-	}
-}
-
 func (c *cycle) dfs(name string) {
 	c.visited[name] = true
 	c.stack = append(c.stack, name)
@@ -141,30 +173,13 @@ func (c *cycle) dfs(name string) {
 	for _, dep := range c.dependencies[name] {
 		if !c.visited[dep] {
 			c.dfs(dep)
-		} else if contains(c.stack, dep) && dep != name {
-			cycle := append(c.stack[indexOf(c.stack, dep):], dep)
-			res := fmt.Sprintf("%v", cycle)
-			c.cycles = append(c.cycles, res)
+		} else if dep != name {
+			if i := slices.Index(c.stack, dep); i >= 0 {
+				cycle := append(c.stack[i:], dep)
+				c.cycles = append(c.cycles, fmt.Sprintf("%v", cycle))
+			}
 		}
 	}
 
 	c.stack = c.stack[:len(c.stack)-1]
-}
-
-func contains(slice []string, item string) bool {
-	for _, v := range slice {
-		if v == item {
-			return true
-		}
-	}
-	return false
-}
-
-func indexOf(slice []string, item string) int {
-	for i, v := range slice {
-		if v == item {
-			return i
-		}
-	}
-	return -1
 }

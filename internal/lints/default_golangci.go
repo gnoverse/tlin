@@ -1,30 +1,30 @@
 package lints
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
-	_ "fmt"
-	"go/ast"
-	"go/parser"
+	"fmt"
 	"go/token"
 	"os/exec"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
 
-func ParseFile(filename string, content []byte) (*ast.File, *token.FileSet, error) {
-	fset := token.NewFileSet()
-	var node *ast.File
-	var err error
-	if content == nil {
-		node, err = parser.ParseFile(fset, filename, nil, parser.ParseComments)
-	} else {
-		node, err = parser.ParseFile(fset, filename, content, parser.ParseComments)
-	}
-	if err != nil {
-		return nil, nil, err
-	}
+func init() {
+	rule.Register(golangciLintRule{})
+}
 
-	return node, fset, nil
+type golangciLintRule struct{}
+
+func (golangciLintRule) Name() string                 { return "golangci-lint" }
+func (golangciLintRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
+
+// Check is the single-file fallback for non-engine callers; engine
+// dispatch goes straight to CheckPackage with the live ctx.
+func (r golangciLintRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return r.CheckPackage(context.Background(), ctx.SinglePackage())
 }
 
 type golangciOutput struct {
@@ -39,27 +39,69 @@ type golangciOutput struct {
 	} `json:"Issues"`
 }
 
-func RunGolangciLint(filename string, _ *ast.File, _ *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
-	cmd := exec.Command("golangci-lint", "run", "--config=./.golangci.yml", "--out-format=json", filename)
-	output, _ := cmd.CombinedOutput()
+// CheckPackage runs golangci-lint once against the package directory
+// and filters its output to files in pctx scope. ctx is wired into
+// exec.CommandContext so a cancelled run kills the child too.
+func (golangciLintRule) CheckPackage(ctx context.Context, pctx *rule.PackageContext) ([]tt.Issue, error) {
+	target := pctx.Dir
+	if target == "" && len(pctx.WorkingPaths) > 0 {
+		target = pctx.WorkingPaths[0]
+	}
 
-	var golangciResult golangciOutput
+	cmd := exec.CommandContext(ctx, "golangci-lint", "run", "--config=./.golangci.yml", "--out-format=json", target)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	stdout, _ := cmd.Output()
 
-	// @notJoon: Ignore Unmarshal error. We cannot unmarshal the output of golangci-lint
-	// when source code contains gno package imports (i.e. p/demo, r/demo, std). [07/25/24]
-	json.Unmarshal(output, &golangciResult)
+	result, err := decodeGolangciOutput(stdout)
+	if err != nil {
+		return nil, fmt.Errorf("decode golangci-lint output for %s: %w (stderr: %s)", target, err, snippet(stderr.Bytes(), 200))
+	}
 
-	issues := make([]tt.Issue, 0, len(golangciResult.Issues))
-	for _, gi := range golangciResult.Issues {
+	issues := make([]tt.Issue, 0, len(result.Issues))
+	for _, gi := range result.Issues {
+		if !pctx.InScope(gi.Pos.Filename) {
+			continue
+		}
+		filename := pctx.RemapFilename(gi.Pos.Filename)
 		issues = append(issues, tt.Issue{
 			Rule:     gi.FromLinter,
-			Filename: gi.Pos.Filename, // Use the filename from golangci-lint output
-			Start:    token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
-			End:      token.Position{Filename: gi.Pos.Filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1},
+			Filename: filename,
+			Start:    token.Position{Filename: filename, Line: gi.Pos.Line, Column: gi.Pos.Column},
+			End:      token.Position{Filename: filename, Line: gi.Pos.Line, Column: gi.Pos.Column + 1},
 			Message:  gi.Text,
-			Severity: severity,
+			Severity: pctx.Severity,
 		})
 	}
 
 	return issues, nil
+}
+
+// decodeGolangciOutput parses golangci-lint stdout, treating empty
+// input as "no issues". golangci-lint exits without writing JSON
+// when go/packages fails to load the target — common for .gno-only
+// directories whose temp .go file imports gno.land/... paths the
+// stock Go loader cannot resolve — and erroring there would log a
+// warn per file across the entire package.
+func decodeGolangciOutput(stdout []byte) (golangciOutput, error) {
+	stdout = bytes.TrimSpace(stdout)
+	var result golangciOutput
+	if len(stdout) == 0 {
+		return result, nil
+	}
+	if err := json.Unmarshal(stdout, &result); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+func snippet(b []byte, n int) string {
+	b = bytes.TrimSpace(b)
+	if len(b) == 0 {
+		return ""
+	}
+	if len(b) > n {
+		b = b[:n]
+	}
+	return string(b)
 }

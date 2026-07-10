@@ -13,7 +13,7 @@ import (
 func TestCrossFileIssueFilenames(t *testing.T) {
 	t.Parallel()
 
-	tempDir := createTempDir(t, "crossfile_test")
+	tempDir := t.TempDir()
 
 	// Create two .go files that might have cross-file issues
 	file1 := filepath.Join(tempDir, "file1.go")
@@ -43,7 +43,7 @@ func Function2() {
 	err = os.WriteFile(file2, []byte(content2), 0o644)
 	require.NoError(t, err)
 
-	engine, err := NewEngine(tempDir, nil, nil)
+	engine, err := NewEngine(nil)
 	require.NoError(t, err)
 
 	// Run engine on file2
@@ -60,7 +60,7 @@ func Function2() {
 func TestGnoTempFileRemapping(t *testing.T) {
 	t.Parallel()
 
-	tempDir := createTempDir(t, "gno_temp_test")
+	tempDir := t.TempDir()
 
 	// Create a .gno file
 	gnoFile := filepath.Join(tempDir, "test.gno")
@@ -75,7 +75,7 @@ func test() {
 	err := os.WriteFile(gnoFile, []byte(content), 0o644)
 	require.NoError(t, err)
 
-	engine, err := NewEngine(tempDir, nil, nil)
+	engine, err := NewEngine(nil)
 	require.NoError(t, err)
 
 	// Run the engine

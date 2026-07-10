@@ -6,10 +6,30 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"regexp"
 	"strings"
 
+	"github.com/gnolang/tlin/internal/rule"
 	tt "github.com/gnolang/tlin/internal/types"
 )
+
+// versionSuffix matches a trailing path segment of the form v0, v1, …
+// gno import paths use this convention (see gnolang/gno#5220), so the
+// real package name is the segment preceding it, not "vN".
+var versionSuffix = regexp.MustCompile(`^v\d+$`)
+
+func init() {
+	rule.Register(unusedPackageRule{})
+}
+
+type unusedPackageRule struct{}
+
+func (unusedPackageRule) Name() string                 { return "unused-package" }
+func (unusedPackageRule) DefaultSeverity() tt.Severity { return tt.SeverityWarning }
+
+func (unusedPackageRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	return DetectGnoPackageImports(ctx)
+}
 
 const (
 	GNO_PKG_PREFIX  = "gno.land/"
@@ -27,21 +47,15 @@ type Dependency struct {
 
 type Dependencies map[string]*Dependency
 
-func DetectGnoPackageImports(filename string, _ *ast.File, fset *token.FileSet, severity tt.Severity) ([]tt.Issue, error) {
-	file, deps, err := analyzeFile(filename)
-	if err != nil {
-		return nil, fmt.Errorf("error analyzing file: %w", err)
-	}
-
-	issues := runGnoPackageLinter(file, fset, deps, severity)
-
-	for i := range issues {
-		issues[i].Filename = filename
-	}
-
-	return issues, nil
+func DetectGnoPackageImports(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	deps := extractDependencies(ctx.File)
+	return runGnoPackageLinter(ctx, deps), nil
 }
 
+// analyzeFile reads + parses the file from disk and returns the AST
+// alongside its computed dependencies. Kept for tests; production
+// callers go through DetectGnoPackageImports which uses ctx.File and
+// avoids the second os.ReadFile + parse.
 func analyzeFile(filename string) (*ast.File, Dependencies, error) {
 	content, err := os.ReadFile(filename)
 	if err != nil {
@@ -54,6 +68,10 @@ func analyzeFile(filename string) (*ast.File, Dependencies, error) {
 		return nil, nil, err
 	}
 
+	return file, extractDependencies(file), nil
+}
+
+func extractDependencies(file *ast.File) Dependencies {
 	deps := make(Dependencies)
 	for _, imp := range file.Imports {
 		impPath := strings.Trim(imp.Path.Value, `"`)
@@ -75,7 +93,7 @@ func analyzeFile(filename string) (*ast.File, Dependencies, error) {
 				for _, imp := range file.Imports {
 					if imp.Name != nil && imp.Name.Name == ident.Name {
 						deps[strings.Trim(imp.Path.Value, `"`)].IsUsed = true
-					} else if lastPart := getLastPart(strings.Trim(imp.Path.Value, `"`)); lastPart == ident.Name {
+					} else if pkgName := effectivePackageName(strings.Trim(imp.Path.Value, `"`)); pkgName == ident.Name {
 						deps[strings.Trim(imp.Path.Value, `"`)].IsUsed = true
 					}
 				}
@@ -84,27 +102,19 @@ func analyzeFile(filename string) (*ast.File, Dependencies, error) {
 		return true
 	})
 
-	return file, deps, nil
+	return deps
 }
 
-func runGnoPackageLinter(_ *ast.File, fset *token.FileSet, deps Dependencies, severity tt.Severity) []tt.Issue {
-	var issues []tt.Issue
-
+func runGnoPackageLinter(ctx *rule.AnalysisContext, deps Dependencies) []tt.Issue {
+	issues := make([]tt.Issue, 0, len(deps))
 	for imp, dep := range deps {
-		if !dep.IsUsed && !dep.IsIgnored {
-			startPos := fset.Position(dep.Line)
-			endPos := fset.Position(dep.Column)
-			issue := tt.Issue{
-				Rule:     "unused-import",
-				Message:  fmt.Sprintf("unused import: %s", imp),
-				Severity: severity,
-				Start:    startPos,
-				End:      endPos,
-			}
-			issues = append(issues, issue)
+		if dep.IsUsed || dep.IsIgnored {
+			continue
 		}
+		issue := ctx.NewIssue("unused-package", dep.Line, dep.Column)
+		issue.Message = fmt.Sprintf("unused import: %s", imp)
+		issues = append(issues, issue)
 	}
-
 	return issues
 }
 
@@ -112,7 +122,10 @@ func isGnoPackage(importPath string) bool {
 	return strings.HasPrefix(importPath, GNO_PKG_PREFIX) || importPath == GNO_STD_PACKAGE
 }
 
-func getLastPart(path string) string {
+func effectivePackageName(path string) string {
 	parts := strings.Split(path, "/")
+	if len(parts) >= 2 && versionSuffix.MatchString(parts[len(parts)-1]) {
+		return parts[len(parts)-2]
+	}
 	return parts[len(parts)-1]
 }
