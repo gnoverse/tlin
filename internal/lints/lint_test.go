@@ -31,7 +31,7 @@ func newTestContext(filename string, node *ast.File, fset *token.FileSet, src []
 func writeGnoPackage(t *testing.T, files map[string]string) *rule.PackageContext {
 	t.Helper()
 	dir := t.TempDir()
-	var paths []string
+	paths := make([]string, 0, len(files))
 	for name, src := range files {
 		p := filepath.Join(dir, name)
 		require.NoError(t, os.WriteFile(p, []byte(src), 0o644))

@@ -48,8 +48,9 @@ func gnoPackageFiles(pctx *rule.PackageContext) map[string][]gnoFile {
 
 // checkGnoPackage runs scan once per Gno package in pctx.
 func checkGnoPackage(pctx *rule.PackageContext, scan func(*rule.PackageContext, []gnoFile) []tt.Issue) ([]tt.Issue, error) {
-	var issues []tt.Issue
-	for _, files := range gnoPackageFiles(pctx) {
+	pkgs := gnoPackageFiles(pctx)
+	issues := make([]tt.Issue, 0, len(pkgs))
+	for _, files := range pkgs {
 		issues = append(issues, scan(pctx, files)...)
 	}
 	return issues, nil
