@@ -1,6 +1,7 @@
 package lints
 
 import (
+	"context"
 	"go/parser"
 	"go/token"
 	"testing"
@@ -125,6 +126,55 @@ func GetStore() (*Tree, bool) { return store, true }
 			expected: 1,
 		},
 		{
+			name: "local alias of package var is caught",
+			code: `
+package vault
+
+type Tree struct{ size int }
+
+var store = &Tree{}
+
+func GetStore() *Tree {
+	s := store
+	return s
+}
+`,
+			expected: 1,
+		},
+		{
+			name: "chained alias is caught",
+			code: `
+package vault
+
+type Tree struct{ size int }
+
+var store = &Tree{}
+
+func GetStore() *Tree {
+	s := store
+	t := s
+	return t
+}
+`,
+			expected: 1,
+		},
+		{
+			name: "named result with bare return is caught",
+			code: `
+package vault
+
+type Tree struct{ size int }
+
+var store = &Tree{}
+
+func GetStore() (s *Tree) {
+	s = store
+	return
+}
+`,
+			expected: 1,
+		},
+		{
 			name: "nested func literal returns are ignored",
 			code: `
 package vault
@@ -142,6 +192,31 @@ func Walk() *Tree {
 			expected: 0,
 		},
 	}
+
+	t.Run("state and getter split across files", func(t *testing.T) {
+		t.Parallel()
+
+		pctx := writeGnoPackage(t, map[string]string{
+			"state.gno": `
+package vault
+
+type Tree struct{ size int }
+
+var store = &Tree{}
+`,
+			"api.gno": `
+package vault
+
+func GetStore() *Tree { return store }
+`,
+		})
+
+		issues, err := exportedMutablePointerRule{}.CheckPackage(context.Background(), pctx)
+		require.NoError(t, err)
+		require.Len(t, issues, 1)
+		assert.Equal(t, "exported-mutable-pointer", issues[0].Rule)
+		assert.Contains(t, issues[0].Filename, "api.gno")
+	})
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

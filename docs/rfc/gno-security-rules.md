@@ -49,7 +49,7 @@ Files with no crossing functions (non-crossing helpers, unmigrated realms) may u
 - **Category**: bug prevention (security)
 - **Auto-fixable**: no
 
-`realm` values are ephemeral call-frame data; persisting one panics at attach time. Package-level `var` declarations and struct fields of type `realm` are flagged.
+`realm` values are ephemeral call-frame data; persisting one panics at attach time. Package-level `var` declarations and struct fields whose type contains `realm` anywhere in its shape (`realm`, `[]realm`, `map[string]realm`, `*realm`, …) are flagged. Applies to `.gno` files only, since plain Go code may define its own `realm` type.
 
 #### Incorrect
 
@@ -73,7 +73,7 @@ func Save(cur realm) { savedAddr = cur.Previous().Address() }
 - **Category**: bug prevention (security)
 - **Auto-fixable**: no
 
-`IsUser()` accepts `maketx run` ephemeral realms, which can consume the origin-send envelope before calling the guarded function. In any file that calls `OriginSend`, every `IsUser()` call is flagged; the guard must be `IsUserCall()`.
+`IsUser()` accepts `maketx run` ephemeral realms, which can consume the origin-send envelope before calling the guarded function. If any file of the package calls `OriginSend`, every `IsUser()` call in the package is flagged; the guard must be `IsUserCall()`. The rule is package-scoped (a `PackageRule`) so a guard in `guards.gno` and the `OriginSend` call in `deposit.gno` are still correlated.
 
 #### Incorrect
 
@@ -100,7 +100,7 @@ coins := banker.OriginSend()
 - **Category**: bug prevention (security)
 - **Auto-fixable**: no
 
-Returning a pointer to realm state lets any caller invoke mutation methods on it; borrow rule #2 commits those writes under the realm's authority, and readonly taint does not block method dispatch. Exported functions in `.gno` files whose pointer-typed results return a package-level variable (or its address, or a field chain rooted in one) are flagged.
+Returning a pointer to realm state lets any caller invoke mutation methods on it; borrow rule #2 commits those writes under the realm's authority, and readonly taint does not block method dispatch. Exported functions in `.gno` files whose pointer-typed results return a package-level variable (or its address, a field chain rooted in one, a simple local alias of one, or a named result assigned from one) are flagged. The rule is package-scoped (a `PackageRule`), so vars declared in `state.gno` and getters in `api.gno` are still matched. Alias tracking is a single forward pass without reassignment kill.
 
 Warning (not error) because single-file analysis cannot see whether the pointed-to type actually has mutation methods.
 

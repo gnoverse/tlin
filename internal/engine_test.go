@@ -314,6 +314,10 @@ func TestRulesFireOnTestdata(t *testing.T) {
 		{"unused-package", "pkg/pkg0.gno"},
 		{"simplify-for-range", "simple_for/for_len.gno"},
 		{"format-without-verb", "format_verb/positive.gno"},
+		{"unsafe-previous-realm", "security/unsafe_realm.gno"},
+		{"stored-realm", "security/stored_realm.gno"},
+		{"payment-guard", "security/payment.gno"},
+		{"exported-mutable-pointer", "security/mutable_ptr.gno"},
 	}
 
 	for _, tc := range cases {

@@ -76,6 +76,23 @@ var (
 			expected: 1,
 		},
 		{
+			name: "realm containers are flagged",
+			code: `
+package vault
+
+var (
+	realms  []realm
+	byName  map[string]realm
+	pointer *realm
+)
+
+type record struct {
+	owners map[realm]string
+}
+`,
+			expected: 4,
+		},
+		{
 			name: "user-defined realm-named struct type is still flagged by name",
 			code: `
 package vault
@@ -89,6 +106,25 @@ var b box
 			expected: 1,
 		},
 	}
+
+	t.Run("plain go file is not checked", func(t *testing.T) {
+		t.Parallel()
+
+		code := `
+package game
+
+type realm struct{ name string }
+
+var current realm
+`
+		fset := token.NewFileSet()
+		node, err := parser.ParseFile(fset, "file.go", code, parser.ParseComments)
+		require.NoError(t, err)
+
+		issues, err := DetectStoredRealm(newTestContext("file.go", node, fset, []byte(code)))
+		require.NoError(t, err)
+		assert.Empty(t, issues)
+	})
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

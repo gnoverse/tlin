@@ -27,6 +27,24 @@ func newTestContext(filename string, node *ast.File, fset *token.FileSet, src []
 	}
 }
 
+// writeGnoPackage returns a temp-file PackageContext for package-rule tests.
+func writeGnoPackage(t *testing.T, files map[string]string) *rule.PackageContext {
+	t.Helper()
+	dir := t.TempDir()
+	var paths []string
+	for name, src := range files {
+		p := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(p, []byte(src), 0o644))
+		paths = append(paths, p)
+	}
+	return &rule.PackageContext{
+		Dir:           dir,
+		OriginalPaths: paths,
+		WorkingPaths:  paths,
+		Severity:      types.SeverityError,
+	}
+}
+
 func TestDetectUnnecessarySliceLength(t *testing.T) {
 	t.Parallel()
 	baseMsg := "unnecessary use of len() in slice expression, can be simplified"

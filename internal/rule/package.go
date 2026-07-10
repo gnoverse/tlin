@@ -2,6 +2,8 @@ package rule
 
 import (
 	"context"
+	"go/ast"
+	"go/token"
 	"path/filepath"
 	"sync"
 
@@ -40,6 +42,10 @@ type PackageContext struct {
 	// OriginalPaths (same .go path for plain .go inputs; a temp .go
 	// path for converted .gno inputs).
 	WorkingPaths []string
+	// Files and Fsets are index-aligned with WorkingPaths and may hold
+	// nil entries for failed loads.
+	Files []*ast.File
+	Fsets []*token.FileSet
 	// Severity is the resolved severity for this rule on this run
 	// (config override or DefaultSeverity). Rules embed this in
 	// Issue.Severity.
@@ -106,6 +112,8 @@ func (ctx *AnalysisContext) SinglePackage() *PackageContext {
 		Dir:           dir,
 		OriginalPaths: []string{ctx.OriginalPath},
 		WorkingPaths:  []string{ctx.WorkingPath},
+		Files:         []*ast.File{ctx.File},
+		Fsets:         []*token.FileSet{ctx.Fset},
 		Severity:      ctx.Severity,
 	}
 }

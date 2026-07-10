@@ -26,6 +26,10 @@ func (storedRealmRule) Check(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
 // one panics at persistence time. Store Previous().Address() or
 // PkgPath() strings instead.
 func DetectStoredRealm(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
+	if !isGnoFile(ctx.OriginalPath) {
+		return nil, nil
+	}
+
 	var issues []tt.Issue
 
 	flag := func(node ast.Node, msg string) {
@@ -42,7 +46,7 @@ func DetectStoredRealm(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
 		for _, spec := range gen.Specs {
 			switch s := spec.(type) {
 			case *ast.ValueSpec:
-				if gen.Tok == token.VAR && isRealmType(s.Type) {
+				if gen.Tok == token.VAR && containsRealmType(s.Type) {
 					flag(s, "realm values are ephemeral and must not be stored in package-level variables; store Previous().Address() or PkgPath() instead")
 				}
 			case *ast.TypeSpec:
@@ -51,7 +55,7 @@ func DetectStoredRealm(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
 					continue
 				}
 				for _, field := range st.Fields.List {
-					if isRealmType(field.Type) {
+					if containsRealmType(field.Type) {
 						flag(field, "realm values are ephemeral and must not be stored in struct fields; store Address() or PkgPath() strings instead")
 					}
 				}
@@ -65,4 +69,21 @@ func DetectStoredRealm(ctx *rule.AnalysisContext) ([]tt.Issue, error) {
 func isRealmType(expr ast.Expr) bool {
 	ident, ok := expr.(*ast.Ident)
 	return ok && ident.Name == "realm"
+}
+
+// containsRealmType reports whether expr contains a persisted realm value.
+func containsRealmType(expr ast.Expr) bool {
+	switch e := expr.(type) {
+	case *ast.Ident:
+		return isRealmType(e)
+	case *ast.StarExpr:
+		return containsRealmType(e.X)
+	case *ast.ArrayType:
+		return containsRealmType(e.Elt)
+	case *ast.MapType:
+		return containsRealmType(e.Key) || containsRealmType(e.Value)
+	case *ast.ChanType:
+		return containsRealmType(e.Value)
+	}
+	return false
 }
