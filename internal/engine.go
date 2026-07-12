@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"go/ast"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -196,6 +197,8 @@ func (e *Engine) RunPackage(ctx context.Context, dir string, paths []string) ([]
 	}
 
 	workingPaths := make([]string, len(paths))
+	files := make([]*ast.File, len(paths))
+	fsets := make([]*token.FileSet, len(paths))
 	nolintMgrs := make(map[string]*nolint.Manager, len(paths))
 	sources := make([]*rule.Source, 0, len(paths))
 	defer func() {
@@ -218,6 +221,8 @@ func (e *Engine) RunPackage(ctx context.Context, dir string, paths []string) ([]
 		}
 		sources = append(sources, s)
 		workingPaths[i] = s.WorkingPath
+		files[i] = s.File
+		fsets[i] = s.Fset
 		nolintMgrs[s.WorkingPath] = s.NolintMgr
 	}
 
@@ -225,6 +230,8 @@ func (e *Engine) RunPackage(ctx context.Context, dir string, paths []string) ([]
 		Dir:           dir,
 		OriginalPaths: paths,
 		WorkingPaths:  workingPaths,
+		Files:         files,
+		Fsets:         fsets,
 	}
 
 	var allIssues []tt.Issue
