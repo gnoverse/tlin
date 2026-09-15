@@ -49,6 +49,9 @@ func (golangciLintRule) CheckPackage(ctx context.Context, pctx *rule.PackageCont
 	}
 
 	cmd := exec.CommandContext(ctx, "golangci-lint", "run", "--config=./.golangci.yml", "--out-format=json", target)
+	if env := cachedDriverEnv(); env != nil {
+		cmd.Env = env
+	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	stdout, _ := cmd.Output()
