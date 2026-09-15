@@ -10,7 +10,7 @@ require (
 	github.com/schollz/progressbar/v3 v3.19.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/goleak v1.3.0
-	golang.org/x/tools v0.48.0
+	golang.org/x/tools v0.50.0
 )
 
 require (
@@ -26,9 +26,9 @@ require (
 	github.com/tetratelabs/wazero v1.10.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/image v0.34.0 // indirect
-	golang.org/x/mod v0.38.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/mod v0.41.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/term v0.38.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 )
