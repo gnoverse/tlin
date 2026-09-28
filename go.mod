@@ -3,7 +3,7 @@ module github.com/gnolang/tlin
 go 1.26.0
 
 require (
-	github.com/bmatcuk/doublestar/v4 v4.10.0
+	github.com/bmatcuk/doublestar/v4 v4.10.2
 	github.com/fatih/color v1.19.0
 	github.com/fzipp/gocyclo v0.6.0
 	github.com/goccy/go-graphviz v0.2.10
